@@ -10,8 +10,7 @@ from django.template import loader
 
 def index(request):
     template = loader.get_template("home/index.html")
-    
-    
+
     students = [
         {"name": "Sara Vesela", "matriculation": "650869"},
         {"name": "Veronika Anokhina", "matriculation": "650885"},
@@ -19,8 +18,8 @@ def index(request):
     ]
     
     projects = [
-        {"name": "Home", "url_name": "home:index"},
-        {"name": "Home 2", "url_name": "home:index"},
+        {"name": "Project 1", "url_name": "project1:index"},
+        # {"name": "Project 2", "url_name": "home:index"},
     ]
 
     context = { 
