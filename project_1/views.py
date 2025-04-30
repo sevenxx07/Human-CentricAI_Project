@@ -9,6 +9,10 @@ import pandas as pd
 
 from django.conf import settings
 from django.shortcuts import render
+
+from .ML_models.logistic_reg import LogisticReg
+from .ML_models.decision_tree import DecisionTree
+from .ML_models.knn import KNN
 from .forms import CSVUploadForm
 from django.http import HttpResponse
 from django.template import loader
@@ -41,8 +45,15 @@ def index(request):
                     context['data_preview'] = df.head(10).values.tolist()
                     context['csv_uploaded'] = True
                     context['uploaded_filename'] = csv_file.name
+                    DATA_STORAGE['csv_name'] = csv_file.name
             except Exception as e:
                 context['error'] = f"Error reading CSV: {str(e)}"
+
+        elif action == 'select' and 'csv_loaded' in request.POST:
+            model_type = request.POST.get('model')
+            context['selected_model'] = model_type
+            context['csv_uploaded'] = True
+            context['uploaded_filename'] = DATA_STORAGE.get('csv_name')
 
         elif action == 'plot' and 'csv_loaded' in request.POST:
             df = DATA_STORAGE.get('df')
@@ -50,36 +61,35 @@ def index(request):
                 context['error'] = "No CSV uploaded."
             else:
                 model_type = request.POST.get('model')
+                context['selected_model'] = model_type
+                context['csv_uploaded'] = True
+                context['uploaded_filename'] = DATA_STORAGE.get('csv_name')
 
                 # Feature columns and label
                 X = df.iloc[:, :-1]
                 y = df.iloc[:, -1]
 
-                # Encode target if classification
-                if y.dtype == 'object':
-                    le = LabelEncoder()
-                    y = le.fit_transform(y)
-
-                X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
-
                 if model_type == 'logistic':
                     C = float(request.POST.get('C', 1.0))
-                    model = LogisticRegression(C=C, max_iter=1000)
+                    context['selected_C'] = request.POST.get('C', '1.0')
+                    model = LogisticReg(X, y, C, 1000)
                 elif model_type == 'tree':
                     max_depth = int(request.POST.get('max_depth', 5))
-                    model = DecisionTreeClassifier(max_depth=max_depth)
+                    context['selected_max_depth'] = request.POST.get('max_depth', '5')
+                    model = DecisionTree(X, y, max_depth)
+                elif model_type == 'knn':
+                    k = int(request.POST.get('k', 5))
+                    context['selected_k'] = request.POST.get('k', '5')
+                    model = KNN(X, y, k)
                 else:
                     context['error'] = "Unsupported model selected."
                     return render(request, 'project1/index.html', context)
 
-                model.fit(X_train, y_train)
-
-                # Plot first two features
+                # Plotting just the first two features
                 plt.figure(figsize=(6, 4))
                 scatter = plt.scatter(X.iloc[:, 0], X.iloc[:, 1], c=y, cmap='viridis')
                 plt.xlabel(X.columns[0])
                 plt.ylabel(X.columns[1])
-                plt.title(f"{model.__class__.__name__} Result")
                 plt.colorbar(scatter)
 
                 filename = f"plot_{uuid.uuid4().hex}.png"
