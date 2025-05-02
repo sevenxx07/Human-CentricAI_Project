@@ -18,8 +18,6 @@ def index(request):
     ]
     
     projects = [
-        {"name": "Home", "url_name": "home:index"},
-        {"name": "Home 2", "url_name": "home:index"},
         {"name": "Project 1", "url_name": "project1:index"},
     ]
 
