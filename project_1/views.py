@@ -1,3 +1,6 @@
+import matplotlib 
+matplotlib.use('Agg') # Force non-GUI backend 
+
 # Standard libraries
 import csv
 import io
@@ -30,7 +33,7 @@ from django.core.files.storage import default_storage
 # from sklearn.linear_model import LogisticRegression
 # from sklearn.tree import DecisionTreeClassifier
 # from sklearn.model_selection import train_test_split
-# from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import LabelEncoder
 
 # Scikit-learn for ML support (if needed)
 # from sklearn.linear_model import LogisticRegression
@@ -52,6 +55,8 @@ def index(request):
 
     if request.method == 'POST':
         action = request.POST.get('action')  # Get the action from the form (upload, select, plot)
+        print("ACTION:", action)
+
 
         if action == 'upload' and 'csv_file' in request.FILES:
             handle_csv_upload(request, context)
@@ -116,6 +121,10 @@ def handle_plot_generation(request, context):
     X = df.iloc[:, :-1]
     y = df.iloc[:, -1]
 
+    le = LabelEncoder()
+    y_encoded = le.fit_transform(y)
+    print("Encoded labels:", y_encoded[:10])
+
     # Instantiate the appropriate model
     if model_type == 'logistic':
         C = float(request.POST.get('C', 1.0))
@@ -135,7 +144,8 @@ def handle_plot_generation(request, context):
 
     # Plotting just the first two features
     plt.figure(figsize=(6, 4))
-    scatter = plt.scatter(X.iloc[:, 0], X.iloc[:, 1], c=y, cmap='viridis')
+    #scatter = plt.scatter(X.iloc[:, 0], X.iloc[:, 1], c=y, cmap='viridis')
+    scatter = plt.scatter(X.iloc[:, 0], X.iloc[:, 1], c=y_encoded, cmap='viridis')
     plt.xlabel(X.columns[0])
     plt.ylabel(X.columns[1])
     plt.colorbar(scatter)
