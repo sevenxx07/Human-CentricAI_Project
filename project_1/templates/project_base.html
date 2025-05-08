@@ -31,6 +31,39 @@
             {% endif %}
         </div>
 
+
+        <!-- ✅ NEW STEP: Visualize Dataset
+        {% if csv_uploaded %}
+        <div class="step-box" style="margin-bottom: 20px;">
+            <h3>Step 1.5: Visualize Data</h3>
+
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="visualize">
+
+                <label for="feature1">Feature 1 (X-axis):</label>
+                <select name="feature1">
+                    {% for col in column_names %}
+                        <option value="{{ col }}" {% if selected_feature1 == col %}selected{% endif %}>{{ col }}</option>
+                    {% endfor %}
+                </select>
+
+                <label for="feature2">Feature 2 (Y-axis):</label>
+                <select name="feature2">
+                    {% for col in column_names %}
+                        <option value="{{ col }}" {% if selected_feature2 == col %}selected{% endif %}>{{ col }}</option>
+                    {% endfor %}
+                </select>
+
+                <button type="submit">Visualize</button>
+            </form>
+
+            {% if scatter_url %}
+                <img src="{{ scatter_url }}" width="500">
+            {% endif %}
+        </div>
+        {% endif %} -->
+
         <!-- ✅ STEP 2: Choose Model -->
         <div class="step-box" style="margin-bottom: 20px;">
             <h3>Step 2: Choose Model</h3>
