@@ -117,11 +117,9 @@
                 {% endif %}
 
                 <br><br>
-                <button type="submit">Plot</button>
+
             </form>
-        </div>
-        <!-- ✅ STEP 4: Split Data -->
-        <div class="step-box" style="margin-top: 20px;" id="step-4">
+            <!-- ✅ STEP 4: Split Data -->
             <h3>Step 4: Split Data</h3>
             <form method="post">
                 {% csrf_token %}
@@ -136,13 +134,13 @@
                 </label>
 
                 {% if split_success %}
-                    <p style="color: green;">Data split successfully!</p>
+                    <p style="color: green;">Model set successfully!</p>
                 {% else %}
-                    <p style="color: red;">Data not split yet.</p>
+                    <p style="color: red;">Model set not successful.</p>
                 {% endif %}
 
                 <br><br>
-                <button type="submit" name="action" value="split">Split</button>
+                <button type="submit" name="action" value="split">Set</button>
             </form>
         </div>
         <!-- ✅ STEP 5: Train Model -->
