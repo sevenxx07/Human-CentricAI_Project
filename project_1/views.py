@@ -22,7 +22,7 @@ from django.shortcuts import render
 # Import our own ML model classes
 
 # Django form for file upload
-from .forms import ModelSelectionForm
+#from .forms import ModelSelectionForm
 from sklearn.preprocessing import LabelEncoder
 
 # In-memory storage of uploaded data (temporary)
@@ -132,7 +132,6 @@ def handle_train_model(request, context):
     context['train_success'] = True
 
 
-
 def handle_model_selection(request, context):
     """
     Handles the model selection from the dropdown menu.
@@ -180,29 +179,63 @@ def handle_plot_generation(request, context):
     context['csv_uploaded'] = True
     context['uploaded_filename'] = DATA_STORAGE.get('csv_name')
 
-    # Split dataset: last column is label, rest are features
+
+    model = DATA_STORAGE.get("model")
     X = df.iloc[:, :-1]
     y = df.iloc[:, -1]
 
     le = LabelEncoder()
     y_encoded = le.fit_transform(y)
-    print("Encoded labels:", y_encoded[:10])
+    #print("Encoded labels:", y_encoded[:10])
 
-    # Plotting just the first two features
     plt.figure(figsize=(6, 4))
-    # scatter = plt.scatter(X.iloc[:, 0], X.iloc[:, 1], c=y, cmap='viridis')
-    scatter = plt.scatter(X.iloc[:, 0], X.iloc[:, 1], c=y_encoded, cmap='viridis')
-    plt.xlabel(X.columns[0])
-    plt.ylabel(X.columns[1])
-    plt.colorbar(scatter)
 
-    # Save the plot image to the media
+    if model and "X_test" in DATA_STORAGE and "y_test" in DATA_STORAGE: 
+        X_test = DATA_STORAGE['X_test']
+        y_test = DATA_STORAGE['y_test']
+
+        y_test_encoded = le.transform(y_test)
+        try: 
+            y_pred = model.predict(X_test)
+        except Exception as e: 
+            context['error'] = f" Model prediction failed: {str(e)} "
+            return 
+        
+        scatter = plt.scatter(X_test.iloc[:, 0], X_test.iloc[:, 1], c=y_pred, cmap='coolwarm', alpha=0.7)
+        plt.title("Predicted Labels (first two features)")
+        plt.colorbar(scatter, label="Predicted Class")
+        plt.xlabel(X_test.columns[0])
+        plt.ylabel(X_test.columns[1])
+    else:
+        scatter = plt.scatter(X.iloc[:, 0], X.iloc[:, 1], c=y_encoded, cmap='viridis', alpha=0.7)
+        plt.title("Raw Data (first two features)")
+        plt.colorbar(scatter, label="True Class")
+        plt.xlabel(X.columns[0])
+        plt.ylabel(X.columns[1])
+
     filename = f"plot_{uuid.uuid4().hex}.png"
     image_path = os.path.join(settings.MEDIA_ROOT, filename)
     plt.savefig(image_path)
     plt.close()
 
-    # Pass the image URL to the HTML template
     context['image_url'] = settings.MEDIA_URL + filename
-    context['column_names'] = list(df.columns)
-    context['data_preview'] = df.head(10).values
+    
+    
+    # # Plotting just the first two features
+    
+    # # scatter = plt.scatter(X.iloc[:, 0], X.iloc[:, 1], c=y, cmap='viridis')
+    # scatter = plt.scatter(X.iloc[:, 0], X.iloc[:, 1], c=y_encoded, cmap='viridis')
+    # plt.xlabel(X.columns[0])
+    # plt.ylabel(X.columns[1])
+    # plt.colorbar(scatter)
+
+    # # Save the plot image to the media
+    # filename = f"plot_{uuid.uuid4().hex}.png"
+    # image_path = os.path.join(settings.MEDIA_ROOT, filename)
+    # plt.savefig(image_path)
+    # plt.close()
+
+    # # Pass the image URL to the HTML template
+    # context['image_url'] = settings.MEDIA_URL + filename
+    # context['column_names'] = list(df.columns)
+    # context['data_preview'] = df.head(10).values
