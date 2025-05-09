@@ -179,70 +179,148 @@ def handle_plot_generation(request, context):
     if df is None:
         context['error'] = "No CSV uploaded."
         return
-
-    # Loading model from previous choice
-    model_type = request.POST.get('model')
-    context['selected_model'] = model_type
+    
     context['csv_uploaded'] = True
     context['uploaded_filename'] = DATA_STORAGE.get('csv_name')
+    
+    feature1 = request.POST.get('feature1')
+    feature2 = request.POST.get('feature2')
 
-
-    model = DATA_STORAGE.get("model")
-    X = df.iloc[:, :-1]
-    y = df.iloc[:, -1]
+    if not feature1 or not feature2:
+        context['error'] = "Please select both features."
+        return
+    
+    X = df[[feature1, feature2]]  # Selected features from the dataset
+    y = df.iloc[:, -1]  # Last column is the label
 
     le = LabelEncoder()
     y_encoded = le.fit_transform(y)
-    #print("Encoded labels:", y_encoded[:10])
 
     plt.figure(figsize=(6, 4))
 
-    if model and "X_test" in DATA_STORAGE and "y_test" in DATA_STORAGE: 
-        X_test = DATA_STORAGE['X_test']
-        y_test = DATA_STORAGE['y_test']
+    #scatter_true = plt.scatter(X.iloc[:, 0], X.iloc[:, 1], c=y_encoded, cmap='viridis', alpha=0.7)
 
-        y_test_encoded = le.transform(y_test)
-        try: 
-            y_pred = model.predict(X_test)
-        except Exception as e: 
-            context['error'] = f" Model prediction failed: {str(e)} "
-            return 
+    model = DATA_STORAGE.get("model")
+
+    if model: 
+        try:
+            y_pred = model.predict(X)
+            y_pred_encoded = le.transform(y_pred)  # Encode predicted labels
+            scatter = plt.scatter(X.iloc[:, 0], X.iloc[:, 1], c=y_pred_encoded, cmap='coolwarm', alpha=0.7, marker='x')
+            plt.title("Model Predictions")
+            legend_labels = le.classes_
+            for i, label in enumerate(legend_labels):
+                plt.scatter([], [], c=plt.cm.coolwarm(i / len(legend_labels)), marker='x', label=label)
+        except Exception as e:
+            context['error'] = f"Model prediction failed: {str(e)}"
+            return
         
-        scatter = plt.scatter(X_test.iloc[:, 0], X_test.iloc[:, 1], c=y_pred, cmap='coolwarm', alpha=0.7)
-        plt.title("Predicted Labels (first two features)")
-        plt.colorbar(scatter, label="Predicted Class")
-        plt.xlabel(X_test.columns[0])
-        plt.ylabel(X_test.columns[1])
-    else:
+    else: 
         scatter = plt.scatter(X.iloc[:, 0], X.iloc[:, 1], c=y_encoded, cmap='viridis', alpha=0.7)
-        plt.title("Raw Data (first two features)")
-        plt.colorbar(scatter, label="True Class")
-        plt.xlabel(X.columns[0])
-        plt.ylabel(X.columns[1])
+        plt.title("Raw Data")
+        legend_labels = le.classes_
+        for i, label in enumerate(legend_labels):
+            plt.scatter([], [], c=plt.cm.viridis(i / len(legend_labels)), label=label)
+
+    plt.xlabel(feature1)
+    plt.ylabel(feature2)
+    plt.legend(loc='best')
 
     filename = f"plot_{uuid.uuid4().hex}.png"
     image_path = os.path.join(settings.MEDIA_ROOT, filename)
     plt.savefig(image_path)
     plt.close()
 
-    context['image_url'] = settings.MEDIA_URL + filename
-    
-    
-    # # Plotting just the first two features
-    
-    # # scatter = plt.scatter(X.iloc[:, 0], X.iloc[:, 1], c=y, cmap='viridis')
-    # scatter = plt.scatter(X.iloc[:, 0], X.iloc[:, 1], c=y_encoded, cmap='viridis')
-    # plt.xlabel(X.columns[0])
-    # plt.ylabel(X.columns[1])
-    # plt.colorbar(scatter)
+    context['scatter_url'] = settings.MEDIA_URL + filename
+    context['image_url'] = context['scatter_url']
+    context['selected_feature1'] = feature1
+    context['selected_feature2'] = feature2
 
-    # # Save the plot image to the media
+    #         # Plot the predicted labels (from the model)
+    #         scatter_pred = plt.scatter(X.iloc[:, 0], X.iloc[:, 1], c=y_pred_encoded, cmap='coolwarm', alpha=0.7, marker='x', label="Predicted Labels")
+    #     except Exception as e:
+    #         context['error'] = f"Model prediction failed: {str(e)}"
+    #         return
+        
+    # plt.colorbar(scatter_true, label="True Class")
+    # plt.xlabel(feature1)
+    # plt.ylabel(feature2)
+
+    # plt.legend(loc='best')
+
     # filename = f"plot_{uuid.uuid4().hex}.png"
     # image_path = os.path.join(settings.MEDIA_ROOT, filename)
     # plt.savefig(image_path)
     # plt.close()
 
-    # # Pass the image URL to the HTML template
+    # # Pass the plot URL back to the context
+    # context['scatter_url'] = settings.MEDIA_URL + filename
+    # context['selected_feature1'] = feature1
+    # context['selected_feature2'] = feature2
+ ##
+    # plt.title(f"Visualization of {feature1} vs {feature2}")
+    # plt.colorbar(scatter, label="True Class")
+    # plt.xlabel(feature1)
+    # plt.ylabel(feature2)
+
+    # # Save the plot
+    # filename = f"plot_{uuid.uuid4().hex}.png"
+    # image_path = os.path.join(settings.MEDIA_ROOT, filename)
+    # plt.savefig(image_path)
+    # plt.close()
+
+    # # Pass the plot URL back to the context
+    # context['scatter_url'] = settings.MEDIA_URL + filename
+    # context['selected_feature1'] = feature1
+    # context['selected_feature2'] = feature2
+
+##
+
+    # # Loading model from previous choice
+    # model_type = request.POST.get('model')
+    # context['selected_model'] = model_type
+    # context['csv_uploaded'] = True
+    # context['uploaded_filename'] = DATA_STORAGE.get('csv_name')
+
+
+    # model = DATA_STORAGE.get("model")
+    # X = df.iloc[:, :-1]
+    # y = df.iloc[:, -1]
+
+    # le = LabelEncoder()
+    # y_encoded = le.fit_transform(y)
+    # #print("Encoded labels:", y_encoded[:10])
+
+    # plt.figure(figsize=(6, 4))
+
+    # if model and "X_test" in DATA_STORAGE and "y_test" in DATA_STORAGE: 
+    #     X_test = DATA_STORAGE['X_test']
+    #     y_test = DATA_STORAGE['y_test']
+
+    #     y_test_encoded = le.transform(y_test)
+    #     try: 
+    #         y_pred = model.predict(X_test)
+    #     except Exception as e: 
+    #         context['error'] = f" Model prediction failed: {str(e)} "
+    #         return 
+        
+    #     scatter = plt.scatter(X_test.iloc[:, 0], X_test.iloc[:, 1], c=y_pred, cmap='coolwarm', alpha=0.7)
+    #     plt.title("Predicted Labels (first two features)")
+    #     plt.colorbar(scatter, label="Predicted Class")
+    #     plt.xlabel(X_test.columns[0])
+    #     plt.ylabel(X_test.columns[1])
+    # else:
+    #     scatter = plt.scatter(X.iloc[:, 0], X.iloc[:, 1], c=y_encoded, cmap='viridis', alpha=0.7)
+    #     plt.title("Raw Data (first two features)")
+    #     plt.colorbar(scatter, label="True Class")
+    #     plt.xlabel(X.columns[0])
+    #     plt.ylabel(X.columns[1])
+
+    # filename = f"plot_{uuid.uuid4().hex}.png"
+    # image_path = os.path.join(settings.MEDIA_ROOT, filename)
+    # plt.savefig(image_path)
+    # plt.close()
+
     # context['image_url'] = settings.MEDIA_URL + filename
-    # context['column_names'] = list(df.columns)
-    # context['data_preview'] = df.head(10).values
+    
+    

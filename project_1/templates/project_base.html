@@ -32,14 +32,16 @@
         </div>
 
 
-        <!-- ✅ NEW STEP: Visualize Dataset
+        <!----✅ NEW STEP: Visualize Dataset---->
         {% if csv_uploaded %}
         <div class="step-box" style="margin-bottom: 20px;">
             <h3>Step 1.5: Visualize Data</h3>
 
             <form method="post">
                 {% csrf_token %}
-                <input type="hidden" name="action" value="visualize">
+                <input type="hidden" name="action" value="plot">
+                <input type="hidden" name="csv_loaded" value="1">
+                
 
                 <label for="feature1">Feature 1 (X-axis):</label>
                 <select name="feature1">
@@ -57,12 +59,16 @@
 
                 <button type="submit">Visualize</button>
             </form>
-
-            {% if scatter_url %}
-                <img src="{{ scatter_url }}" width="500">
-            {% endif %}
         </div>
-        {% endif %} -->
+
+        {% if scatter_url %}
+        <div class="step-box" style="margin-bottom: 20px;">
+            <h4>Visualization of Selected Features</h4>
+            <img src="{{ scatter_url }}" width="500">
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
 
         <!-- ✅ STEP 2: Choose Model -->
         <div class="step-box" style="margin-bottom: 20px;">
@@ -160,8 +166,8 @@
         <!-- ✅ OUTPUT -->
         <div class="step-box">
             <h3>Output</h3>
-            {% if image_url %}
-                <img src="{{ image_url }}" width="500">
+            {% if scatter_url %}
+                <img src="{{ scatter_url }}" width="500">
             {% else %}
                 <p>No plot to show yet.</p>
             {% endif %}
