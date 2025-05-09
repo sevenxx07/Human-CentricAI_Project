@@ -112,6 +112,50 @@
                 <button type="submit">Plot</button>
             </form>
         </div>
+        <!-- ✅ STEP 4: Split Data -->
+        <div class="step-box" style="margin-top: 20px;">
+            <h3>Step 4: Split Data</h3>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="csv_loaded" value="true">
+                <input type="hidden" name="model" value="{{ selected_model }}">
+                <input type="hidden" name="action" value="split">
+
+                <label for="test_size">Test Size (%):</label>
+                <label>
+                    <input type="number" name="test_size" value="{{ test_size|default:'20' }}" min="1" max="100" required>
+                </label>
+
+                {% if split_success %}
+                    <p style="color: green;">Data split successfully!</p>
+                {% else %}
+                    <p style="color: red;">Data not split yet.</p>
+                {% endif %}
+
+                <br><br>
+                <button type="submit">Split</button>
+            </form>
+        </div>
+        <!-- ✅ STEP 5: Train Model -->
+        <div class="step-box" style="margin-top: 20px;">
+            <h3>Step 5: Train Model</h3>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="csv_loaded" value="true">
+                <input type="hidden" name="model" value="{{ selected_model }}">
+                <input type="hidden" name="action" value="train">
+
+                <button type="submit">Train</button>
+            </form>
+
+            {% if model_trained %}
+                <p style="color: green;">Model trained successfully!</p>
+            {% else %}
+                <p style="color: red;">Model not trained yet.</p>
+            {% endif %}
+
+
+        </div>
 
         <!-- ✅ OUTPUT -->
         <div class="step-box">

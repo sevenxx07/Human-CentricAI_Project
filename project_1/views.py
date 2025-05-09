@@ -1,45 +1,29 @@
-import matplotlib 
-matplotlib.use('Agg') # Force non-GUI backend 
+import matplotlib
+from sklearn.model_selection import train_test_split
+
+from .ML_models.decision_tree import DecisionTree
+from .ML_models.knn import KNN
+from .ML_models.logistic_reg import LogisticReg
+
+matplotlib.use('Agg')  # Force non-GUI backend
 
 # Standard libraries
-import csv
-import io
 import os
 import uuid
 
 # Data science libraries
-import numpy as np
 from matplotlib import pyplot as plt
 import pandas as pd
 
 # Django utilities
 from django.conf import settings
 from django.shortcuts import render
-from django.http import HttpResponse
-from django.template import loader
-from django.core.files.storage import default_storage
 
 # Import our own ML model classes
-from .ML_models.logistic_reg import LogisticReg
-from .ML_models.decision_tree import DecisionTree
-from .ML_models.knn import KNN
 
 # Django form for file upload
-from .forms import CSVUploadForm
-from django.http import HttpResponse
-from django.template import loader
-from django.core.files.storage import default_storage
-
-# from sklearn.linear_model import LogisticRegression
-# from sklearn.tree import DecisionTreeClassifier
-# from sklearn.model_selection import train_test_split
+from .forms import ModelSelectionForm
 from sklearn.preprocessing import LabelEncoder
-
-# Scikit-learn for ML support (if needed)
-# from sklearn.linear_model import LogisticRegression
-# from sklearn.tree import DecisionTreeClassifier
-# from sklearn.model_selection import train_test_split
-# from sklearn.preprocessing import LabelEncoder
 
 # In-memory storage of uploaded data (temporary)
 DATA_STORAGE = {}
@@ -57,13 +41,16 @@ def index(request):
         action = request.POST.get('action')  # Get the action from the form (upload, select, plot)
         print("ACTION:", action)
 
-
         if action == 'upload' and 'csv_file' in request.FILES:
             handle_csv_upload(request, context)
         elif action == 'select' and 'csv_loaded' in request.POST:
             handle_model_selection(request, context)
         elif action == 'plot' and 'csv_loaded' in request.POST:
             handle_plot_generation(request, context)
+        elif action == "split" and 'csv_loaded' in request.POST:
+            handle_data_split(request, context)
+        elif action == "train" and 'csv_loaded' and 'model_type' in request.POST:
+            handle_train_model(request, context)
 
     return render(request, 'project_base.html', context)
 
@@ -92,14 +79,90 @@ def handle_csv_upload(request, context):
         context['error'] = f"Error reading CSV: {str(e)}"
 
 
+def handle_data_split(request, context):
+    """
+    Handles the data split into features and labels.
+    """
+    context['selected_model'] = DATA_STORAGE.get('model_type')
+    context['uploaded_filename'] = DATA_STORAGE.get('csv_name')
+    context['csv_uploaded'] = True
+
+    df = DATA_STORAGE.get('df')
+    if df is None:
+        context['error'] = "No CSV uploaded."
+        return
+
+    # Split dataset: last column is label, rest are features
+    X = df.iloc[:, :-1]
+    y = df.iloc[:, -1]
+
+    # Ask the user how much
+    test_size = float(request.POST.get('test_size', 0.2))
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size / 100, random_state=42)
+
+    DATA_STORAGE['X_train'] = X_train
+    DATA_STORAGE['X_test'] = X_test
+    DATA_STORAGE['y_train'] = y_train
+    DATA_STORAGE['y_test'] = y_test
+
+    context['split_success'] = True
+
+
+def handle_train_model(request, context):
+    context['selected_model'] = DATA_STORAGE['model_type']
+    context['csv_uploaded'] = True
+    context['uploaded_filename'] = DATA_STORAGE.get('csv_name')
+
+    X_train = DATA_STORAGE.get('X_train')
+    y_train = DATA_STORAGE.get('y_train')
+
+    if X_train is None or y_train is None:
+        context['error'] = "No training data available."
+        return
+
+    # Loading model from previous choice
+    model = DATA_STORAGE.get('model')
+    model.X = X_train
+    model.Y = y_train
+
+    # Train the model
+    model.train()
+
+    DATA_STORAGE['model'] = model
+    context['train_success'] = True
+
+
+
 def handle_model_selection(request, context):
     """
     Handles the model selection from the dropdown menu.
     """
     model_type = request.POST.get('model')
+    DATA_STORAGE['model_type'] = model_type
+
     context['selected_model'] = model_type
     context['csv_uploaded'] = True
     context['uploaded_filename'] = DATA_STORAGE.get('csv_name')
+
+    print("Model type selected:", model_type)
+
+    if model_type == 'logistic':
+        C = float(request.POST.get('C', 1.0))
+        context['selected_C'] = request.POST.get('C', '1.0')
+        model = LogisticReg(None, None, C, 1000)
+    elif model_type == 'tree':
+        max_depth = int(request.POST.get('max_depth', 5))
+        context['selected_max_depth'] = request.POST.get('max_depth', '5')
+        model = DecisionTree(None, None, max_depth)
+    elif model_type == 'knn':
+        k = int(request.POST.get('k', 5))
+        context['selected_k'] = request.POST.get('k', '5')
+        model = KNN(None, None, k)
+    else:
+        context['error'] = "Unsupported model selected."
+        return
+
+    DATA_STORAGE['model'] = model
 
 
 def handle_plot_generation(request, context):
@@ -125,26 +188,9 @@ def handle_plot_generation(request, context):
     y_encoded = le.fit_transform(y)
     print("Encoded labels:", y_encoded[:10])
 
-    # Instantiate the appropriate model
-    if model_type == 'logistic':
-        C = float(request.POST.get('C', 1.0))
-        context['selected_C'] = request.POST.get('C', '1.0')
-        model = LogisticReg(X, y, C, 1000)
-    elif model_type == 'tree':
-        max_depth = int(request.POST.get('max_depth', 5))
-        context['selected_max_depth'] = request.POST.get('max_depth', '5')
-        model = DecisionTree(X, y, max_depth)
-    elif model_type == 'knn':
-        k = int(request.POST.get('k', 5))
-        context['selected_k'] = request.POST.get('k', '5')
-        model = KNN(X, y, k)
-    else:
-        context['error'] = "Unsupported model selected."
-        return
-
     # Plotting just the first two features
     plt.figure(figsize=(6, 4))
-    #scatter = plt.scatter(X.iloc[:, 0], X.iloc[:, 1], c=y, cmap='viridis')
+    # scatter = plt.scatter(X.iloc[:, 0], X.iloc[:, 1], c=y, cmap='viridis')
     scatter = plt.scatter(X.iloc[:, 0], X.iloc[:, 1], c=y_encoded, cmap='viridis')
     plt.xlabel(X.columns[0])
     plt.ylabel(X.columns[1])
