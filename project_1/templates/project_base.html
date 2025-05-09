@@ -133,7 +133,7 @@
                 {% endif %}
 
                 <br><br>
-                <button type="submit">Split</button>
+                <button type="submit" name="action" value="split">Split</button>
             </form>
         </div>
         <!-- ✅ STEP 5: Train Model -->
@@ -145,10 +145,10 @@
                 <input type="hidden" name="model" value="{{ selected_model }}">
                 <input type="hidden" name="action" value="train">
 
-                <button type="submit">Train</button>
+                <button type="submit" name="action" value="train">Train</button>
             </form>
 
-            {% if model_trained %}
+            {% if train_success %}
                 <p style="color: green;">Model trained successfully!</p>
             {% else %}
                 <p style="color: red;">Model not trained yet.</p>
