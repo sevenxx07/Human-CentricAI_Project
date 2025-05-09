@@ -49,7 +49,7 @@ def index(request):
             handle_plot_generation(request, context)
         elif action == "split" and 'csv_loaded' in request.POST:
             handle_data_split(request, context)
-        elif action == "train" and 'csv_loaded' and 'model_type' in request.POST:
+        elif action == "train" and 'csv_loaded' in request.POST:  # TODO add check that model was selected
             handle_train_model(request, context)
 
     return render(request, 'project_base.html', context)
@@ -109,9 +109,10 @@ def handle_data_split(request, context):
 
 
 def handle_train_model(request, context):
-    context['selected_model'] = DATA_STORAGE['model_type']
+    context['selected_model'] = DATA_STORAGE.get('model_type')
     context['csv_uploaded'] = True
     context['uploaded_filename'] = DATA_STORAGE.get('csv_name')
+    context['split_success'] = True
 
     X_train = DATA_STORAGE.get('X_train')
     y_train = DATA_STORAGE.get('y_train')
@@ -125,8 +126,14 @@ def handle_train_model(request, context):
     model.X = X_train
     model.Y = y_train
 
+    print("Training model with data:", X_train.head(), y_train.head())
+    print("Model type selected:", DATA_STORAGE['model_type'])
+    print("Model parameters:", model.__dict__)
+
     # Train the model
     model.train()
+
+    print("Trained parameters:", model.__dict__)
 
     DATA_STORAGE['model'] = model
     context['train_success'] = True
