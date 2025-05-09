@@ -37,7 +37,7 @@ body {
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, 0%);
 }
 
 .title-container{
@@ -133,3 +133,5 @@ button:disabled {
     margin-bottom: 20px;
     background-color: #f9f9f9;
 }
+
+
