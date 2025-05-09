@@ -14,12 +14,13 @@
     <div class="main-text">
 
         <!-- ✅ STEP 1: Upload CSV -->
-         <div class="step-box" style="margin-bottom: 20px;">
+         <div class="step-box" style="margin-bottom: 20px;" id="step-1">
             <h3>Step 1: Upload CSV {% if csv_uploaded %}<span style="color: green;">✔ Uploaded</span>{% endif %}</h3>
 
             <form method="post" enctype="multipart/form-data">
                 {% csrf_token %}
                 <input type="file" name="csv_file" accept=".csv" required>
+                <input type="hidden" name="scroll_to" value="step-1">
                 <button type="submit" name="action" value="upload">Upload</button>
             </form>
 
@@ -34,14 +35,15 @@
 
         <!----✅ NEW STEP: Visualize Dataset---->
         {% if csv_uploaded %}
-        <div class="step-box" style="margin-bottom: 20px;">
+        <div class="step-box" style="margin-bottom: 20px;" id="step-1-5">
             <h3>Step 1.5: Visualize Data</h3>
 
             <form method="post">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="plot">
                 <input type="hidden" name="csv_loaded" value="1">
-                
+                <input type="hidden" name="scroll_to" value="step-1-5">
+
 
                 <label for="feature1">Feature 1 (X-axis):</label>
                 <select name="feature1">
@@ -67,17 +69,16 @@
             <img src="{{ scatter_url }}" width="500">
         </div>
         {% endif %}
-    </div>
-    {% endif %}
 
         <!-- ✅ STEP 2: Choose Model -->
-        <div class="step-box" style="margin-bottom: 20px;">
+        <div class="step-box" style="margin-bottom: 20px;" id="step-2">
             <h3>Step 2: Choose Model</h3>
 
             <form method="post">
                 {% csrf_token %}
                 <input type="hidden" name="csv_loaded" value="true">
                 <input type="hidden" name="action" value="select_model">
+                <input type="hidden" name="scroll_to" value="step-2">
 
                 <label for="model">Model:</label>
                 <select name="model">
@@ -92,7 +93,7 @@
 
 
         <!-- ✅ STEP 3: Set Hyperparameters -->
-        <div class="step-box" style="margin-top: 20px;">
+        <div class="step-box" style="margin-top: 20px;" id="step-3">
             <h3>Step 3: Set Hyperparameters</h3>
 
             <form method="post">
@@ -100,6 +101,7 @@
                 <input type="hidden" name="csv_loaded" value="true">
                 <input type="hidden" name="model" value="{{ selected_model }}">
                 <input type="hidden" name="action" value="plot">
+                <input type="hidden" name="scroll_to" value="step-2">
 
                 {% if selected_model == 'logistic' %}
                     <label for="C">Regularization (C):</label>
@@ -119,13 +121,14 @@
             </form>
         </div>
         <!-- ✅ STEP 4: Split Data -->
-        <div class="step-box" style="margin-top: 20px;">
+        <div class="step-box" style="margin-top: 20px;" id="step-4">
             <h3>Step 4: Split Data</h3>
             <form method="post">
                 {% csrf_token %}
                 <input type="hidden" name="csv_loaded" value="true">
                 <input type="hidden" name="model" value="{{ selected_model }}">
                 <input type="hidden" name="action" value="split">
+                <input type="hidden" name="scroll_to" value="step-2">
 
                 <label for="test_size">Test Size (%):</label>
                 <label>
@@ -143,19 +146,27 @@
             </form>
         </div>
         <!-- ✅ STEP 5: Train Model -->
-        <div class="step-box" style="margin-top: 20px;">
+        <div class="step-box" style="margin-top: 20px;" id="step-5">
             <h3>Step 5: Train Model</h3>
             <form method="post">
                 {% csrf_token %}
                 <input type="hidden" name="csv_loaded" value="true">
                 <input type="hidden" name="model" value="{{ selected_model }}">
                 <input type="hidden" name="action" value="train">
+                <input type="hidden" name="scroll_to" value="step-5">
 
                 <button type="submit" name="action" value="train">Train</button>
             </form>
 
             {% if train_success %}
                 <p style="color: green;">Model trained successfully!</p>
+            <h4>Evaluation Metrics</h4>
+            <ul>
+                <li><strong>Accuracy:</strong> {{ accuracy }}%</li>
+                <li><strong>Precision:</strong> {{ precision }}%</li>
+                <li><strong>Recall:</strong> {{ recall }}%</li>
+                <li><strong>F1 Score:</strong> {{ f1 }}%</li>
+            </ul>
             {% else %}
                 <p style="color: red;">Model not trained yet.</p>
             {% endif %}
@@ -164,10 +175,10 @@
         </div>
 
         <!-- ✅ OUTPUT -->
-        <div class="step-box">
+        <div class="step-box" id="step-6">
             <h3>Output</h3>
             {% if scatter_url %}
-                <img src="{{ scatter_url }}" width="500">
+                <img src="{{ output_plot_url}}" width="500">
             {% else %}
                 <p>No plot to show yet.</p>
             {% endif %}
@@ -175,8 +186,15 @@
 
     </div> <!-- /.main-text -->
 </div> <!-- /.box -->
+{% endif %}
 {% endblock %}
 
 {% block script %}
-<!-- No JavaScript used -->
+{% if scroll_to %}
+<script>
+    window.onload = function () {
+        location.hash = "#{{ scroll_to }}";
+    };
+</script>
+{% endif %}
 {% endblock %}

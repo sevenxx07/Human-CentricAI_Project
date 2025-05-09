@@ -74,6 +74,7 @@ def handle_csv_upload(request, context):
             context['data_preview'] = df.head(10).values.tolist()
             context['csv_uploaded'] = True
             context['uploaded_filename'] = csv_file.name
+            context['scroll_to'] = request.POST.get('scroll_to')
             DATA_STORAGE['csv_name'] = csv_file.name
     except Exception as e:
         context['error'] = f"Error reading CSV: {str(e)}"
@@ -86,6 +87,12 @@ def handle_data_split(request, context):
     context['selected_model'] = DATA_STORAGE.get('model_type')
     context['uploaded_filename'] = DATA_STORAGE.get('csv_name')
     context['csv_uploaded'] = True
+    context['scroll_to'] = request.POST.get('scroll_to')
+    if 'scatter_url' in DATA_STORAGE:
+        context['scatter_url'] = DATA_STORAGE['scatter_url']
+        context['image_url'] = DATA_STORAGE['scatter_url']
+        context['selected_feature1'] = DATA_STORAGE.get('selected_feature1')
+        context['selected_feature2'] = DATA_STORAGE.get('selected_feature2')
 
     df = DATA_STORAGE.get('df')
     if df is None:
@@ -113,6 +120,12 @@ def handle_train_model(request, context):
     context['csv_uploaded'] = True
     context['uploaded_filename'] = DATA_STORAGE.get('csv_name')
     context['split_success'] = True
+    context['scroll_to'] = request.POST.get('scroll_to')
+    if 'scatter_url' in DATA_STORAGE:
+        context['scatter_url'] = DATA_STORAGE['scatter_url']
+        context['image_url'] = DATA_STORAGE['scatter_url']
+        context['selected_feature1'] = DATA_STORAGE.get('selected_feature1')
+        context['selected_feature2'] = DATA_STORAGE.get('selected_feature2')
 
     X_train = DATA_STORAGE.get('X_train')
     y_train = DATA_STORAGE.get('y_train')
@@ -138,6 +151,18 @@ def handle_train_model(request, context):
     DATA_STORAGE['model'] = model
     context['train_success'] = True
 
+    #Predict and evaluate
+    x_test = DATA_STORAGE.get('X_test')
+    y_test = DATA_STORAGE.get('y_test')
+    predictions = model.predict(x_test)
+    metrics = model.evaluate(y_test, predictions)
+    context.update({
+        'accuracy': round(metrics['accuracy'] * 100, 2),
+        'precision': round(metrics['precision'] * 100, 2),
+        'recall': round(metrics['recall'] * 100, 2),
+        'f1': round(metrics['f1'] * 100, 2),
+    })
+
 
 def handle_model_selection(request, context):
     """
@@ -149,6 +174,12 @@ def handle_model_selection(request, context):
     context['selected_model'] = model_type
     context['csv_uploaded'] = True
     context['uploaded_filename'] = DATA_STORAGE.get('csv_name')
+    context['scroll_to'] = request.POST.get('scroll_to')
+    if 'scatter_url' in DATA_STORAGE:
+        context['scatter_url'] = DATA_STORAGE['scatter_url']
+        context['image_url'] = DATA_STORAGE['scatter_url']
+        context['selected_feature1'] = DATA_STORAGE.get('selected_feature1')
+        context['selected_feature2'] = DATA_STORAGE.get('selected_feature2')
 
     print("Model type selected:", model_type)
 
@@ -182,6 +213,7 @@ def handle_plot_generation(request, context):
     
     context['csv_uploaded'] = True
     context['uploaded_filename'] = DATA_STORAGE.get('csv_name')
+    context['scroll_to'] = request.POST.get('scroll_to')
     
     feature1 = request.POST.get('feature1')
     feature2 = request.POST.get('feature2')
@@ -235,6 +267,11 @@ def handle_plot_generation(request, context):
     context['image_url'] = context['scatter_url']
     context['selected_feature1'] = feature1
     context['selected_feature2'] = feature2
+
+    # ✅ Save to memory for later reuse
+    DATA_STORAGE['scatter_url'] = context['scatter_url']
+    DATA_STORAGE['selected_feature1'] = feature1
+    DATA_STORAGE['selected_feature2'] = feature2
 
     #         # Plot the predicted labels (from the model)
     #         scatter_pred = plt.scatter(X.iloc[:, 0], X.iloc[:, 1], c=y_pred_encoded, cmap='coolwarm', alpha=0.7, marker='x', label="Predicted Labels")
