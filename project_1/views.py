@@ -47,9 +47,7 @@ def index(request):
             handle_model_selection(request, context)
         elif action == 'plot' and 'csv_loaded' in request.POST:
             handle_plot_generation(request, context)
-        elif action == "split" and 'csv_loaded' in request.POST:
-            handle_data_split(request, context)
-        elif action == "train" and 'csv_loaded' in request.POST:  # TODO add check that model was selected
+        elif action == "train" and 'csv_loaded' in request.POST:
             handle_train_model(request, context)
 
     return render(request, 'project_base.html', context)
@@ -80,39 +78,22 @@ def handle_csv_upload(request, context):
         context['error'] = f"Error reading CSV: {str(e)}"
 
 
-def handle_data_split(request, context):
+def handle_data_split(size):
     """
     Handles the data split into features and labels.
     """
-    context['selected_model'] = DATA_STORAGE.get('model_type')
-    context['uploaded_filename'] = DATA_STORAGE.get('csv_name')
-    context['csv_uploaded'] = True
-    context['scroll_to'] = request.POST.get('scroll_to')
-    if 'scatter_url' in DATA_STORAGE:
-        context['scatter_url'] = DATA_STORAGE['scatter_url']
-        context['image_url'] = DATA_STORAGE['scatter_url']
-        context['selected_feature1'] = DATA_STORAGE.get('selected_feature1')
-        context['selected_feature2'] = DATA_STORAGE.get('selected_feature2')
 
     df = DATA_STORAGE.get('df')
-    if df is None:
-        context['error'] = "No CSV uploaded."
-        return
-
     # Split dataset: last column is label, rest are features
     X = df.iloc[:, :-1]
     y = df.iloc[:, -1]
-
     # Ask the user how much
-    test_size = float(request.POST.get('test_size', 0.2))
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size / 100, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=size / 100, random_state=42)
 
     DATA_STORAGE['X_train'] = X_train
     DATA_STORAGE['X_test'] = X_test
     DATA_STORAGE['y_train'] = y_train
     DATA_STORAGE['y_test'] = y_test
-
-    context['split_success'] = True
 
 
 def handle_train_model(request, context):
@@ -121,6 +102,12 @@ def handle_train_model(request, context):
     context['uploaded_filename'] = DATA_STORAGE.get('csv_name')
     context['split_success'] = True
     context['scroll_to'] = request.POST.get('scroll_to')
+    context['selected_model'] = DATA_STORAGE.get('model_type')
+    context['selected_C'] = DATA_STORAGE.get('selected_C')
+    context['selected_max_depth'] = DATA_STORAGE.get('selected_max_depth')
+    context['selected_k'] = DATA_STORAGE.get('selected_k')
+    context['test_size'] = DATA_STORAGE.get('test_size')
+
     if 'scatter_url' in DATA_STORAGE:
         context['scatter_url'] = DATA_STORAGE['scatter_url']
         context['image_url'] = DATA_STORAGE['scatter_url']
@@ -189,25 +176,33 @@ def handle_model_selection(request, context):
         context['selected_feature1'] = DATA_STORAGE.get('selected_feature1')
         context['selected_feature2'] = DATA_STORAGE.get('selected_feature2')
 
-    print("Model type selected:", model_type)
-
     if model_type == 'logistic':
         C = float(request.POST.get('C', 1.0))
-        context['selected_C'] = request.POST.get('C', '1.0')
+        context['selected_C'] = str(C)
+        DATA_STORAGE['selected_C'] = str(C)
         model = LogisticReg(None, None, C, 1000)
+        print("Model type selected:", model_type, C)
     elif model_type == 'tree':
         max_depth = int(request.POST.get('max_depth', 5))
-        context['selected_max_depth'] = request.POST.get('max_depth', '5')
+        context['selected_max_depth'] = str(max_depth)
+        DATA_STORAGE['selected_max_depth'] = str(max_depth)
         model = DecisionTree(None, None, max_depth)
+        print("Model type selected:", model_type, max_depth)
     elif model_type == 'knn':
         k = int(request.POST.get('k', 5))
-        context['selected_k'] = request.POST.get('k', '5')
+        context['selected_k'] = str(k)
+        DATA_STORAGE['selected_k'] = str(k)
         model = KNN(None, None, k)
+        print("Model type selected:", model_type, k)
     else:
         context['error'] = "Unsupported model selected."
         return
 
     DATA_STORAGE['model'] = model
+    test_size = float(request.POST.get('test_size', 0.2))
+    context['test_size'] = str(int(test_size))
+    DATA_STORAGE['test_size'] = int(test_size)
+    handle_data_split(test_size)
 
 
 def generate_plot(df, model=None, feature1=None, feature2=None, filename_prefix="plot"):
@@ -281,77 +276,6 @@ def handle_plot_generation(request, context):
     DATA_STORAGE['selected_feature1'] = f1
     DATA_STORAGE['selected_feature2'] = f2
 
-
-def handle_plot_generations(request, context):
-    """
-    Handles the plot generation based on the selected model and the uploaded CSV.
-    """
-    df = DATA_STORAGE.get('df')
-    if df is None:
-        context['error'] = "No CSV uploaded."
-        return
-    
-    context['csv_uploaded'] = True
-    context['uploaded_filename'] = DATA_STORAGE.get('csv_name')
-    context['scroll_to'] = request.POST.get('scroll_to')
-    
-    feature1 = request.POST.get('feature1')
-    feature2 = request.POST.get('feature2')
-
-    if not feature1 or not feature2:
-        context['error'] = "Please select both features."
-        return
-    
-    X = df[[feature1, feature2]]  # Selected features from the dataset
-    y = df.iloc[:, -1]  # Last column is the label
-
-    le = LabelEncoder()
-    y_encoded = le.fit_transform(y)
-
-    plt.figure(figsize=(6, 4))
-
-    #scatter_true = plt.scatter(X.iloc[:, 0], X.iloc[:, 1], c=y_encoded, cmap='viridis', alpha=0.7)
-
-    model = DATA_STORAGE.get("model")
-
-    if model: 
-        try:
-            y_pred = model.predict(X)
-            y_pred_encoded = le.transform(y_pred)  # Encode predicted labels
-            scatter = plt.scatter(X.iloc[:, 0], X.iloc[:, 1], c=y_pred_encoded, cmap='coolwarm', alpha=0.7, marker='x')
-            plt.title("Model Predictions")
-            legend_labels = le.classes_
-            for i, label in enumerate(legend_labels):
-                plt.scatter([], [], c=plt.cm.coolwarm(i / len(legend_labels)), marker='x', label=label)
-        except Exception as e:
-            context['error'] = f"Model prediction failed: {str(e)}"
-            return
-        
-    else: 
-        scatter = plt.scatter(X.iloc[:, 0], X.iloc[:, 1], c=y_encoded, cmap='viridis', alpha=0.7)
-        plt.title("Raw Data")
-        legend_labels = le.classes_
-        for i, label in enumerate(legend_labels):
-            plt.scatter([], [], c=plt.cm.viridis(i / len(legend_labels)), label=label)
-
-    plt.xlabel(feature1)
-    plt.ylabel(feature2)
-    plt.legend(loc='best')
-
-    filename = f"plot_{uuid.uuid4().hex}.png"
-    image_path = os.path.join(settings.MEDIA_ROOT, filename)
-    plt.savefig(image_path)
-    plt.close()
-
-    context['scatter_url'] = settings.MEDIA_URL + filename
-    context['image_url'] = context['scatter_url']
-    context['selected_feature1'] = feature1
-    context['selected_feature2'] = feature2
-
-    # ✅ Save to memory for later reuse
-    DATA_STORAGE['scatter_url'] = context['scatter_url']
-    DATA_STORAGE['selected_feature1'] = feature1
-    DATA_STORAGE['selected_feature2'] = feature2
 
     #         # Plot the predicted labels (from the model)
     #         scatter_pred = plt.scatter(X.iloc[:, 0], X.iloc[:, 1], c=y_pred_encoded, cmap='coolwarm', alpha=0.7, marker='x', label="Predicted Labels")

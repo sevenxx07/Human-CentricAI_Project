@@ -81,66 +81,24 @@
                 <input type="hidden" name="scroll_to" value="step-2">
 
                 <label for="model">Model:</label>
-                <select name="model">
+                <select name="model" id="model" onchange="updateModelFields(this.value)" required>
                     <option value="logistic" {% if selected_model == 'logistic' %}selected{% endif %}>Logistic Regression</option>
                     <option value="tree" {% if selected_model == 'tree' %}selected{% endif %}>Decision Tree</option>
                     <option value="knn" {% if selected_model == 'knn' %}selected{% endif %}>K-Nearest Neighbors</option>
                 </select>
-
-                <button type="submit" name="action" value="select">Select</button>
-            </form>
-        </div>
-
-
-        <!-- ✅ STEP 3: Set Hyperparameters -->
-        <div class="step-box" style="margin-top: 20px;" id="step-3">
-            <h3>Step 3: Set Hyperparameters</h3>
-
-            <form method="post">
-                {% csrf_token %}
-                <input type="hidden" name="csv_loaded" value="true">
-                <input type="hidden" name="model" value="{{ selected_model }}">
-                <input type="hidden" name="action" value="plot">
-                <input type="hidden" name="scroll_to" value="step-2">
-
-                {% if selected_model == 'logistic' %}
-                    <label for="C">Regularization (C):</label>
-                    <input type="number" step="0.1" name="C" value="{{ selected_C|default:'1.0' }}" required>
-
-                {% elif selected_model == 'tree' %}
-                    <label for="max_depth">Max Depth:</label>
-                    <input type="number" name="max_depth" value="{{ selected_max_depth|default:'5' }}" required>
-
-                {% elif selected_model == 'knn' %}
-                    <label for="k">Number of Neighbors (k):</label>
-                    <input type="number" name="k" value="{{ selected_k|default:'3' }}" min="1" required>
-                {% endif %}
-
                 <br><br>
-
-            </form>
-            <!-- ✅ STEP 4: Split Data -->
-            <h3>Step 4: Split Data</h3>
-            <form method="post">
-                {% csrf_token %}
-                <input type="hidden" name="csv_loaded" value="true">
-                <input type="hidden" name="model" value="{{ selected_model }}">
-                <input type="hidden" name="action" value="split">
-                <input type="hidden" name="scroll_to" value="step-2">
-
+                <!-- Dynamic hyperparameter fields -->
+                <h3>Step 3: Hyperparameters</h3>
+                <div id="model-fields" style="margin-top: 1em;"></div>
+                <br><br>
+                <!-- Test size -->
+                <h3>Step 4: Test size</h3>
                 <label for="test_size">Test Size (%):</label>
-                <label>
-                    <input type="number" name="test_size" value="{{ test_size|default:'20' }}" min="1" max="100" required>
-                </label>
-
-                {% if split_success %}
-                    <p style="color: green;">Model set successfully!</p>
-                {% else %}
-                    <p style="color: red;">Model set not successful.</p>
-                {% endif %}
+                <input type="number" name="test_size" value="{{ test_size|default:'20' }}" min="1" max="99" required>
 
                 <br><br>
-                <button type="submit" name="action" value="split">Set</button>
+
+                <button type="submit" name="action" value="select">Set</button>
             </form>
         </div>
         <!-- ✅ STEP 5: Train Model -->
@@ -195,4 +153,37 @@
     };
 </script>
 {% endif %}
+<script>
+function updateModelFields(model) {
+    const container = document.getElementById("model-fields");
+    container.innerHTML = "";
+
+    if (model === "logistic") {
+        const defaultC = "{{ selected_C|default:'1.0'|escapejs }}";
+        container.innerHTML = `
+            <label for="C">Regularization (C):</label>
+            <input type="number" step="0.1" name="C" value="${defaultC}" required>
+        `;
+    } else if (model === "tree") {
+        const defaultDepth = "{{ selected_max_depth|default:'5'|escapejs }}";
+        container.innerHTML = `
+            <label for="max_depth">Max Depth:</label>
+            <input type="number" name="max_depth" value="${defaultDepth}" required>
+        `;
+    } else if (model === "knn") {
+        const defaultK = "{{ selected_k|default:'3'|escapejs }}";
+        container.innerHTML = `
+            <label for="k">Number of Neighbors (k):</label>
+            <input type="number" name="k" value="${defaultK}" required>
+        `;
+    }
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+    const modelSelect = document.getElementById("model");
+    const currentModel = "{{ selected_model|default:'logistic'|escapejs }}";
+    modelSelect.value = currentModel;
+    updateModelFields(currentModel);
+});
+</script>
 {% endblock %}
