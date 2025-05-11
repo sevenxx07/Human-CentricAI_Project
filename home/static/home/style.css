@@ -1,30 +1,93 @@
-.student-id {
-    font-family: monospace;
-    color: #555;
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap');
+
+body {
+    margin: 0; /* removes default spacing around the body */
+    padding: 0;
+    background-color: #7c0909; 
+    font-family: 'Roboto', sans-serif; /* Or any modern font you prefer */
+
+}
+
+.bebas-neue-regular {
+    font-family: "Bebas Neue", sans-serif;
+    font-weight: 400;
+    font-style: normal;
+  }
+
+  button {
+    background-color: #156e78;/* Dark red background */
+    color: white; /* White text */
+    padding: 10px 20px; /* Padding for the button */
+    border: none; /* No border */
+    border-radius: 8px; /* Rounded corners */
+    font-size: 1rem; /* Font size */
+    cursor: pointer; /* Pointer cursor on hover */
+    transition: background-color 0.3s ease, transform 0.2s ease; /* Smooth transition for hover effects */
+}
+
+button:hover {
+    background-color: #4ca3ad; /
+    transform: translateY(-2px); /* Subtle lift effect on hover */
+}
+
+button:active {
+    background-color: #134c53; /* Darker red when button is clicked */
+    transform: translateY(0); /* Reset the lift effect */
+}
+
+.box {
+    margin: 1rem auto 0 ; /* centers the box horizontally with margigin: 0 auto */
+    padding: 2rem; /* Inner spacing */
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+    max-width: 800px;
+    width: 90%;
+}
+
+
+.student-item {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    padding: 12px 20px;
+    border-bottom: 1px solid #ddd;
+    font-size: 1rem;
+    background-color: #f4f4f2;
+    color: #000000; 
+}
+
+.student-dash {
+    text-align: center;
+    color: #000000;
 }
 
 .student-list {
     list-style: none;
     padding: 0;
     max-width: 500px;
-    margin: 0 auto;
-    background: #f9f9f9;
-    border-radius: 10px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    margin: 2rem auto;
+    background: #ffaaa5; 
+    border-radius: 12px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.06);
+    overflow: hidden;
 }
 
-.student-item {
-    padding: 10px 20px;
-    border-bottom: 1px solid #ddd;
-    font-size: 16px;
-    display: flex;
-    justify-content: space-between;
+.student-name,
+.student-id {
+    font-family: 'Roboto', sans-serif;
+    color: #000000;
 }
 
-.student-item:last-child {
-    border-bottom: none;
+.student-id {
+    text-align: right;
+    font-family: 'Roboto', sans-serif;
+    color: #000000;
 }
 
 .centered-text {
     text-align: center;
+    margin-bottom: 1.5rem;
+    font-size: 1.1rem;
+    color: #000000;
 }
