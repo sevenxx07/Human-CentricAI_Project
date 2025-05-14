@@ -150,6 +150,9 @@ def handle_train_model(request, context):
         'f1': round(metrics['f1'] * 100, 2),
     })
     df = DATA_STORAGE.get('df')
+    print("Test set size:", len(y_test))
+    print("Predictions:", predictions[:10])
+    print("Ground truth:", y_test[:10].tolist())
 
     feature1 = DATA_STORAGE.get('selected_feature1') or df.columns[0]
     feature2 = DATA_STORAGE.get('selected_feature2') or df.columns[1]
