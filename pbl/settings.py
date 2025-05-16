@@ -40,7 +40,8 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "home", 
     "demos",
-    "project_1"
+    "project_1",
+    "project_2"
 ]
 
 MIDDLEWARE = [
