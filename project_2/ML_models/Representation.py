@@ -1,178 +1,102 @@
-import os 
-import sys
-import django
-import pandas as pd
-import string
-import re
-import nltk
-#nltk.download('wordnet')
-#nltk.download('stopwords')
-from nltk.corpus import stopwords
-#nltk.download('punkt')
-#nltk.download('punkt_tab')
-from nltk.tokenize import word_tokenize 
-from nltk.stem import WordNetLemmatizer 
-from textblob import TextBlob
+""" How to use this script:
+# TF-IDF
+python representation.py --method tfidf --save_vectors tfidf_vectors.npy --save_model tfidf_encoder.pkl
 
-sys.path.append('/Users/stinahellgren/Documents/Human AI/Human-CentricAI_Project')
+# GloVe
+python representation.py --method glove --save_vectors glove_vectors.npy --save_model glove_encoder.pkl
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'pbl.settings')
-django.setup()
+# SBERT
+python representation.py --method sbert --save_vectors sbert_vectors.npy --save_model sbert_encoder.pkl
 
-from django.conf import settings
+You also need to have the used dataset csv file in the same directory.
 
-csv_path = os.path.join(settings.BASE_DIR, 'data', 'IMDB Dataset.csv')
+You can rename the data set in definition of load_dataset function.
+"""
 
-print(f"reading data")
-df = pd.read_csv(csv_path)
+import os
+import pickle
+import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sentence_transformers import SentenceTransformer
+import gensim.downloader as api
+from tqdm import tqdm
 
-# Lowercasing 
-
-df['review'] = df['review'].str.lower()
+def load_dataset(path="imdb_dataset.csv"):
+    import pandas as pd
+    if not os.path.exists(path):
+        raise FileNotFoundError("IMDB dataset not found. Please download it from Kaggle and place it here.")
+    df = pd.read_csv(path)
+    return df['review'].tolist(), df['sentiment'].tolist()
 
 
-# Removing metadata and keeping only text
-    # Metadata = data that provides information about other data, but not the content of the data itself
-
-#### TODO ####
-
-# Removing URLs
-def remove_url(text):
-    pattern = re.compile(r'https?://\S+|www\.\S+')
-    return pattern.sub(r'', text)
-
-# Removing HTMLs
-def remove_html(text):
-    pattern = re.compile(r'<br\s*/?>', re.IGNORECASE)
-    return pattern.sub(' ', text)
-
-# Negation handling
-def separate_puncuation(text):
-    return re.sub(r'([.,!?()"])', r' \1 ', text)
-
-# Acronym and slang expansion <-> acronym and slang list
-acronym_slang_dict = {
-    "idk": "I do not know",
-    "lol": "laughing out loud",
-    "brb": "be right back",
-    "imo": "in my opinion",
-    "btw": "by the way",
-    "u": "you",
-    "ur": "your",
-    "pls": "please",
-}
-
-def expand_acronyms(text, acronym_slang_dict):
-    tokens = text.split()
-    expanded_tokens = []
-    for token in tokens: 
-        if token in acronym_slang_dict: 
-            expanded_tokens.append(acronym_slang_dict[token])
-        else:
-            expanded_tokens.append(token)
-    return ' '.join(expanded_tokens)
-    
-
-# Spelling correction <-> spell-checker dictionary
-def correct_spelling(text):
-    corrected_text = TextBlob(text).correct()
-    return str(corrected_text)
+# TF-IDF representation
+def tfidf_representation(texts, max_features=10000):
+    vectorizer = TfidfVectorizer(max_features=max_features, stop_words='english')
+    vectors = vectorizer.fit_transform(texts)
+    return vectors, vectorizer
 
 
-def negation_handling(text, scope = 3):
-    negation_words = {
-    "not", "no", "never", "none", "nobody", "nothing", "neither", "nowhere", "hardly", "scarcely", "barely", "doesn't", 
-    "isn't", "wasn't", "shouldn't", "wouldn't", "couldn't", "won't", "can't", "don't", "didn't", "haven't", "hasn't", "hadn't"
-    }
-    
-    punctuation = {".", ",", ":", ";", "!", "?"}
+# GloVe average embedding
+def glove_representation(texts, model_name='glove-wiki-gigaword-100'):
+    word_vectors = api.load(model_name)
+    dim = word_vectors.vector_size
 
-    tokens = text.split()
-    result = []
-    negation_counter = 0
+    def embed(text):
+        tokens = text.lower().split()
+        vectors = [word_vectors[word] for word in tokens if word in word_vectors]
+        return np.mean(vectors, axis=0) if vectors else np.zeros(dim)
 
-    for token in tokens: 
-        if token in negation_words:
-            negation_counter = scope
-            result.append(token)
-        elif token in punctuation: 
-            negation_counter = 0
-            result.append(token)
-        elif negation_counter >0:
-            result.append(f"{token}_NEG")
-            negation_counter -=1
-        else: 
-            result.append(token)
-    return ' '.join(result)
-# The words within the scope of the negation get appended with _NEG
-# This tells the model not to treat them as their original form
-
-# Removing puncuations 
-exclude = set(string.punctuation)
-
-def remove_punctuation(text):
-    return text.translate(str.maketrans('', '', string.punctuation))
-
-# Removing twitter features (hashtags and RT) 
-def remove_hashtags(text):
-    pattern = re.compile(r'#\S+')
-    return pattern.sub(r'', text)
-
-def remove_retweets(text):
-    pattern = re.compile(r'^RT @\w+:?\s?', re.IGNORECASE)
-    return pattern.sub('', text)
-
-# Removing white spaces from all strings
-def remove_white_spaces(text):
-    return re.sub(r'\s+',' ', text).strip()
-
-# Anaomyising the text
-def anonymize_text(text):
-    text = re.sub(r'@\w+', '@user', text) 
-    text = re.sub(r'b\\d+\b', '[NUM]', text) 
-    text = re.sub(r'\b\S+@\S+\b', '[EMAIL]', text) 
-    return text 
-
-# Stop-word removial <-> stop-word list
-stop_words = set(stopwords.words('english'))
-
-def remove_stopwords(text):
-    return ' '.join([w for w in text if w not in stop_words])
-
-# Short-word removal 
-def short_word_removal(text, min_length=3):
-    return [word for word in text if len(word)>= min_length]
-
-# Lemmatisation 
-wnl = WordNetLemmatizer()
-
-# Clean text ready to be analysed 
-def clean_text(text):
-    text = remove_url(text)
-    text = remove_html(text)
-    text = separate_puncuation(text)
-    text = expand_acronyms(text, acronym_slang_dict)
-    #text = correct_spelling(text)
-    text = negation_handling(text)
-    text = remove_punctuation(text)
-    text = remove_hashtags(text)
-    text = remove_retweets(text)
-    text = remove_white_spaces(text)
-    text = anonymize_text(text)
-    text = remove_stopwords(text)
-    text = word_tokenize(text) # Tokenisation
-    text = short_word_removal(text)
-    text = [wnl.lemmatize(word) for word in text]
-
-    return ' '.join(text)
-print('Här är vi')
-df['review'] = df['review'].apply(clean_text)
-
-print(df['review'][1])
-print('hej')
-df.to_csv('cleaned_imdb_reviews.csv', index=False)
+    vectors = np.array([embed(text) for text in tqdm(texts, desc="Encoding with GloVe")])
+    return vectors, model_name  # return model name as placeholder
 
 
-# Emoticons and emojis tranlation <-> emoticons and emojis dictionary
+# SBERT representation
+def sbert_representation(texts, model_name='all-MiniLM-L6-v2'):
+    model = SentenceTransformer(model_name)
+    vectors = model.encode(texts, show_progress_bar=True)
+    return vectors, model_name  # return model name as placeholder
 
 
+# Save representation module
+def save_module(obj, filename):
+    with open(filename, "wb") as f:
+        pickle.dump(obj, f)
+
+
+# Load representation module
+def load_module(filename):
+    with open(filename, "rb") as f:
+        return pickle.load(f)
+
+
+# Main interaction
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Text Representation Builder")
+    parser.add_argument("--method", type=str, choices=["tfidf", "glove", "sbert"], required=True,
+                        help="Choose representation method: tfidf, glove, or sbert")
+    parser.add_argument("--save_vectors", type=str, default="vectors.npy", help="Where to save the vector output")
+    parser.add_argument("--save_model", type=str, default="encoder.pkl", help="Where to save the encoder/vectorizer")
+
+    args = parser.parse_args()
+
+    print("Loading dataset...")
+    texts, labels = load_dataset()
+
+    print(f"⚙Building representation using: {args.method.upper()}")
+
+    if args.method == "tfidf":
+        vectors, encoder = tfidf_representation(texts)
+        save_module(encoder, args.save_model)
+        np.save(args.save_vectors, vectors.toarray())
+    elif args.method == "glove":
+        vectors, encoder = glove_representation(texts)
+        save_module(encoder, args.save_model)  # saving model name just for compatibility
+        np.save(args.save_vectors, vectors)
+    elif args.method == "sbert":
+        vectors, encoder = sbert_representation(texts)
+        save_module(encoder, args.save_model)  # saving model name just for compatibility
+        np.save(args.save_vectors, vectors)
+
+    print("Done. Representation saved.")
