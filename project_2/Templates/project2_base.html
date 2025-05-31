@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'home/style.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="box">
+    <div class="title-container">
+        <div class="title">Active Learning for Text Classification</div>
+    </div>
+
+    <div class="main-text">
+        <div class="main-text">
+            <div class="summary" >
+                <p class="centered-text">(DESCRIPTION of classifier)
+                </p>
+            </div>
+
+        <form method = "POST">
+            {% csrf_token %}
+            <button type = 'submit' name="action" value="launch_training" class="train_button">
+                Train Classifier 
+            </button>
+        </form>
+
+        {% if training_started %}
+            <p class="info_text"> Training started...</p>
+        {% endif %}
+
+        {% if accuracy %}
+             <p class="success-text"> Training complete! Accuracy on test set: <strong>{{ accuracy|floatformat:2 }}</strong></p>
+        {% endif %}
+
+        {% if error %}
+            <p class="error-text"> {{ error }}</p>
+        {% endif %}
+
+        <form method = "POST">
+            {% csrf_token %}
+            <button type = 'submit' name="action" value="load_pre_trained" class="load_button">
+                Load Pre-Trained Classifier 
+            </button>
+        </form>
+
+        {% if message %}
+            <p class="info_text"></p>
+        {% endif %}
+
+        {% if error %}
+            <p class="error-text"> {{ error }}</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
