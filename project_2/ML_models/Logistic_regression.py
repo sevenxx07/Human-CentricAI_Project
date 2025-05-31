@@ -12,7 +12,7 @@ def load_vectors(path):
     return np.load(path)
 
 
-def load_labels(csv_path="imdb_dataset.csv"):
+def load_labels(csv_path="cleaned_imdb_reviews.csv"):
     import pandas as pd
     df = pd.read_csv(csv_path)
     labels = df['sentiment'].map({'positive': 1, 'negative': 0}).values
@@ -46,7 +46,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Logistic Regression Classifier")
     parser.add_argument("--vectors", type=str, required=True, help="Path to .npy vector file")
-    parser.add_argument("--labels", type=str, default="imdb_dataset.csv", help="Path to CSV with sentiment labels")
+    parser.add_argument("--labels", type=str, default="cleaned_imdb_reviews.csv", help="Path to CSV with sentiment labels")
     parser.add_argument("--save_model", type=str, default="classifier.pkl", help="Where to save the trained classifier")
 
     args = parser.parse_args()
