@@ -18,27 +18,33 @@ def load_labels(csv_path="imdb_dataset.csv"):
     labels = df['sentiment'].map({'positive': 1, 'negative': 0}).values
     return labels
 
+class LogisticRegression:
+    def __init__(self, X_train, y_train, X_test, y_test):
+        self.clf = None
+        self.X_train = X_train
+        self.y_train = y_train
+        self.X_test = X_test
+        self.y_test = y_test
 
-def train_classifier(X, y):
-    clf = LogisticRegression(max_iter=1000)
-    clf.fit(X, y)
-    return clf
+    def train_classifier(self):
+        self.clf = LogisticRegression(max_iter=1000)
+        self.clf.fit(self.X, self.y)
+        return self.clf
+
+    def evaluate_classifier(self):
+        y_pred = self.clf.predict(self.X_test)
+        acc = accuracy_score(self.y_test, y_pred)
+        return acc
 
 
-def evaluate_classifier(clf, X_test, y_test):
-    y_pred = clf.predict(X_test)
-    acc = accuracy_score(y_test, y_pred)
-    return acc
+    def save_model(self, path):
+        with open(path, "wb") as f:
+            pickle.dump(self.clf, f)
 
 
-def save_model(model, path):
-    with open(path, "wb") as f:
-        pickle.dump(model, f)
-
-
-def load_model(path):
-    with open(path, "rb") as f:
-        return pickle.load(f)
+    def load_model(self, path):
+        with open(path, "rb") as f:
+            return pickle.load(f)
 
 
 if __name__ == "__main__":
@@ -59,11 +65,12 @@ if __name__ == "__main__":
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
     print("Training classifier...")
-    clf = train_classifier(X_train, y_train)
+    model = LogisticRegression(X_train, X_test, y_train, y_test)
+    model.train_classifier()
 
     print("📊 Evaluating classifier...")
-    acc = evaluate_classifier(clf, X_test, y_test)
+    acc = model.evaluate_classifier()
     print(f"Accuracy on test set: {acc:.4f}")
 
     print(f"Saving classifier to: {args.save_model}")
-    save_model(clf, args.save_model)
+    model.save_model(args.save_model)
