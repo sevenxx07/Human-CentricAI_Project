@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="box">
+  <div class="title-container">
+    <div class="title">Task 1: Supervised Learning</div>
+  </div>
+
+  <div class="main-text">
+    <form method="post">
+      {% csrf_token %}
+      <label for="representation">Select text representation:</label>
+      <select name="representation" id="representation">
+        <option value="tfidf">TF-IDF</option>
+        <option value="glove">GloVe</option>
+        <option value="sbert">SBERT</option>
+      </select>
+      <button type="submit" class="btn">Train Classifier</button>
+    </form>
+
+    {% if accuracy %}
+    <hr>
+    <h3>Test Accuracy: {{ accuracy }} </h3>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

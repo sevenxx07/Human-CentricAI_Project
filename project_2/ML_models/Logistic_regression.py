@@ -18,7 +18,7 @@ def load_labels(csv_path="imdb_dataset.csv"):
     labels = df['sentiment'].map({'positive': 1, 'negative': 0}).values
     return labels
 
-class LogisticRegression:
+class LogRegression:
     def __init__(self, X_train, y_train, X_test, y_test):
         self.clf = None
         self.X_train = X_train

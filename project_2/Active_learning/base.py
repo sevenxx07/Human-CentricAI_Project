@@ -7,6 +7,7 @@ from tqdm import tqdm
 import argparse
 
 from project_2.Active_learning.utility_function import UtilityFunction
+from project_2.ML_models.Logistic_regression import LogRegression
 
 
 def load_vectors(path):
@@ -17,12 +18,6 @@ def load_labels(csv_path="imdb_dataset.csv"):
     import pandas as pd
     df = pd.read_csv(csv_path)
     return df['sentiment'].map({'positive': 1, 'negative': 0}).values
-
-
-def train_model(X_train, y_train):
-    clf = LogisticRegression(max_iter=1000)
-    clf.fit(X_train, y_train)
-    return clf
 
 
 # ========== Active Learning Loop ==========
@@ -48,9 +43,9 @@ if __name__ == "__main__":
     y = load_labels(args.labels)
 
     utility = UtilityFunction(args.strategy)
-
-    #if args.model == "logreg":
-     #   model =
+    #TODO
+    if args.model == "logreg":
+        model = LogRegression()
 
     acc = active_learning_loop(X, y, utility, model, n_initial=args.init, n_queries=args.queries)
 

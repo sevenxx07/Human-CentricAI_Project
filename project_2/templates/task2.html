@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="box">
+  <div class="title-container">
+    <div class="title">Task 2: Active Learning</div>
+  </div>
+
+  <div class="main-text">
+    {% if not review %}
+    <!-- Strategy selection form -->
+    <form method="post">
+      {% csrf_token %}
+      <label for="strategy">Choose an active learning strategy:</label>
+      <select name="strategy" id="strategy">
+        <option value="lc">Least Confidence</option>
+        <option value="margin">Margin Sampling</option>
+        <option value="entropy">Entropy</option>
+        <option value="density">Density</option>
+        <option value="cluster">Cluster</option>
+        <option value="hybrid_density">Hybrid (LC × Density)</option>
+        <option value="hybrid_cluster">Hybrid (LC × Cluster)</option>
+      </select>
+      <button type="submit" class="btn">Start Labeling</button>
+    </form>
+    {% else %}
+    <!-- Labeling interface -->
+    <h3>Label Review {{ current }}/{{ total }}</h3>
+    <p>{{ review }}</p>
+
+    <form method="post">
+      {% csrf_token %}
+      <button name="label" value="positive" class="btn">👍 Positive</button>
+      <button name="label" value="negative" class="btn">👎 Negative</button>
+      <input type="hidden" name="step" value="labeling">
+    </form>
+    {% endif %}
+
+    {% if done %}
+    <h3>✅ Active learning finished!</h3>
+    <img src="{% static 'home/active_learning_accuracy.png' %}" alt="Accuracy Plot" width="80%">
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
