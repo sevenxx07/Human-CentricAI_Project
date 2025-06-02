@@ -107,3 +107,12 @@ def handle_classify_text(request, context):
     pass
 
 
+    return render(request, 'project_base2.html', {})
+
+def task1_view(request):
+    # placeholder — replace with logic later
+    return render(request, "task1.html")
+
+def task2_view(request):
+    # placeholder — replace with logic later
+    return render(request, "task2.html")
