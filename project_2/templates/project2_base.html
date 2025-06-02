@@ -6,37 +6,114 @@
 {% endblock %}
 
 {% block content %}
+
+<!---- FOR USER CHOICE TOGGLE (if we wan't classifier/representation to be a choice) ------->
+
+<!-- <script>
+    function toggleInfo(id) {
+        var el = document.getElementById(id);
+        if (el.style.display === 'none' || el.style.display === '') {
+            el.style.display = 'block';
+        } else {
+            el.style.display = 'none';
+        }
+    }
+</script> -->
+
+<!------------- TITLE -------------->
+
 <div class="box">
     <div class="title-container">
         <div class="title">Active Learning for Text Classification</div>
     </div>
 
+
+<!------------- Project description -------------->
+
     <div class="main-text">
-        <div class="main-text">
-            <div class="summary" >
-                <p class="centered-text">(DESCRIPTION of classifier)
+        <div class="summary">
+            <div class="centered-text">
+                <h3>Project Description</h3>
+                <p style="text-align:center;">In this project, a binary classifier is trained for sentiment analysis on the IMDB 50 k movie 
+                    reviews dataset with the purpose of being able to clasify reviews as either positve or negtaive. 
+                    The IMDB dataset has been cleaned and pre-processed and finally encoded from text into a real vector  represented
+                    using a TF-IDF representation. 
                 </p>
             </div>
+        </div>
 
-        <form method = "POST">
-            {% csrf_token %}
+<!------------- Classifier description -------------->
+    <div class="main-text">
+        <div class="summary">
+            <div class="centered-text">
+                <h3>Logistic Regression</h3>
+                <p style="text-align:center;">The classifier used for this sentiment analysis is Logistic Regression. This is a statistical method
+                    used for binary classification, predicting binary outcomes (here: positive/negtative). It is a type
+                    of supervised machine learning algorithm that uses the sigmoid function to model the probability
+                    of a positive outcome based on the input data. 
+                </p>
+            </div>
+        </div>
+<!------------- Model and representation selection -------------->
+
+            <!-- MODEL SELECTION 
+            <label for="model_choice"> Choose M model:</label>
+            <select name="model_choice" id="model_choice">
+                <option vale="logreg">Logistic Regression</option>
+                <option vale="svm">Support Vector Machine</option>
+                <option vale="nb">Naive Bayes</option>
+            </select>
+
+            <button type="button" onclick="toggleInfo('model-info')">ℹ️</button>
+            <div id="model-info" style="display: none;" class="info-box">
+                <p><strong>Logistic Regression:</strong> A linear model used for binary classification.</p>
+                <p><strong>SVM:</strong> Finds the best boundary that separates classes in high-dimensional space.</p>
+                <p><strong>Naive Bayes:</strong> Probabilistic model based on Bayes’ theorem with strong feature independence assumptions.</p>
+            </div>
+
+            <br>-->
+
+            <!-- REPRESENTATION SELECTION 
+            <label for="representation_choice">Choose Text Representation:</label>
+            <select name="representation_choice" id="representation_choice">
+                <option value="tfidf">TF-IDF</option>
+                <option value="bow">Bag of Words</option>
+                <option value="word2vec">Word2Vec</option>
+            </select>
+            <button type="button" onclick="toggleInfo('rep-info')">ℹ️</button>
+            <div id="rep-info" style="display: none;" class="info-box">
+                <p><strong>TF-IDF:</strong> Weighs words by importance relative to the document and corpus.</p>
+                <p><strong>Bag of Words:</strong> Simple frequency count of word occurrences.</p>
+                <p><strong>Word2Vec:</strong> Uses pre-trained word embeddings for semantic understanding.</p>
+            </div>
+        
+            <br><br> -->
+
+ <!------------- Launching training of classifier -------------->
+            <form method = "POST">
+                {% csrf_token %}
+    
+            <p id="loading-text" style="display:none;" class="info_text">Training started...</p>
             <button type = 'submit' name="action" value="launch_training" class="train_button">
                 Train Classifier 
             </button>
         </form>
 
-        {% if training_started %}
-            <p class="info_text"> Training started...</p>
-        {% endif %}
+        <div id="training-status">
+            {% if training_started %}
+                <p class="info_text"> Training started...</p>
+            {% endif %}
+        
+            {% if accuracy %}
+                <p class="success-text"> Training complete! Accuracy on test set: <strong>{{ accuracy|floatformat:2 }}</strong></p>
+            {% endif %}
+        
+            {% if error %}
+                <p class="error-text"> {{ error }}</p>
+            {% endif %}
+        </div>
 
-        {% if accuracy %}
-             <p class="success-text"> Training complete! Accuracy on test set: <strong>{{ accuracy|floatformat:2 }}</strong></p>
-        {% endif %}
-
-        {% if error %}
-            <p class="error-text"> {{ error }}</p>
-        {% endif %}
-
+<!------------- Loading pre-trained classifier -------------->
         <form method = "POST">
             {% csrf_token %}
             <button type = 'submit' name="action" value="load_pre_trained" class="load_button">
@@ -52,5 +129,32 @@
             <p class="error-text"> {{ error }}</p>
         {% endif %}
     </div>
+    <hr>
+
+
+<!------------- Task 2 -------------->
+
+    <div class="main-text">
+        <h2>Select a Task</h2>
+    
+        <div class="task-box">
+          <h3>Task 1: Supervised Learning</h3>
+          <p>Train a sentiment classifier using the full labeled IMDB dataset. Compare results with active learning.</p>
+          <a href="{% url 'project2:task1' %}" class="btn">Go to Task 1</a>
+        </div>
+    
+        <div class="task-box">
+          <h3>Task 2: Active Learning</h3>
+          <p>Interactively label samples with active learning. Choose a strategy and improve model performance with fewer labels.</p>
+          <a href="{% url 'project2:task2' %}" class="btn">Go to Task 2</a>
+        </div>
+    </div>
 </div>
+
+<script>
+    document.querySelector('form').addEventListener('submit', function() {
+      document.getElementById('loading-text').style.display = 'block';
+    });
+  </script>
+  
 {% endblock %}

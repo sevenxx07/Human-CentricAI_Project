@@ -12,7 +12,7 @@ from django.conf import settings
 
 #from .ML_models.Pre_Processing import clean_text
 from .ML_models.representation import load_dataset, tfidf_representation
-from .ML_models.Logistic_regression import train_classifier, evaluate_classifier, save_model, load_model 
+from .ML_models.Logistic_regression import LogRegression
 
 from sklearn.model_selection import train_test_split
 
@@ -39,6 +39,7 @@ def index(request):
 
 # Launch the training of the classifier 
 def handle_launch_training(request, context):
+    print("handel_launch_training() triggered")
     context['training_started'] = True
     
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -60,8 +61,11 @@ def handle_launch_training(request, context):
 
     # # Inside your Django view or a helper function where you load vectors and labels
 
-    clf = train_classifier(X_train, y_train)
-    accuracy = evaluate_classifier(clf, X_test,y_test)
+    model = LogRegression(X_train, y_train, X_test, y_test)
+    model.train_classifier()
+    accuracy = model.evaluate_classifier()
+    clf = model.clf
+
     context['accuracy'] = accuracy 
 
     DATA_STORAGE.update({
@@ -77,6 +81,7 @@ def handle_launch_training(request, context):
 
 
 def handle_load_pre_trained(request, context):
+
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     model_dir = os.path.join(BASE_DIR, 'project_2', 'ML_models')
 
@@ -91,7 +96,8 @@ def handle_load_pre_trained(request, context):
     try: 
         with open(vectorizer_path, 'rb') as f: 
             vectorizer = pickle.load(f)
-        clf = load_model(model_path)
+        model = LogRegression(None, None, None, None)
+        clf = model.load_model(model_path)
     except FileNotFoundError: 
         context['error'] = 'Pre-trained models not found'
         return 
@@ -107,7 +113,7 @@ def handle_classify_text(request, context):
     pass
 
 
-    return render(request, 'project_base2.html', {})
+    return render(request, 'project2_base.html', {})
 
 def task1_view(request):
     # placeholder — replace with logic later

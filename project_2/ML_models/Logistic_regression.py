@@ -11,7 +11,6 @@ from sklearn.model_selection import train_test_split
 def load_vectors(path):
     return np.load(path)
 
-
 def load_labels(csv_path="cleaned_imdb_reviews.csv"):
     import pandas as pd
     df = pd.read_csv(csv_path)
@@ -28,7 +27,8 @@ class LogRegression:
 
     def train_classifier(self):
         self.clf = LogisticRegression(max_iter=1000)
-        self.clf.fit(self.X, self.y)
+        #self.clf.fit(self.X, self.y)
+        self.clf.fit(self.X_train, self.y_train)
         return self.clf
 
     def evaluate_classifier(self):
