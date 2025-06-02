@@ -8,21 +8,120 @@
   </div>
 
   <div class="main-text">
-    <form method="post">
-      {% csrf_token %}
-      <label for="representation">Select text representation:</label>
-      <select name="representation" id="representation">
-        <option value="tfidf">TF-IDF</option>
-        <option value="glove">GloVe</option>
-        <option value="sbert">SBERT</option>
-      </select>
-      <button type="submit" class="btn">Train Classifier</button>
-    </form>
+    <!--STEP 1: Choose Model and Representation -->
+    <div class="step-box" style="margin-bottom: 20px;" id="step-1">
+      <h3>Step 2: Configure Text Classifier</h3>
 
-    {% if accuracy %}
-    <hr>
-    <h3>Test Accuracy: {{ accuracy }} </h3>
-    {% endif %}
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="select_model">
+        <input type="hidden" name="scroll_to" value="step-1">
+
+        <h4>Text Representation Module</h4>
+                <label for="representation">Representation Method:</label>
+                <select name="representation" id="representation">
+                    <option value="tfidf" {% if selected_representation == 'tfidf' %}selected{% endif %}>TF-IDF</option>
+                    <option value="glove" {% if selected_representation == 'glove' %}selected{% endif %}>GloVe</option>
+                    <option value="sbert" {% if selected_representation == 'sbert' %}selected{% endif %}>SBERT</option>
+                </select>
+                <br><br>
+
+        <!-- Classification Model -->
+        <h4>Classification Module</h4>
+        <label for="model">Classification Model:</label>
+        <select name="model" id="model" onchange="updateModelFields(this.value)" required>
+          <option value="logistic" {% if selected_model == 'logistic' %}selected{% endif %}>Logistic Regression</option>
+          <option value="svm" {% if selected_model == 'svm' %}selected{% endif %}>SVM</option>
+          <option value="naive_bayes" {% if selected_model == 'naive_bayes' %}selected{% endif %}>Naive Bayes</option>
+        </select>
+        <br><br>
+
+        <!-- Dynamic hyperparameter fields -->
+        <h4>Hyperparameters</h4>
+        <div id="model-fields" style="margin-top: 1em;">
+          <!-- Logistic Regression Fields -->
+          <div id="logistic-fields" style="display: {% if selected_model == 'logistic' %}block{% else %}none{% endif %};">
+            <label for="logistic-c">Regularization (C):</label>
+            <input type="number" id="logistic-c" name="C" step="0.01" min="0.01" max="10"
+                   value="{% if classifier and classifier.regularization_c %}{{ classifier.regularization_c }}{% else %}1.0{% endif %}">
+            <small>Higher values mean less regularization</small>
+          </div>
+
+          <!-- SVM Fields -->
+          <div id="svm-fields" style="display: {% if selected_model == 'svm' %}block{% else %}none{% endif %};">
+{#            <label for="svm-c">Regularization (C):</label>#}
+{#            <input type="number" id="svm-c" name="svm_c" step="0.01" min="0.01" max="10"#}
+{#                   value="{% if classifier and classifier.regularization_c %}{{ classifier.regularization_c }}{% else %}1.0{% endif %}">#}
+{#            <br>#}
+            <label for="svm-kernel">Kernel:</label>
+            <select id="svm-kernel" name="kernel">
+              <option value="linear" {% if classifier and classifier.kernel == 'linear' %}selected{% endif %}>Linear</option>
+              <option value="rbf" {% if classifier and classifier.kernel == 'rbf' %}selected{% endif %}>RBF</option>
+              <option value="poly" {% if classifier and classifier.kernel == 'poly' %}selected{% endif %}>Polynomial</option>
+              <option value="sigmoid" {% if classifier and classifier.kernel == 'sigmoid' %}selected{% endif %}>Sigmoid</option>
+            </select>
+          </div>
+
+          <!-- Naive Bayes Fields -->
+          <div id="naive_bayes-fields" style="display: {% if selected_model == 'naive_bayes' %}block{% else %}none{% endif %};">
+            <label for="nb-alpha">Alpha (smoothing parameter):</label>
+            <input type="number" id="nb-alpha" name="alpha" step="0.1" min="0.1" max="10"
+                   value="{% if classifier and classifier.alpha %}{{ classifier.alpha }}{% else %}1.0{% endif %}">
+          </div>
+        </div>
+        <br>
+
+        <button type="submit">Configure Model</button>
+      </form>
+
+      {% if classifier %}
+        <div class="model-info" style="margin-top: 15px; padding: 10px; background-color: #f0f8ff; border-radius: 5px;">
+          <p style="color: green;">Model configured: <strong>{{ classifier.name }}</strong></p>
+          <ul>
+            <li>Representation: {{ classifier.representation_type|upper }}</li>
+            <li>Classification: {{ classifier.model_type|title }}</li>
+            {% if classifier.regularization_c %}
+              <li>Regularization (C): {{ classifier.regularization_c }}</li>
+            {% endif %}
+            {% if classifier.kernel %}
+              <li>SVM kernel: {{ classifier.kernel }}</li>
+            {% endif %}
+            {% if classifier.alpha %}
+              <li>Alpha: {{ classifier.alpha }}</li>
+            {% endif %}
+          </ul>
+        </div>
+      {% endif %}
+    </div>
   </div>
 </div>
+{% endblock %}
+
+{% block script %}
+<script>
+function updateModelFields(selectedModel) {
+  // Hide all parameter fields
+  document.getElementById('logistic-fields').style.display = 'none';
+  document.getElementById('svm-fields').style.display = 'none';
+  document.getElementById('naive_bayes-fields').style.display = 'none';
+
+
+  // Show the selected model's parameters
+  document.getElementById(selectedModel + '-fields').style.display = 'block';
+}
+
+// Initialize fields on page load
+document.addEventListener('DOMContentLoaded', function() {
+  const selectedModel = document.getElementById('model').value;
+  updateModelFields(selectedModel);
+});
+</script>
+
+{% if scroll_to %}
+<script>
+  window.onload = function () {
+    location.hash = "#{{ scroll_to }}";
+  };
+</script>
+{% endif %}
 {% endblock %}
