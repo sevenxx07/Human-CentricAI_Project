@@ -24,7 +24,6 @@ class TextClassifier(models.Model):
     is_trained = models.BooleanField(default=False)
     test_accuracy = models.FloatField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     # Hyperparameters (simplified null/blank handling)
     regularization_c = models.FloatField(default=1.0, blank=True)
@@ -80,7 +79,6 @@ class TextClassifier(models.Model):
                 for f in self._meta.get_fields()
                 if not f.is_relation}
 
-
 class TrainingSession(models.Model):
     """Model to track training sessions"""
     STATUSES = {
@@ -89,7 +87,6 @@ class TrainingSession(models.Model):
         'completed': 'Completed',
         'failed': 'Failed'
     }
-
     start_time = models.DateTimeField(auto_now_add=True)
     end_time = models.DateTimeField(null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUSES.items(), default='pending')
@@ -102,13 +99,9 @@ class TrainingSession(models.Model):
 
     error_message = models.TextField(blank=True)
     notes = models.TextField(blank=True)
+    duration = models.DurationField(null=True, blank=True)
 
     class Meta:
         ordering = ['-start_time']
 
-    def duration(self):
-        """Calculate training duration if completed"""
-        if self.end_time:
-            return self.end_time - self.start_time
-        return None
 

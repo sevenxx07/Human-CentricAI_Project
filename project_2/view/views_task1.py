@@ -1,226 +1,312 @@
-import os
-from datetime import datetime
-
+import ast
 import pandas as pd
 from django.shortcuts import render
 from django.template import loader
 from django.contrib import messages
-from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from django.utils.timezone import now
 
-from project_2.ML_models.SVMClassifier import SVMClassifier
+from pbl.settings import DATA_ROOT
+from project_2.ML_models.Representation import tfidf_representation
 from project_2.models import TextClassifier, TrainingSession
+
+DEBUG = True  # Set to False in production
 
 
 def index(request):
-    # Initialize context with default values
+    """Main view for the text classification interface"""
     context = {
-        'model_trained': False,
         'error': None,
         'scroll_to': request.POST.get('scroll_to', 'step-1'),
-        'selected_model': TextClassifier.objects.all().last().model_type if TextClassifier.objects.exists() else None,
-        'selected_representation': TextClassifier.objects.all().last().representation if TextClassifier.objects.exists() else None,
-        'classifier': TextClassifier.objects.all().last(),
-        'training_session': None
+        'selected_representation': 'tfidf',  # Default value
+        'classifier_settings': None,
+        'training_session': None,
+        'MODEL_TYPES': TextClassifier.MODEL_TYPES,  # Add these
+        'REPRESENTATIONS': TextClassifier.REPRESENTATIONS  # Add these
     }
+
+    if DEBUG:
+        print("\n=== DEBUG: index() called ===")
+        print(f"Initial context: {context}")
+
+    # Get the most recent classifier if exists
+    if TextClassifier.objects.exists():
+        latest_classifier = TextClassifier.objects.latest('created_at')
+        context.update({
+            'selected_representation': latest_classifier.representation_type,
+            'classifier_settings': latest_classifier
+        })
 
     if request.method == 'POST':
         action = request.POST.get('action')
+        if DEBUG:
+            print(f"POST action received: {action}")
+
         if action == 'select_model':
             return handle_model_selection(request, context)
         elif action == 'train_model':
             return handle_model_training(request, context)
+        elif action == 'save_model':
+            return handle_model_saving(request, context)
 
     return render(request, "task1.html", context)
 
 
-def evaluate_model(y_test, y_pred):
-    """Calculate and return evaluation metrics"""
-    return {
-        'accuracy': accuracy_score(y_test, y_pred),
-        'precision': precision_score(y_test, y_pred),
-        'recall': recall_score(y_test, y_pred),
-        'f1': f1_score(y_test, y_pred)
-    }
-
-
 def handle_model_selection(request, context):
     """Handle model type and hyperparameter selection"""
-    context['scroll_to'] = request.POST.get('scroll_to')
-
     try:
+        if DEBUG:
+            print("\n=== DEBUG: handle_model_selection() ===")
+            print(f"Incoming POST data: {request.POST}")
+
         model_type = request.POST.get('model')
         representation_type = request.POST.get('representation', 'tfidf')
 
-        # Get or create classifier
-        classifier, created = TextClassifier.objects.get_or_create(
-            model_type=model_type,
-            defaults={
-                'name': f"{model_type.title()} Classifier",
-                'representation_type': representation_type
-            }
-        )
+        # Create or update classifier configuration
+        classifier_data = {
+            'name': f"{model_type}_{representation_type}_classifier",
+            'model_type': model_type,
+            'representation_type': representation_type,
+        }
 
-        # Update all fields
-        classifier.representation_type = representation_type
-
-        # Update hyperparameters based on model type
+        # Extract hyperparameters based on model type
         if model_type == 'logistic':
-            classifier.regularization_c = float(request.POST.get('C', 1.0))
-            classifier.kernel = None
-            classifier.alpha = None
+            classifier_data.update({
+                'regularization_c': float(request.POST.get('log_C', 1.0)),
+                'max_iter': int(request.POST.get('max_iter', 1000)),
+                'solver': request.POST.get('solver', 'lbfgs'),
+                'penalty': request.POST.get('penalty', 'l2'),
+            })
         elif model_type == 'svm':
-            classifier.regularization_c = float(request.POST.get('C', 1.0))
-            classifier.kernel = request.POST.get('kernel', 'linear')
-            classifier.alpha = None
+            classifier_data.update({
+                'regularization_c': float(request.POST.get('C', 1.0)),
+                'kernel': request.POST.get('kernel', 'linear'),
+                'gamma': request.POST.get('gamma', 'scale'),
+            })
         elif model_type == 'naive_bayes':
-            classifier.alpha = float(request.POST.get('alpha', 1.0))
-            classifier.regularization_c = None
-            classifier.kernel = None
+            classifier_data.update({
+                'alpha': float(request.POST.get('alpha', 1.0)),
+                'nb_variant': request.POST.get('nb_variant', 'gaussian'),
+                'fit_prior': request.POST.get('fit_prior', 'true') == 'true',
+            })
 
-        classifier.save()
+        # Create new classifier instance
+        classifier_settings = TextClassifier.objects.create(**classifier_data)
 
-        context['model_selected'] = True
-        context['selected_model'] = model_type
-        context['selected_representation'] = representation_type
-        context['classifier'] = classifier
-        context['scroll_to'] = 'step-1'  # Changed to step-1 to match your HTML
+        context.update({
+            'model_selected': True,
+            'selected_representation': representation_type,
+            'classifier_settings': classifier_settings,
+            'scroll_to': 'step-2'
+        })
 
         messages.success(request, f"{model_type.title()} model configured successfully!")
+        if DEBUG:
+            print(f"Model configured successfully. Updated context: {context}")
 
     except Exception as e:
         context['error'] = f"Error configuring model: {str(e)}"
+        messages.error(request, context['error'])
+        if DEBUG:
+            print(f"Error in model selection: {context['error']}")
 
     return render(request, 'task1.html', context)
 
 
-def handle_model_training(request, context, data_path="./data/cleaned_imdb_reviews.csv"):
-    """Handle model training process"""
+def load_and_prepare_data(data_path):
+    """Load and preprocess data - matches Jupyter notebook logic"""
+    if DEBUG:
+        print(f"\nLoading data from: {data_path}")
+
+    df = pd.read_csv(data_path)
+    df = df[df['review'].notna()]
+
+    # Convert string representation of tokens to actual list
+    df['review'] = df['review'].apply(ast.literal_eval)
+
+    # Join tokens to form space-separated strings
+    df['review'] = df['review'].apply(lambda tokens: " ".join(tokens))
+
+    if DEBUG:
+        print(f"Loaded {len(df)} samples. First review sample: {df['review'].iloc[0][:50]}...")
+
+    return df['review'].tolist(), df['sentiment'].tolist()
+
+
+def handle_model_training(request, context, data_path=None):
+    """Handle model training process following Jupyter notebook steps"""
+    if DEBUG:
+        print("\n=== DEBUG: handle_model_training() ===")
+        print(f"Initial context: {context}")
+
+    training_session = None
+    context.update({
+        # 'training_session': training_session,
+        'scroll_to': 'step-3'
+    })
+
+    if data_path is None:
+        data_path = f"{DATA_ROOT}/project2_data/cleaned_imdb_reviews.csv"
+
     try:
-        # Get classifier from request or context
-        classifier_id = request.POST.get('classifier_id')
-        if classifier_id:
-            classifier = TextClassifier.objects.get(id=classifier_id)
-        else:
-            classifier = context.get('classifier')
+        classifier_settings = None
+        if TextClassifier.objects.exists():
+            classifier_settings = TextClassifier.objects.latest('created_at')
+            context.update({
+                'selected_representation': classifier_settings.representation_type,
+                'classifier_settings': classifier_settings
+            })
 
-        if not classifier:
+        if not classifier_settings:
             raise ValueError("No model configured. Please select a model first.")
-
-        # Update context with correct classifier info
-        context.update({
-            'classifier': classifier,
-            'selected_model': classifier.model_type,
-            'selected_representation': classifier.representation_type
-        })
-
-        # Load dataset
-        df = pd.read_csv(data_path)
-        text_column = 'review' if 'review' in df.columns else df.columns[0]
-        label_column = 'sentiment' if 'sentiment' in df.columns else 'label'
-
-        X = df[text_column].astype(str)
-        y = df[label_column]
-
-        # Convert string labels to binary if needed
-        if y.dtype == 'object':
-            y = (y == 'positive').astype(int)
-
-        # Split data
-        train_size = int(request.POST.get('train_size', 10000))
-        if train_size > len(X):
-            train_size = len(X)
-
-        X = X[:train_size]
-        y = y[:train_size]
-
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.2, random_state=42, stratify=y
-        )
+        if DEBUG:
+            print(f"Starting training for model: {classifier_settings}")
 
         # Create training session
-        training_session = TrainingSession.objects.create(
-            classifier=classifier,
-            status='running',
-            training_samples=len(X_train),
-            validation_samples=len(X_test)
-        )
-
-        # Text representation
-        if classifier.representation_type == 'tfidf':
-            vectorizer = TfidfVectorizer(max_features=10000, stop_words='english')
-        elif classifier.representation_type == 'glove':
-            raise NotImplementedError("GloVe representation not implemented yet")
-        elif classifier.representation_type == 'sbert':
-            raise NotImplementedError("SBERT representation not implemented yet")
-        else:
-            vectorizer = CountVectorizer(max_features=10000, stop_words='english')
-
-        X_train_vec = vectorizer.fit_transform(X_train)
-        X_test_vec = vectorizer.transform(X_test)
-
-        # Initialize and train model based on classifier type
-        if classifier.model_type == 'svm':
-            model = SVMClassifier(kernel=classifier.kernel, random_state=42)
-            model.train(X_train_vec, y_train)
-            y_pred = model.predict(X_test_vec)
-        elif classifier.model_type == 'logistic':
-            from sklearn.linear_model import LogisticRegression
-            model = LogisticRegression(C=classifier.regularization_c, random_state=42, max_iter=1000)
-            model.fit(X_train_vec, y_train)
-            y_pred = model.predict(X_test_vec)
-        elif classifier.model_type == 'naive_bayes':
-            from sklearn.naive_bayes import MultinomialNB
-            model = MultinomialNB(alpha=classifier.alpha)
-            model.fit(X_train_vec, y_train)
-            y_pred = model.predict(X_test_vec)
-        else:
-            raise NotImplementedError(f"{classifier.model_type} not implemented yet")
-
-        # Calculate metrics
-        metrics = {
-            'accuracy': accuracy_score(y_test, y_pred),
-            'precision': precision_score(y_test, y_pred, average='weighted'),
-            'recall': recall_score(y_test, y_pred, average='weighted'),
-            'f1': f1_score(y_test, y_pred, average='weighted')
-        }
-
-        # Update classifier and training session
-        classifier.is_trained = True
-        classifier.test_accuracy = metrics['accuracy'] * 100
-        classifier.save()
-        classifier.save_model(model, vectorizer)
-
-        training_session.status = 'completed'
-        training_session.final_accuracy = metrics['accuracy'] * 100
-        training_session.final_precision = metrics['precision'] * 100
-        training_session.final_recall = metrics['recall'] * 100
-        training_session.final_f1 = metrics['f1'] * 100
-        training_session.end_time = datetime.now()
-        training_session.save()
-
-        # Update context
+        training_session = TrainingSession.objects.create(status='running')
         context.update({
-            'model_trained': True,
             'training_session': training_session,
-            'classifier': classifier,
-            'selected_model': classifier.model_type,
-            'selected_representation': classifier.representation_type,
-            'scroll_to': request.POST.get('scroll_to', 'step-2')
         })
 
-        messages.success(request, f"Model trained successfully! Accuracy: {metrics['accuracy'] * 100:.2f}%")
+        if DEBUG:
+            print(f"Training session created: {training_session}")
+
+        # 1. Load and prepare data
+        texts, labels = load_and_prepare_data(data_path)
+        training_session.status = 'data loaded'
+        training_session.save()
+        if DEBUG:
+            print(f"Loaded {len(texts)} texts and {len(labels)} labels.")
+
+        # 2. Create text representation
+        X, vectorizer = tfidf_representation(texts)
+        y = labels
+        training_session.status = 'representation created'
+        training_session.save()
+        if DEBUG:
+            print(f"Text representation created. Sample vector shape: {X.shape}")
+
+        # 3. Split data
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        training_session.status = 'data split'
+        training_session.save()
+        if DEBUG:
+            print(f"Data split into {len(X_train)} training and {len(X_test)} testing samples.")
+
+        # 4. Create and train model
+        training_session.status = 'training model'
+        model = classifier_settings.create_model_instance()
+        model.train(X_train, y_train)
+        training_session.status = 'model trained'
+        training_session.save()
+        if DEBUG:
+            print(f"Model trained successfully: {model}")
+
+        # 5. Evaluation
+        y_pred = model.predict(X_test)
+
+        # Calculate and store metrics
+        metrics = {
+            'accuracy': accuracy_score(y_test, y_pred) * 100,
+            'precision': precision_score(y_test, y_pred, average='weighted') * 100,
+            'recall': recall_score(y_test, y_pred, average='weighted') * 100,
+            'f1': f1_score(y_test, y_pred, average='weighted') * 100
+        }
+        if DEBUG:
+            print(f"Evaluation metrics: {metrics}")
+
+        # Update training session - FIXED: Use direct attribute assignment
+        training_session.status = 'completed'
+        training_session.final_accuracy = metrics['accuracy']
+        training_session.final_precision = metrics['precision']
+        training_session.final_recall = metrics['recall']
+        training_session.final_f1 = metrics['f1']
+        training_session.end_time = now()
+        training_session.duration = training_session.end_time - training_session.start_time
+        training_session.save()
+
+        # Update classifier
+        classifier_settings.is_trained = True
+        classifier_settings.test_accuracy = metrics['accuracy']
+        classifier_settings.save()
+
+        # Store model and vectorizer in session for saving later
+        request.session['trained_model'] = {
+            'model': model,
+            'vectorizer': vectorizer,
+            'model_type': classifier_settings.model_type
+        }
+        if DEBUG:
+            print("Stored model in session")
+
+        # Prepare context for GUI
+        context.update({
+            'training_session': training_session,
+            'classifier_settings': classifier_settings,
+            'evaluation_results': metrics,
+            'scroll_to': 'step-3'
+        })
+
+        messages.success(request, "Model trained successfully!")
 
     except Exception as e:
-        if 'training_session' in locals():
+        error_msg = f"Error training model: {str(e)}"
+        if training_session:
             training_session.status = 'failed'
-            training_session.error_message = str(e)
-            training_session.end_time = datetime.now()
+            training_session.error_message = error_msg
+            training_session.end_time = now()
+            training_session.duration = training_session.start_time - training_session.end_time
             training_session.save()
-            context['training_session'] = training_session
+            if DEBUG:
+                print(f"Training failed: {error_msg}")
+                print(f"Failed session state: {training_session.__dict__}")
 
-        context['error'] = f"Error training model: {str(e)}"
-        messages.error(request, context['error'])
+        context['error'] = error_msg
+        messages.error(request, error_msg)
+
+    return render(request, 'task1.html', context)
+
+
+def handle_model_saving(request, context):
+    """Handle saving the trained model and vectorizer"""
+    try:
+        if DEBUG:
+            print("\n=== DEBUG: handle_model_saving() ===")
+            print(f"Incoming context: {context}")
+
+        trained_data = request.session.get('trained_model')
+        if not trained_data:
+            raise ValueError("No trained model found in session.")
+
+        model = trained_data['model']
+        vectorizer = trained_data['vectorizer']
+        model_type = trained_data['model_type']
+
+        if DEBUG:
+            print(f"Saving {model_type} model and vectorizer")
+
+        # Save vectorizer
+        vectorizer_path = f"{DATA_ROOT}/project2_data/tfidf_vectorizer.pkl"
+        with open(vectorizer_path, 'wb') as f:
+            pickle.dump(vectorizer, f)
+        if DEBUG:
+            print(f"Vectorizer saved to: {vectorizer_path}")
+
+        # Save model
+        model_path = f"{DATA_ROOT}/project2_data/{model_type}_model.pkl"
+        model.save_classifier(file_path=model_path)
+        if DEBUG:
+            print(f"Model saved to: {model_path}")
+
+        messages.success(request, "Model and vectorizer saved successfully!")
+        context['message'] = "Model and vectorizer saved successfully!"
+
+    except Exception as e:
+        error_msg = f"Error saving model: {str(e)}"
+        messages.error(request, error_msg)
+        context['error'] = error_msg
+        if DEBUG:
+            print(f"Error saving model: {error_msg}")
 
     return render(request, 'task1.html', context)

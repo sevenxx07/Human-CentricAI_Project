@@ -90,20 +90,12 @@
 
       <!-- Training Status -->
       {% if training_session %}
-      <div class="training-status">
-        <h4>Training Status</h4>
-        <p><strong>Status:</strong> {{ training_session.get_status_display }}</p>
-        <p><strong>Started:</strong> {{ training_session.start_time }}</p>
-        {% if training_session.end_time %}
-          <p><strong>Completed:</strong> {{ training_session.end_time }}</p>
-          <p><strong>Duration:</strong> {{ training_session.duration }}</p>
+        {% if training_session.status == 'completed' %}
+          <p>Accuracy: {{ training_session.final_accuracy|floatformat:2 }}%</p>
+          <p>Training time: {{ training_session.duration.total_seconds|floatformat:2 }}s</p>
+        {% elif training_session.status == 'failed' %}
+          <p>Error: {{ training_session.error_message }}</p>
         {% endif %}
-        {% if training_session.status == 'failed' %}
-          <div class="alert alert-danger">
-            <strong>Error:</strong> {{ training_session.error_message }}
-          </div>
-        {% endif %}
-      </div>
       {% endif %}
     </div>
     {% endif %}
