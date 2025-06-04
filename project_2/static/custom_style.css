@@ -1,0 +1,58 @@
+/*
+For project 2
+*/
+
+.config-summary {
+  margin: 10px 0;
+  font-size: 0.9em;
+}
+
+.small-summary {
+  cursor: pointer;
+  color: #666;
+  font-weight: bold;
+}
+
+.small-config {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 5px;
+}
+
+.badge {
+  background: #f0f0f0;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 0.8em;
+  white-space: nowrap;
+}
+
+details[open] summary {
+  margin-bottom: 5px;
+}
+
+.help-icon {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  line-height: 16px;
+  text-align: center;
+  border-radius: 50%;
+  background: #007bff;
+  color: white;
+  font-size: 12px;
+  cursor: help;
+  margin-left: 5px;
+}
+.model-fields {
+  display: none;
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 5px;
+  margin-top: 10px;
+}
+.form-text {
+  font-size: 0.8em;
+  color: #6c757d;
+}

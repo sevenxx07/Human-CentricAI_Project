@@ -1,6 +1,11 @@
 {% extends 'base.html' %}
 {% load static %}
 
+{% block extra_css %}
+        <link rel= "stylesheet" href="{% static 'custom_style.css'%}">
+{% endblock %}
+
+
 {% block content %}
 <div class="box">
   <div class="title-container">
@@ -8,8 +13,8 @@
   </div>
 
   <div class="main-text">
-    <!--STEP 1: Choose Model and Representation -->
-    <div class="step-box" style="margin-bottom: 20px;" id="step-1">
+    <!-- STEP 1: Model Configuration -->
+    <div class="step-box" id="step-1">
       <h3>Step 1: Configure Text Classifier</h3>
 
       <form method="post">
@@ -17,213 +22,163 @@
         <input type="hidden" name="action" value="select_model">
         <input type="hidden" name="scroll_to" value="step-1">
 
-        <h4>Text Representation Module</h4>
-                <label for="representation">Representation Method:</label>
-                <select name="representation" id="representation">
-                    <option value="tfidf" {% if selected_representation == 'tfidf' %}selected{% endif %}>TF-IDF</option>
-                    <option value="glove" {% if selected_representation == 'glove' %}selected{% endif %}>GloVe</option>
-                    <option value="sbert" {% if selected_representation == 'sbert' %}selected{% endif %}>SBERT</option>
-                </select>
-                <br><br>
+        <!-- Representation Selection -->
+        <div class="form-section">
+          <h4>Text Representation</h4>
+          <select name="representation" class="form-control">
+            {% for value, name in classifier_settings.REPRESENTATIONS.items %}
+              <option value="{{ value }}" {% if selected_representation == value %}selected{% endif %}>{{ name }}</option>
+            {% endfor %}
+          </select>
+        </div>
 
-        <!-- Classification Model -->
-        <h4>Classification Module</h4>
-        <label for="model">Classification Model:</label>
-        <select name="model" id="model" onchange="updateModelFields(this.value)" required>
-          <option value="logistic" {% if selected_model == 'logistic' %}selected{% endif %}>Logistic Regression</option>
-          <option value="svm" {% if selected_model == 'svm' %}selected{% endif %}>SVM</option>
-          <option value="naive_bayes" {% if selected_model == 'naive_bayes' %}selected{% endif %}>Naive Bayes</option>
-        </select>
-        <br><br>
+        <!-- Model Selection -->
+        <div class="form-section">
+          <h4>Classification Model</h4>
+          <select name="model" class="form-control" onchange="updateModelFields(this.value)">
+            {% for value, name in classifier_settings.MODEL_TYPES.items %}
+              <option value="{{ value }}" {% if classifier_settings.model_type == value %}selected{% endif %}>{{ name }}</option>
+            {% endfor %}
+          </select>
+        </div>
 
-        <!-- Dynamic hyperparameter fields -->
-        <h4>Hyperparameters</h4>
-        <div id="model-fields" style="margin-top: 1em;">
-          <!-- Logistic Regression Fields -->
-          <div id="logistic-fields" style="display: {% if selected_model == 'logistic' %}block{% else %}none{% endif %};">
-            <label for="logistic-c">Regularization (C):</label>
-            <input type="number" id="logistic-c" name="C" step="0.01" min="0.01" max="10"
-                   value="{% if classifier and classifier.regularization_c %}{{ classifier.regularization_c }}{% else %}1.0{% endif %}">
-            <small>Higher values mean less regularization</small>
-          </div>
-
-          <!-- SVM Fields -->
-          <div id="svm-fields" style="display: {% if selected_model == 'svm' %}block{% else %}none{% endif %};">
-            <label for="svm-kernel">Kernel:</label>
-            <select id="svm-kernel" name="kernel">
-              <option value="linear" {% if classifier and classifier.kernel == 'linear' %}selected{% endif %}>Linear</option>
-              <option value="rbf" {% if classifier and classifier.kernel == 'rbf' %}selected{% endif %}>RBF</option>
-              <option value="poly" {% if classifier and classifier.kernel == 'poly' %}selected{% endif %}>Polynomial</option>
-              <option value="sigmoid" {% if classifier and classifier.kernel == 'sigmoid' %}selected{% endif %}>Sigmoid</option>
-            </select>
-          </div>
-
-          <!-- Naive Bayes Fields -->
-          <div id="naive_bayes-fields" style="display: {% if selected_model == 'naive_bayes' %}block{% else %}none{% endif %};">
-            <label for="nb-alpha">Alpha (smoothing parameter):</label>
-            <input type="number" id="nb-alpha" name="alpha" step="0.1" min="0.1" max="10"
-                   value="{% if classifier and classifier.alpha %}{{ classifier.alpha }}{% else %}1.0{% endif %}">
+        <!-- Dynamic Hyperparameters -->
+        <div class="form-section">
+          <h4>Hyperparameters</h4>
+          <div id="hyperparameters-container">
+            {% include 'partials/hyperparameters.html' %}
           </div>
         </div>
-        <br>
 
-        <button type="submit">Configure Model</button>
+        <button type="submit" class="btn btn-primary">Configure Model</button>
       </form>
 
-      {% if classifier %}
-        <div class="model-info" style="margin-top: 15px; padding: 10px; background-color: #f0f8ff; border-radius: 5px;">
-          <p style="color: green;">Model configured: <strong>{{ classifier.name }}</strong></p>
-          <ul>
-            <li>Representation: {{ classifier.representation_type|upper }}</li>
-            <li>Classification: {{ classifier.model_type|title }}</li>
-            {% if classifier.regularization_c %}
-              <li>Regularization (C): {{ classifier.regularization_c }}</li>
-            {% endif %}
-            {% if classifier.kernel %}
-              <li>SVM kernel: {{ classifier.kernel }}</li>
-            {% endif %}
-            {% if classifier.alpha %}
-              <li>Alpha: {{ classifier.alpha }}</li>
-            {% endif %}
-          </ul>
+     <!-- Current Configuration - Compact Version -->
+        {% if classifier_settings %}
+        <div class="config-summary">
+          <details>
+            <summary class="small-summary">Current Configuration</summary>
+            <div class="small-config">
+              <span class="badge">{{ classifier_settings.get_model_type_display }}</span>
+              <span class="badge">{{ classifier_settings.get_representation_type_display }}</span>
+              {% for name, value in classifier_settings.get_hyperparameters.items %}
+                {% if value %}
+                  <span class="badge">{{ name|title }}: {{ value }}</span>
+                {% endif %}
+              {% endfor %}
+            </div>
+          </details>
         </div>
-      {% endif %}
+        {% endif %}
     </div>
 
-    <!-- STEP 2: Launch Training -->
-    {% if classifier %}
-    <div class="step-box" style="margin-bottom: 20px;" id="step-2">
+    <!-- STEP 2: Training -->
+    {% if classifier_settings %}
+    <div class="step-box" id="step-2">
       <h3>Step 2: Train Model</h3>
 
       <form method="post" id="training-form">
         {% csrf_token %}
         <input type="hidden" name="action" value="train_model">
         <input type="hidden" name="scroll_to" value="step-2">
-{#        <input type="hidden" name="classifier_id" value="{{ classifier.id }}">#}
-{#        <input type="hidden" name="model" value="{{ classifier.model_type }}">#}
-{#        <input type="hidden" name="representation" value="{{ classifier.representation_type }}">#}
 
-        <button type="submit" class="train-button" id="train-btn">
+        <button type="submit" class="btn btn-primary" id="train-btn">
           <span id="btn-text">Start Training</span>
-          <span id="btn-spinner" style="display: none;">🔄</span>
+          <span id="btn-spinner" class="spinner" style="display:none;"></span>
         </button>
       </form>
 
-        <div id="loading-overlay" class="loading-overlay" style="display: none;">
-            <div class="loading-content">
-                <div class="spinner-large"></div>
-                <p>Training model... This may take a few minutes.</p>
-                <div class="progress-dots">
-                    <span>.</span><span>.</span><span>.</span>
-                </div>
-            </div>
-        </div>
-
+      <!-- Training Status -->
       {% if training_session %}
-      <div class="training-status" style="margin-top: 15px; padding: 10px; background-color: #fffaf0; border-radius: 5px;">
+      <div class="training-status">
         <h4>Training Status</h4>
-        <p>Status: <strong>{{ training_session.status|title }}</strong></p>
-        {% if training_session.start_time %}
-          <p>Started: {{ training_session.start_time }}</p>
-        {% endif %}
+        <p><strong>Status:</strong> {{ training_session.get_status_display }}</p>
+        <p><strong>Started:</strong> {{ training_session.start_time }}</p>
         {% if training_session.end_time %}
-          <p>Completed: {{ training_session.end_time }}</p>
+          <p><strong>Completed:</strong> {{ training_session.end_time }}</p>
+          <p><strong>Duration:</strong> {{ training_session.duration }}</p>
         {% endif %}
-
-        {% if training_session.status == 'completed' %}
-          <div class="training-results" style="margin-top: 10px; padding: 10px; background-color: #f0fff0; border-radius: 5px;">
-            <h4>Training Results</h4>
-            <p>Accuracy: {{ training_session.final_accuracy|floatformat:3 }}%</p>
-            <p>Precision: {{ training_session.final_precision|floatformat:3 }}%</p>
-            <p>Recall: {{ training_session.final_recall|floatformat:3 }}%</p>
-            <p>F1 Score: {{ training_session.final_f1|floatformat:3 }}%</p>
-          </div>
-        {% elif training_session.status == 'failed' %}
-          <div class="training-error" style="margin-top: 10px; padding: 10px; background-color: #fff0f0; border-radius: 5px;">
-            <h4>Error</h4>
-            <p>{{ training_session.error_message }}</p>
+        {% if training_session.status == 'failed' %}
+          <div class="alert alert-danger">
+            <strong>Error:</strong> {{ training_session.error_message }}
           </div>
         {% endif %}
       </div>
       {% endif %}
     </div>
     {% endif %}
+
+    <!-- STEP 3: Results & Saving -->
+    {% if classifier_settings.is_trained %}
+    <div class="step-box" id="step-3">
+      <h3>Step 3: Results & Save Model</h3>
+
+      <!-- Results Display -->
+      <div class="results-container">
+        <h4>Evaluation Metrics</h4>
+        <div class="metrics-grid">
+          <div class="metric">
+            <span class="metric-value">{{ evaluation_results.accuracy|floatformat:2 }}%</span>
+            <span class="metric-label">Accuracy</span>
+          </div>
+          <div class="metric">
+            <span class="metric-value">{{ evaluation_results.precision|floatformat:2 }}%</span>
+            <span class="metric-label">Precision</span>
+          </div>
+          <div class="metric">
+            <span class="metric-value">{{ evaluation_results.recall|floatformat:2 }}%</span>
+            <span class="metric-label">Recall</span>
+          </div>
+          <div class="metric">
+            <span class="metric-value">{{ evaluation_results.f1|floatformat:2 }}%</span>
+            <span class="metric-label">F1 Score</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Save Button -->
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save_model">
+        <input type="hidden" name="scroll_to" value="step-3">
+        <button type="submit" class="btn btn-success">Save Model</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
 </div>
 {% endblock %}
-</div>
 
 {% block script %}
-<!-- Simple inline script - no external file needed -->
 <script>
 function updateModelFields(selectedModel) {
-  // Hide all parameter fields
-  document.getElementById('logistic-fields').style.display = 'none';
-  document.getElementById('svm-fields').style.display = 'none';
-  document.getElementById('naive_bayes-fields').style.display = 'none';
-
-  // Show the selected model's parameters
+  // Simplified model fields toggling
+  document.querySelectorAll('.model-fields').forEach(el => {
+    el.style.display = 'none';
+  });
   document.getElementById(selectedModel + '-fields').style.display = 'block';
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-  const selectedModel = document.getElementById('model').value;
+  // Initialize model fields display
+  const selectedModel = document.querySelector('select[name="model"]').value;
   updateModelFields(selectedModel);
 
-  // Add training form handler
+  // Training form submission handler
   const trainingForm = document.getElementById('training-form');
   if (trainingForm) {
-    trainingForm.addEventListener('submit', function(e) {
-      console.log('Training started!'); // Debug message
-      showLoadingState();
+    trainingForm.addEventListener('submit', function() {
+      document.getElementById('btn-text').style.display = 'none';
+      document.getElementById('btn-spinner').style.display = 'inline-block';
     });
   }
 });
 
-function showLoadingState() {
-  const trainBtn = document.getElementById('train-btn');
-  const btnText = document.getElementById('btn-text');
-  const btnSpinner = document.getElementById('btn-spinner');
-  const loadingOverlay = document.getElementById('loading-overlay');
-
-  console.log('Showing loading state...'); // Debug message
-
-  if (trainBtn && btnText && btnSpinner) {
-    trainBtn.disabled = true;
-    btnText.textContent = 'Training...';
-    btnSpinner.style.display = 'inline-block';
-  }
-
-  if (loadingOverlay) {
-    loadingOverlay.style.display = 'flex';
-  }
-}
-
 {% if scroll_to %}
-window.onload = function () {
-  location.hash = "#{{ scroll_to }}";
-};
-{% endif %}
-
-{% if training_session and training_session.status == 'running' %}
-// Poll for training updates
-function checkTrainingStatus() {
-  fetch(window.location.href)
-    .then(response => response.text())
-    .then(html => {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, 'text/html');
-      const statusElement = doc.querySelector('.training-status');
-      if (statusElement) {
-        const currentStatus = statusElement.querySelector('strong').textContent.toLowerCase();
-        if (currentStatus !== 'running') {
-          window.location.reload();
-        }
-      }
-    });
-}
-
-// Check every 5 seconds
-setInterval(checkTrainingStatus, 5000);
+// Auto-scroll to the specified step
+window.addEventListener('load', function() {
+  document.getElementById('{{ scroll_to }}').scrollIntoView({ behavior: 'smooth' });
+});
 {% endif %}
 </script>
 {% endblock %}

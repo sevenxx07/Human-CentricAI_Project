@@ -1,124 +1,114 @@
 from django.db import models
-
-from django.db import models
-import pickle
-import os
-from django.conf import settings
+from pathlib import Path
 
 
 class TextClassifier(models.Model):
     """Model to store text classifier information"""
+    MODEL_TYPES = {
+        'svm': 'Support Vector Machine',
+        'logistic': 'Logistic Regression',
+        'naive_bayes': 'Naive Bayes'
+    }
 
-    REPRESENTATION_CHOICES = [
-        ('tfidf', 'TF-IDF'),
-        ('glove', 'GloVe'),
-        ('sbert', 'SBERT'),
-    ]
+    REPRESENTATIONS = {
+        'tfidf': 'TF-IDF',
+        'count': 'Count Vectorizer',
+        'glove': 'GloVe',
+        'sbert': 'SBERT'
+    }
 
-    name = models.CharField(max_length=100, default="IMDB Sentiment Classifier")
-    model_type = models.CharField(max_length=50, default="logistic")
-    representation = models.CharField(
-        max_length=50,
-        choices=REPRESENTATION_CHOICES,
-        default="tfidf"
-    )
-    representation_type = models.CharField(
-        max_length=50,
-        choices=REPRESENTATION_CHOICES,
-        default="tfidf"
-    )
+    name = models.CharField(max_length=100, default="classifier")
+    model_type = models.CharField(max_length=50, choices=MODEL_TYPES.items(), default="logistic")
+    representation_type = models.CharField(max_length=50, choices=REPRESENTATIONS.items(), default="tfidf")
+
     is_trained = models.BooleanField(default=False)
-    train_accuracy = models.FloatField(null=True, blank=True)
     test_accuracy = models.FloatField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    # Hyperparameters
-    regularization_c = models.FloatField(default=1.0)  # For Logistic Regression and SVM
-    kernel = models.CharField(max_length=50, default="linear", null=True, blank=True)  # For SVM
-    alpha = models.FloatField(default=1.0, null=True, blank=True)  # For Naive Bayes
+    # Hyperparameters (simplified null/blank handling)
+    regularization_c = models.FloatField(default=1.0, blank=True)
+    max_iter = models.IntegerField(default=1000, blank=True)
+    solver = models.CharField(max_length=20, default="lbfgs", blank=True)
+    penalty = models.CharField(max_length=20, default="l2", blank=True)
+    nb_variant = models.CharField(max_length=20, default="gaussian", blank=True)
+    fit_prior = models.BooleanField(default=True, blank=True)
+    alpha = models.FloatField(default=1.0, blank=True)
+    kernel = models.CharField(max_length=50, default="linear", blank=True)
+    gamma = models.CharField(max_length=20, default="scale", blank=True)
+
     def __str__(self):
-        return f"{self.name}_{self.model_type}"
+        return f"{self.model_type}_{self.representation_type}_classifier"
 
-    def save(self, *args, **kwargs):
-        print(f"Saving classifier - Model: {self.model_type}, Rep: {self.representation_type}")
-        super().save(*args, **kwargs)
+    def create_model_instance(self):
+        """Create appropriate model wrapper instance"""
+        model_params = {
+            'random_state': 42,
+            'verbose': False
+        }
 
-    def save_model(self, model, vectorizer=None):
-        """Save trained model and vectorizer to files"""
-        model_dir = os.path.join(settings.DATA_ROOT, 'p2_models', self.__str__())
-        os.makedirs(model_dir, exist_ok=True)
+        if self.model_type == 'svm':
+            from project_2.ML_models.SVMModel import SVMModel
+            model_params.update({
+                'kernel': self.kernel,
+                'C': self.regularization_c
+            })
+            return SVMModel(**model_params)
 
-        # Save the classifier model
-        model_path = os.path.join(model_dir, f'classifier_{self.id}.pkl')
-        with open(model_path, 'wb') as f:
-            pickle.dump(model, f)
+        elif self.model_type == 'logistic':
+            from project_2.ML_models.LogisticRegressionModel import LogisticRegressionModel
+            model_params.update({
+                'C': self.regularization_c,
+                'max_iter': self.max_iter,
+                'solver': self.solver
+            })
+            return LogisticRegressionModel(**model_params)
 
-        # Save the vectorizer if provided
-        if vectorizer:
-            vectorizer_path = os.path.join(model_dir, f'vectorizer_{self.id}.pkl')
-            with open(vectorizer_path, 'wb') as f:
-                pickle.dump(vectorizer, f)
+        elif self.model_type == 'naive_bayes':
+            from project_2.ML_models.NaiveBayesModel import NaiveBayesModel
+            model_params.update({
+                'variant': self.nb_variant,
+                'alpha': self.alpha
+            })
+            return NaiveBayesModel(**model_params)
 
-    def load_model(self):
-        """
-        Load trained model and vectorizer from files
+        raise ValueError(f"Unsupported model type: {self.model_type}")
 
-        Returns: sklearn model, vectorization
-
-        """
-        # Fix: Use the same path structure as save_model
-        model_dir = os.path.join(settings.DATA_ROOT, 'p2_models', self.__str__())
-
-        try:
-            # Load classifier
-            model_path = os.path.join(model_dir, f'classifier_{self.id}.pkl')
-            with open(model_path, 'rb') as f:
-                model = pickle.load(f)
-
-            # Load vectorizer
-            vectorizer_path = os.path.join(model_dir, f'vectorizer_{self.id}.pkl')
-            vectorizer = None
-            if os.path.exists(vectorizer_path):
-                with open(vectorizer_path, 'rb') as f:
-                    vectorizer = pickle.load(f)
-
-            return model, vectorizer
-        except FileNotFoundError:
-            return None, None
+    def get_hyperparameters(self):
+        """Return hyperparameters as dict"""
+        return {f.name: getattr(self, f.name)
+                for f in self._meta.get_fields()
+                if not f.is_relation}
 
 
 class TrainingSession(models.Model):
     """Model to track training sessions"""
-    classifier = models.ForeignKey(TextClassifier, on_delete=models.CASCADE)
+    STATUSES = {
+        'pending': 'Pending',
+        'running': 'Running',
+        'completed': 'Completed',
+        'failed': 'Failed'
+    }
+
     start_time = models.DateTimeField(auto_now_add=True)
     end_time = models.DateTimeField(null=True, blank=True)
-    status = models.CharField(max_length=20, choices=[
-        ('running', 'Running'),
-        ('completed', 'Completed'),
-        ('failed', 'Failed')
-    ], default='running')
+    status = models.CharField(max_length=20, choices=STATUSES.items(), default='pending')
 
-    # Training metrics
-    training_samples = models.IntegerField(null=True, blank=True)
-    validation_samples = models.IntegerField(null=True, blank=True)
+    # Metrics
     final_accuracy = models.FloatField(null=True, blank=True)
     final_precision = models.FloatField(null=True, blank=True)
     final_recall = models.FloatField(null=True, blank=True)
     final_f1 = models.FloatField(null=True, blank=True)
 
     error_message = models.TextField(blank=True)
+    notes = models.TextField(blank=True)
 
-    def __str__(self):
-        return f"Training Session {self.id} - {self.status}"
+    class Meta:
+        ordering = ['-start_time']
 
+    def duration(self):
+        """Calculate training duration if completed"""
+        if self.end_time:
+            return self.end_time - self.start_time
+        return None
 
-class TrainedModelData(models.Model):
-    name = models.CharField(max_length=100)
-    vectorizer = models.BinaryField()
-    classifier = models.BinaryField()
-    accuracy = models.FloatField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return self.name

@@ -1,0 +1,112 @@
+<div id="hyperparameters-container">
+  <!-- Logistic Regression Fields -->
+  <div id="logistic-fields" class="model-fields" style="display: {% if classifier_settings.model_type == 'logistic' %}block{% else %}none{% endif %};">
+    <div class="form-group">
+      <label for="logistic-c" title="Inverse of regularization strength (smaller = stronger regularization)">
+        Regularization (C) <i class="help-icon">?</i>
+      </label>
+      <input type="number" id="logistic-c" name="log_C" step="0.01" min="0.01" max="10"
+             value="{{ classifier_settings.regularization_c|default:'1.0' }}" class="form-control">
+      <small class="form-text">Higher values mean less regularization</small>
+    </div>
+
+    <div class="form-group">
+      <label for="logistic-solver" title="Algorithm to use for optimization">
+        Solver <i class="help-icon">?</i>
+      </label>
+      <select id="logistic-solver" name="solver" class="form-control">
+        <option value="lbfgs" {% if classifier_settings.solver == 'lbfgs' %}selected{% endif %}>lbfgs (good for small datasets)</option>
+        <option value="liblinear" {% if classifier_settings.solver == 'liblinear' %}selected{% endif %}>liblinear (good for binary classification)</option>
+        <option value="newton-cg" {% if classifier_settings.solver == 'newton-cg' %}selected{% endif %}>newton-cg (needs L2 penalty)</option>
+        <option value="sag" {% if classifier_settings.solver == 'sag' %}selected{% endif %}>sag (large datasets)</option>
+        <option value="saga" {% if classifier_settings.solver == 'saga' %}selected{% endif %}>saga (supports all penalties)</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="logistic-max-iter" title="Maximum iterations for solver to converge">
+        Max iterations <i class="help-icon">?</i>
+      </label>
+      <input type="number" id="logistic-max-iter" name="max_iter" min="100" max="10000" step="100"
+             value="{{ classifier_settings.max_iter|default:'1000' }}" class="form-control">
+    </div>
+
+    <div class="form-group">
+      <label for="logistic-penalty" title="Type of regularization to apply">
+        Penalty <i class="help-icon">?</i>
+      </label>
+      <select id="logistic-penalty" name="penalty" class="form-control">
+        <option value="l2" {% if classifier_settings.penalty == 'l2' %}selected{% endif %}>L2 (default, spreads error)</option>
+        <option value="l1" {% if classifier_settings.penalty == 'l1' %}selected{% endif %}>L1 (creates sparsity)</option>
+        <option value="elasticnet" {% if classifier_settings.penalty == 'elasticnet' %}selected{% endif %}>Elasticnet (L1 + L2 mix)</option>
+        <option value="none" {% if classifier_settings.penalty == 'none' %}selected{% endif %}>None (no regularization)</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- SVM Fields -->
+  <div id="svm-fields" class="model-fields" style="display: {% if classifier_settings.model_type == 'svm' %}block{% else %}none{% endif %};">
+    <div class="form-group">
+      <label for="svm-kernel" title="Determines the transformation of data">
+        Kernel <i class="help-icon">?</i>
+      </label>
+      <select id="svm-kernel" name="kernel" class="form-control">
+        <option value="linear" {% if classifier_settings.kernel == 'linear' %}selected{% endif %}>Linear (fastest, good for linear separation)</option>
+        <option value="rbf" {% if classifier_settings.kernel == 'rbf' %}selected{% endif %}>RBF (general purpose, Gaussian)</option>
+        <option value="poly" {% if classifier_settings.kernel == 'poly' %}selected{% endif %}>Polynomial (for polynomial relationships)</option>
+        <option value="sigmoid" {% if classifier_settings.kernel == 'sigmoid' %}selected{% endif %}>Sigmoid (similar to neural networks)</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="svm-c" title="Controls trade-off between smooth decision boundary and classifying training points correctly">
+        Regularization (C) <i class="help-icon">?</i>
+      </label>
+      <input type="number" id="svm-c" name="C" step="0.01" min="0.01" max="10"
+             value="{{ classifier_settings.regularization_c|default:'1.0' }}" class="form-control">
+      <small class="form-text">Higher values = less regularization (may overfit)</small>
+    </div>
+
+    <div class="form-group">
+      <label for="svm-gamma" title="Kernel coefficient (how far influence of single training example reaches)">
+        Gamma <i class="help-icon">?</i>
+      </label>
+      <input type="text" id="svm-gamma" name="gamma"
+             value="{{ classifier_settings.gamma|default:'scale' }}" class="form-control">
+      <small class="form-text">'scale' (default), 'auto', or numeric value</small>
+    </div>
+  </div>
+
+  <!-- Naive Bayes Fields -->
+  <div id="naive_bayes-fields" class="model-fields" style="display: {% if classifier_settings.model_type == 'naive_bayes' %}block{% else %}none{% endif %};">
+    <div class="form-group">
+      <label for="nb-alpha" title="Additive smoothing parameter (prevents zero probabilities)">
+        Alpha (smoothing) <i class="help-icon">?</i>
+      </label>
+      <input type="number" id="nb-alpha" name="alpha" step="0.1" min="0.1" max="10"
+             value="{{ classifier_settings.alpha|default:'1.0' }}" class="form-control">
+      <small class="form-text">1.0 = Laplace smoothing, 0 = no smoothing</small>
+    </div>
+
+    <div class="form-group">
+      <label for="nb-variant" title="Type of Naive Bayes algorithm">
+        Variant <i class="help-icon">?</i>
+      </label>
+      <select id="nb-variant" name="nb_variant" class="form-control">
+        <option value="gaussian" {% if classifier_settings.nb_variant == 'gaussian' %}selected{% endif %}>Gaussian (continuous features)</option>
+        <option value="multinomial" {% if classifier_settings.nb_variant == 'multinomial' %}selected{% endif %}>Multinomial (discrete counts)</option>
+        <option value="bernoulli" {% if classifier_settings.nb_variant == 'bernoulli' %}selected{% endif %}>Bernoulli (binary features)</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="nb-fit-prior" title="Whether to learn class prior probabilities">
+        Fit prior <i class="help-icon">?</i>
+      </label>
+      <select id="nb-fit-prior" name="fit_prior" class="form-control">
+        <option value="true" {% if classifier_settings.fit_prior %}selected{% endif %}>True (learn from data)</option>
+        <option value="false" {% if not classifier_settings.fit_prior %}selected{% endif %}>False (uniform priors)</option>
+      </select>
+    </div>
+  </div>
+</div>
