@@ -17,7 +17,7 @@ def load_labels(csv_path="cleaned_imdb_reviews.csv"):
     labels = df['sentiment'].map({'positive': 1, 'negative': 0}).values
     return labels
 
-class LogRegression:
+class LogRegression: #TODO rename so its not confused with sklearn
     def __init__(self, X_train, y_train, X_test, y_test):
         self.clf = None
         self.X_train = X_train
@@ -65,7 +65,7 @@ if __name__ == "__main__":
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
     print("Training classifier...")
-    model = LogisticRegression(X_train, X_test, y_train, y_test)
+    model = LogRegression(X_train, X_test, y_train, y_test) #TODO this wont run false call
     model.train_classifier()
 
     print("📊 Evaluating classifier...")

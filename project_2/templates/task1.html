@@ -1,3 +1,5 @@
+[file name]: task1.html
+[file content begin]
 {% extends 'base.html' %}
 {% load static %}
 
@@ -10,7 +12,7 @@
   <div class="main-text">
     <!--STEP 1: Choose Model and Representation -->
     <div class="step-box" style="margin-bottom: 20px;" id="step-1">
-      <h3>Step 2: Configure Text Classifier</h3>
+      <h3>Step 1: Configure Text Classifier</h3>
 
       <form method="post">
         {% csrf_token %}
@@ -49,10 +51,6 @@
 
           <!-- SVM Fields -->
           <div id="svm-fields" style="display: {% if selected_model == 'svm' %}block{% else %}none{% endif %};">
-{#            <label for="svm-c">Regularization (C):</label>#}
-{#            <input type="number" id="svm-c" name="svm_c" step="0.01" min="0.01" max="10"#}
-{#                   value="{% if classifier and classifier.regularization_c %}{{ classifier.regularization_c }}{% else %}1.0{% endif %}">#}
-{#            <br>#}
             <label for="svm-kernel">Kernel:</label>
             <select id="svm-kernel" name="kernel">
               <option value="linear" {% if classifier and classifier.kernel == 'linear' %}selected{% endif %}>Linear</option>
@@ -93,6 +91,59 @@
         </div>
       {% endif %}
     </div>
+
+    <!-- STEP 2: Launch Training -->
+    {% if classifier %}
+    <div class="step-box" style="margin-bottom: 20px;" id="step-2">
+      <h3>Step 2: Train Model</h3>
+
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="train_model">
+        <input type="hidden" name="scroll_to" value="step-2">
+
+{#        <div style="margin-bottom: 15px;">#}
+{#          <label for="train_size">Training Data Size:</label>#}
+{#          <select id="train_size" name="train_size">#}
+{#            <option value="1000">1,000 samples</option>#}
+{#            <option value="5000">5,000 samples</option>#}
+{#            <option value="10000" selected>10,000 samples</option>#}
+{#            <option value="25000">25,000 samples (full dataset)</option>#}
+{#          </select>#}
+{#        </div>#}
+
+        <button type="submit" class="train-button">Start Training</button>
+      </form>
+
+      {% if training_session %}
+      <div class="training-status" style="margin-top: 15px; padding: 10px; background-color: #fffaf0; border-radius: 5px;">
+        <h4>Training Status</h4>
+        <p>Status: <strong>{{ training_session.status|title }}</strong></p>
+        {% if training_session.start_time %}
+          <p>Started: {{ training_session.start_time }}</p>
+        {% endif %}
+        {% if training_session.end_time %}
+          <p>Completed: {{ training_session.end_time }}</p>
+        {% endif %}
+
+        {% if training_session.status == 'completed' %}
+          <div class="training-results" style="margin-top: 10px; padding: 10px; background-color: #f0fff0; border-radius: 5px;">
+            <h4>Training Results</h4>
+            <p>Accuracy: {{ training_session.final_accuracy|floatformat:3 }}</p>
+            <p>Precision: {{ training_session.final_precision|floatformat:3 }}</p>
+            <p>Recall: {{ training_session.final_recall|floatformat:3 }}</p>
+            <p>F1 Score: {{ training_session.final_f1|floatformat:3 }}</p>
+          </div>
+        {% elif training_session.status == 'failed' %}
+          <div class="training-error" style="margin-top: 10px; padding: 10px; background-color: #fff0f0; border-radius: 5px;">
+            <h4>Error</h4>
+            <p>{{ training_session.error_message }}</p>
+          </div>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
   </div>
 </div>
 {% endblock %}
@@ -105,7 +156,6 @@ function updateModelFields(selectedModel) {
   document.getElementById('svm-fields').style.display = 'none';
   document.getElementById('naive_bayes-fields').style.display = 'none';
 
-
   // Show the selected model's parameters
   document.getElementById(selectedModel + '-fields').style.display = 'block';
 }
@@ -115,13 +165,34 @@ document.addEventListener('DOMContentLoaded', function() {
   const selectedModel = document.getElementById('model').value;
   updateModelFields(selectedModel);
 });
-</script>
 
 {% if scroll_to %}
-<script>
-  window.onload = function () {
-    location.hash = "#{{ scroll_to }}";
-  };
-</script>
+window.onload = function () {
+  location.hash = "#{{ scroll_to }}";
+};
 {% endif %}
+
+{% if training_session and training_session.status == 'running' %}
+// Poll for training updates
+function checkTrainingStatus() {
+  fetch(window.location.href)
+    .then(response => response.text())
+    .then(html => {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const statusElement = doc.querySelector('.training-status');
+      if (statusElement) {
+        const currentStatus = statusElement.querySelector('strong').textContent.toLowerCase();
+        if (currentStatus !== 'running') {
+          window.location.reload();
+        }
+      }
+    });
+}
+
+// Check every 5 seconds
+setInterval(checkTrainingStatus, 5000);
+{% endif %}
+</script>
 {% endblock %}
+[file content end]

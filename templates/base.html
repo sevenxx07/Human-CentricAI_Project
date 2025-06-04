@@ -16,6 +16,14 @@
         </div>
 
         {% block script %}
+            {% if scroll_to %}
+            <script>
+                window.onload = function () {
+                    location.hash = "#{{ scroll_to }}";
+                };
+            </script>
+            {% endif %}
         {% endblock script %}
     </body>
 </html>
+

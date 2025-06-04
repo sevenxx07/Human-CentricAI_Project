@@ -14,12 +14,25 @@ from project_2.models import TextClassifier, TrainingSession
 
 
 def index(request):
-    context = {'model_trained': False, 'error': None, 'scroll_to': request.POST.get('scroll_to')}
+    # Initialize context with default values
+    context = {
+        'model_trained': False,
+        'error': None,
+        'scroll_to': request.POST.get('scroll_to', 'step-1'),
+        'selected_model': None,
+        'selected_representation': None,
+        'classifier': TextClassifier.objects.last(),
+        'training_session': None
+    }
 
-    classifier = TextClassifier.objects.filter(is_trained=True).first()
-    if classifier:
-        context['model_trained'] = True
-        context['classifier'] = classifier
+    # Set current model and representation if classifier exists
+    if context['classifier']:
+        context['selected_model'] = context['classifier'].model_type
+        context['selected_representation'] = context['classifier'].representation_type
+        context['model_trained'] = context['classifier'].is_trained
+        context['training_session'] = TrainingSession.objects.filter(
+            classifier=context['classifier']
+        ).last()
 
     if request.method == 'POST':
         action = request.POST.get('action')
@@ -27,11 +40,18 @@ def index(request):
             return handle_model_selection(request, context)
         elif action == 'train_model':
             return handle_model_training(request, context)
-        elif action == 'test_model':
-            pass
-            # return handle_model_testing(request, context)
 
     return render(request, "task1.html", context)
+
+
+def evaluate_model(y_test, y_pred):
+    """Calculate and return evaluation metrics"""
+    return {
+        'accuracy': accuracy_score(y_test, y_pred),
+        'precision': precision_score(y_test, y_pred),
+        'recall': recall_score(y_test, y_pred),
+        'f1': f1_score(y_test, y_pred)
+    }
 
 
 def handle_model_selection(request, context):
@@ -85,27 +105,15 @@ def handle_model_selection(request, context):
     return render(request, 'task1.html', context)
 
 
-def handle_model_training(request, context, upload_dir="./data/cleaned_imdb_reviews.csv"):
+def handle_model_training(request, context, data_path="./data/cleaned_imdb_reviews.csv"):
     """Handle model training process"""
-    context['scroll_to'] = request.POST.get('scroll_to')
-
     try:
-        # Get the dataset
-        df = pd.read_csv(upload_dir)
-
-        # Get classifier
-        classifier = TextClassifier.objects.filter(model_type=request.POST.get('model')).first()
+        classifier = context['classifier']
         if not classifier:
-            context['error'] = "No model configuration found. Please select a model first."
-            return render(request, 'task1.html', context)
+            raise ValueError("No model configured. Please select a model first.")
 
-        # Create training session
-        training_session = TrainingSession.objects.create(
-            classifier=classifier,
-            status='running'
-        )
-
-        # Prepare data
+        # Load dataset
+        df = pd.read_csv(data_path)
         text_column = 'review' if 'review' in df.columns else df.columns[0]
         label_column = 'sentiment' if 'sentiment' in df.columns else 'label'
 
@@ -117,83 +125,84 @@ def handle_model_training(request, context, upload_dir="./data/cleaned_imdb_revi
             y = (y == 'positive').astype(int)
 
         # Split data
-        test_size = float(request.POST.get('test_size', 20)) / 100
+        train_size = int(request.POST.get('train_size', 10000))
+        if train_size > len(X):
+            train_size = len(X)
+
+        X = X[:train_size]
+        y = y[:train_size]
+
         X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=test_size, random_state=42, stratify=y
+            X, y, test_size=0.2, random_state=42, stratify=y
         )
 
-        # Text representation - now properly using the classifier's representation_type
+        # Create training session
+        training_session = TrainingSession.objects.create(
+            classifier=classifier,
+            status='running',
+            training_samples=len(X_train),
+            validation_samples=len(X_test)
+        )
+
+        # Text representation
         if classifier.representation_type == 'tfidf':
             vectorizer = TfidfVectorizer(max_features=10000, stop_words='english')
         elif classifier.representation_type == 'glove':
-            # For GloVe, you would typically use pre-trained embeddings
-            # This is a placeholder - you'll need to implement GloVe embedding
             raise NotImplementedError("GloVe representation not implemented yet")
         elif classifier.representation_type == 'sbert':
-            # For SBERT, you would use sentence-transformers
-            # This is a placeholder - you'll need to implement SBERT
             raise NotImplementedError("SBERT representation not implemented yet")
-        else:  # default to bow if representation_type is not recognized
+        else:
             vectorizer = CountVectorizer(max_features=10000, stop_words='english')
 
         X_train_vec = vectorizer.fit_transform(X_train)
         X_test_vec = vectorizer.transform(X_test)
 
-        # Initialize model
-        if classifier.model_type == 'logistic':
-            pass
-            # TODO Logistic_regression module is full of error
-            # model = LogisticRegression(C=classifier.regularization_c, random_state=42)
-        elif classifier.model_type == 'svm':
+        # Initialize and train model
+        if classifier.model_type == 'svm':
             model = SVMClassifier(kernel=classifier.kernel, random_state=42)
-        elif classifier.model_type == 'naive_bayes':
-            pass
-
-        model.train(X_train_vec, y_train)
-
-        # Predictions
-        y_pred = model.predict(X_test_vec)
+            model.train(X_train_vec, y_train)
+            y_pred = model.predict(X_test_vec)
+        else:
+            raise NotImplementedError(f"{classifier.model_type} not implemented yet")
 
         # Calculate metrics
-        accuracy = accuracy_score(y_test, y_pred)
-        precision = precision_score(y_test, y_pred, average='weighted')
-        recall = recall_score(y_test, y_pred, average='weighted')
-        f1 = f1_score(y_test, y_pred, average='weighted')
+        metrics = {
+            'accuracy': accuracy_score(y_test, y_pred),
+            'precision': precision_score(y_test, y_pred, average='weighted'),
+            'recall': recall_score(y_test, y_pred, average='weighted'),
+            'f1': f1_score(y_test, y_pred, average='weighted')
+        }
 
-        # Update classifier
+        # Update classifier and training session
         classifier.is_trained = True
-        classifier.test_accuracy = accuracy * 100
+        classifier.test_accuracy = metrics['accuracy'] * 100
         classifier.save()
         classifier.save_model(model, vectorizer)
 
-        # Update training session
         training_session.status = 'completed'
-        training_session.end_time = datetime.now()
-        training_session.training_samples = len(X_train)
-        training_session.validation_samples = len(X_test)
-        training_session.final_accuracy = accuracy * 100
-        training_session.final_precision = precision * 100
-        training_session.final_recall = recall * 100
-        training_session.final_f1 = f1 * 100
+        training_session.final_accuracy = metrics['accuracy'] * 100
+        training_session.final_precision = metrics['precision'] * 100
+        training_session.final_recall = metrics['recall'] * 100
+        training_session.final_f1 = metrics['f1'] * 100
         training_session.save()
 
-        context['model_trained'] = True
-        context['train_success'] = True
-        context['accuracy'] = round(accuracy * 100, 2)
-        context['precision'] = round(precision * 100, 2)
-        context['recall'] = round(recall * 100, 2)
-        context['f1'] = round(f1 * 100, 2)
-        context['classifier'] = classifier
-        context['training_session'] = training_session
-        context['scroll_to'] = 'step-3'
+        # Update context
+        context.update({
+            'model_trained': True,
+            'training_session': training_session,
+            'classifier': classifier,
+            'scroll_to': request.POST.get('scroll_to', 'step-2')
+        })
 
-        messages.success(request, f"Model trained successfully! Test accuracy: {accuracy * 100:.2f}%")
-
+        messages.success(request, f"Model trained successfully! Accuracy: {metrics['accuracy'] * 100:.2f}%")
     except Exception as e:
         if 'training_session' in locals():
             training_session.status = 'failed'
             training_session.error_message = str(e)
             training_session.save()
+            context['training_session'] = training_session
+
         context['error'] = f"Error training model: {str(e)}"
+        messages.error(request, context['error'])
 
     return render(request, 'task1.html', context)

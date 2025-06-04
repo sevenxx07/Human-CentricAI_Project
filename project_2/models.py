@@ -102,3 +102,13 @@ class TrainingSession(models.Model):
     def __str__(self):
         return f"Training Session {self.id} - {self.status}"
 
+
+class TrainedModelData(models.Model):
+    name = models.CharField(max_length=100)
+    vectorizer = models.BinaryField()
+    classifier = models.BinaryField()
+    accuracy = models.FloatField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.name
