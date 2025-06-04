@@ -23,7 +23,7 @@ label {
 }
 
 body {
-  background-color: rgba(39, 92, 178, 0.8);
+  background-color: #7c0909;
 }
 
 
@@ -35,7 +35,7 @@ body {
   grid-template-rows: 50px auto;
   
   position: absolute;
-  top: 50%;
+  top: 0 !important; /* Stick to top */
   left: 50%;
   transform: translate(-50%, 0%);
 }
@@ -75,22 +75,31 @@ body {
 }
 
 button{
-  background-color: #275CB2;
+  background-color: #156e78;/* Dark red background */
   color: white;
   cursor: pointer;
   width: 30%;
   opacity: 0.8;
   height:45px;
   border: none;
-  border-radius: 2px;
+  border-radius: 8px;
   margin-left: auto;
   margin-right: auto;
   display: table;
   font-size: 20px;
+  padding: 10px 20px; /* Padding for the button */
+  transition: background-color 0.3s ease, transform 0.2s ease; /* Smooth transition for hover effects */
 }
 
 button:hover {
   opacity: 1;
+  background-color: #4ca3ad; /
+  transform: translateY(-2px); /* Subtle lift effect on hover */
+}
+
+button:active {
+    background-color: #134c53; /* Darker red when button is clicked */
+    transform: translateY(0); /* Reset the lift effect */
 }
 
 button:disabled {
