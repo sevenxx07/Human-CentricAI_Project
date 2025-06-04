@@ -96,7 +96,7 @@ class ClassifierWrapper(ABC):
 
         }
 
-    def save_classifier(self, file_path=None):
+    def save_classifier(self, file_path=None, name_suffix=None):
         """
         Save the trained model to a file.
 
@@ -107,7 +107,7 @@ class ClassifierWrapper(ABC):
         """
         # Compute the default file path if none is provided
         if file_path is None:
-            file_path = f"{DATA_ROOT}/project2_data/{type(self).__name__}"
+            file_path = f"{DATA_ROOT}/project2_data/{type(self).__name__}_{name_suffix}"
         if not self.is_trained:
             raise RuntimeError("Model must be trained before saving")
         file_path = Path(file_path)

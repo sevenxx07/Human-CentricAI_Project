@@ -134,6 +134,17 @@
         <input type="hidden" name="action" value="save_model">
         <input type="hidden" name="scroll_to" value="step-3">
         <button type="submit" class="btn btn-success">Save Model</button>
+ {% if save_success %}
+    <div class="small-config" style="margin-top: 10px; color: #28a745;">
+      Model saved successfully!
+    </div>
+  {% endif %}
+
+  {% if save_error %}
+    <div class="small-config" style="margin-top: 10px; color: #dc3545;">
+      {{ save_error }}
+    </div>
+  {% endif %}
       </form>
     </div>
     {% endif %}

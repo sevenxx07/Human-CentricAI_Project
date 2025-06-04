@@ -1,6 +1,4 @@
 import ast
-
-import numpy as np
 import pandas as pd
 import pickle
 
@@ -10,12 +8,13 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from django.utils.timezone import now
 from pbl.settings import DATA_ROOT
-from project_2.ML_models.ClassifierWrapper import ClassifierWrapper
-from project_2.ML_models.Representation import tfidf_representation
+from project_2.ML_models.Representation import tfidf_representation, sbert_representation, glove_representation
 from project_2.models import TextClassifier, TrainingSession
 
 DEBUG = True  # Set to False in production
 model_global = None  # Global variable to hold the model instance
+vectorizer_global = None  # Global variable to hold the vectorizer instance
+
 
 def index(request):
     """Main view for the text classification interface"""
@@ -56,8 +55,33 @@ def index(request):
     return render(request, "task1.html", context)
 
 
+def update_classifier_data(model_type, request, classifier_data):
+    """Update classifier data based on the model type and request parameters."""
+
+    if model_type == 'logistic':
+        classifier_data.update({
+            'regularization_c': float(request.POST.get('log_C', 1.0)),
+            'max_iter': int(request.POST.get('max_iter', 1000)),
+            'solver': request.POST.get('solver', 'lbfgs'),
+            'penalty': request.POST.get('penalty', 'l2'),
+        })
+    elif model_type == 'svm':
+        classifier_data.update({
+            'regularization_c': float(request.POST.get('C', 1.0)),
+            'kernel': request.POST.get('kernel', 'linear'),
+            'gamma': request.POST.get('gamma', 'scale'),
+        })
+    elif model_type == 'naive_bayes':
+        classifier_data.update({
+            'alpha': float(request.POST.get('alpha', 1.0)),
+            'nb_variant': request.POST.get('nb_variant', 'gaussian'),
+            'fit_prior': request.POST.get('fit_prior', 'true') == 'true',
+        })
+
+
 def handle_model_selection(request, context):
     """Handle model type and hyperparameter selection"""
+
     try:
         if DEBUG:
             print("\n=== DEBUG: handle_model_selection() ===")
@@ -73,28 +97,7 @@ def handle_model_selection(request, context):
             'representation_type': representation_type,
         }
 
-        # Extract hyperparameters based on model type
-        if model_type == 'logistic':
-            classifier_data.update({
-                'regularization_c': float(request.POST.get('log_C', 1.0)),
-                'max_iter': int(request.POST.get('max_iter', 1000)),
-                'solver': request.POST.get('solver', 'lbfgs'),
-                'penalty': request.POST.get('penalty', 'l2'),
-            })
-        elif model_type == 'svm':
-            classifier_data.update({
-                'regularization_c': float(request.POST.get('C', 1.0)),
-                'kernel': request.POST.get('kernel', 'linear'),
-                'gamma': request.POST.get('gamma', 'scale'),
-            })
-        elif model_type == 'naive_bayes':
-            classifier_data.update({
-                'alpha': float(request.POST.get('alpha', 1.0)),
-                'nb_variant': request.POST.get('nb_variant', 'gaussian'),
-                'fit_prior': request.POST.get('fit_prior', 'true') == 'true',
-            })
-
-        # Create new classifier instance
+        update_classifier_data(model_type, request, classifier_data)
         classifier_settings = TextClassifier.objects.create(**classifier_data)
 
         context.update({
@@ -119,6 +122,7 @@ def handle_model_selection(request, context):
 
 def load_data(data_path):
     """Load and preprocess the dataset"""
+
     df = pd.read_csv(data_path)
     df = df[df['review'].notna()]
     df['review'] = df['review'].apply(ast.literal_eval)
@@ -128,7 +132,9 @@ def load_data(data_path):
 
 def handle_model_training(request, context, data_path=None):
     """Handle model training process following Jupyter notebook steps"""
+
     global model_global
+    global vectorizer_global
 
     if DEBUG:
         print("\n=== DEBUG: handle_model_training() ===")
@@ -136,11 +142,10 @@ def handle_model_training(request, context, data_path=None):
 
     training_session = None
     context.update({
-        # 'training_session': training_session,
         'scroll_to': 'step-3'
     })
 
-    if data_path is None:
+    if data_path is None:  # NOTE maybe configure better
         data_path = f"{DATA_ROOT}/project2_data/cleaned_imdb_reviews.csv"
 
     try:
@@ -157,7 +162,6 @@ def handle_model_training(request, context, data_path=None):
         if DEBUG:
             print(f"Starting training for model: {classifier_settings}")
 
-        # Create training session
         training_session = TrainingSession.objects.create(status='running')
         context.update({
             'training_session': training_session,
@@ -174,7 +178,15 @@ def handle_model_training(request, context, data_path=None):
             print(f"Loaded {len(texts)} texts and {len(labels)} labels.")
 
         # 2. Create text representation
-        X, vectorizer = tfidf_representation(texts)
+        representation_type = classifier_settings.representation_type
+        if representation_type == 'tfidf':
+            X, vectorizer = tfidf_representation(texts)
+        elif representation_type == 'sbert':
+            X, vectorizer = sbert_representation(texts)
+        elif representation_type == 'glove':
+            X, vectorizer = glove_representation(texts)
+        else:
+            raise ValueError(f"Unknown representation type: {representation_type}")
         y = labels
 
         training_session.status = 'data vectorized'
@@ -209,7 +221,7 @@ def handle_model_training(request, context, data_path=None):
         if DEBUG:
             print(f"Evaluation metrics: {metrics}")
 
-        # Update training session - FIXED: Use direct attribute assignment
+        # Update training session
         training_session.status = 'completed'
         training_session.final_accuracy = metrics['accuracy']
         training_session.final_precision = metrics['precision']
@@ -225,6 +237,7 @@ def handle_model_training(request, context, data_path=None):
         classifier_settings.save()
 
         model_global = model  # Store the trained model globally
+        vectorizer_global = vectorizer  # Store the vectorizer globally
 
         # Prepare context for GUI
         context.update({
@@ -256,27 +269,51 @@ def handle_model_training(request, context, data_path=None):
 
 def handle_model_saving(request, context):
     global model_global
+    global vectorizer_global
+
+    # Add these new variables to track save status
+    save_success = False
+    save_error = None
 
     try:
         if DEBUG:
-            print("\n=== DEBUG: handle_model_saving() ===")
-            print(f"Incoming context: {context}")
+            print("\nDEBUG: Starting model save process")
 
-        if not model_global or not model_global.is_trained:
+        if not model_global or not hasattr(model_global, 'is_trained') or not model_global.is_trained:
             raise ValueError("No trained model available to save")
+        if not vectorizer_global:
+            raise ValueError("No vectorizer available to save")
 
-        # Save the model
-        model_global.save_classifier()
+        representation_type = context.get('selected_representation', 'tfidf')
+        model_suffix = f"{representation_type}"
 
-        messages.success(request, "Model saved successfully!")
+        model_global.save_classifier(name_suffix=model_suffix)
+        vectorizer_filename = f"{DATA_ROOT}/project2_data/{representation_type}_vectorizer.pkl"
+        with open(vectorizer_filename, 'wb') as f:
+            pickle.dump(vectorizer_global, f)
+
+        messages.success(request, f"Model and {representation_type} vectorizer saved successfully!")
+        save_success = True
+
         if DEBUG:
-            print("Model saved successfully.")
+            print(f"Model saved with suffix: {model_suffix}")
+            print(f"Vectorizer saved to: {vectorizer_filename}")
 
     except Exception as e:
         error_msg = f"Error saving model: {str(e)}"
         messages.error(request, error_msg)
-        context['error'] = error_msg
+        save_error = error_msg
         if DEBUG:
             print(f"Error saving model: {error_msg}")
+
+    # Update context with save status
+    context.update({
+        'scroll_to': 'step-3',
+        'classifier_settings': context.get('classifier_settings'),
+        'training_session': context.get('training_session'),
+        'evaluation_results': context.get('evaluation_results'),
+        'save_success': save_success,  # New context variable
+        'save_error': save_error  # New context variable
+    })
 
     return render(request, 'task1.html', context)

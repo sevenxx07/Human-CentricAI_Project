@@ -12,7 +12,6 @@ class TextClassifier(models.Model):
 
     REPRESENTATIONS = {
         'tfidf': 'TF-IDF',
-        'count': 'Count Vectorizer',
         'glove': 'GloVe',
         'sbert': 'SBERT'
     }
