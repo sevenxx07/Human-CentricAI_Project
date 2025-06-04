@@ -1,18 +1,21 @@
 import ast
+
+import numpy as np
 import pandas as pd
+import pickle
+
 from django.shortcuts import render
-from django.template import loader
 from django.contrib import messages
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from django.utils.timezone import now
-
 from pbl.settings import DATA_ROOT
+from project_2.ML_models.ClassifierWrapper import ClassifierWrapper
 from project_2.ML_models.Representation import tfidf_representation
 from project_2.models import TextClassifier, TrainingSession
 
 DEBUG = True  # Set to False in production
-
+model_global = None  # Global variable to hold the model instance
 
 def index(request):
     """Main view for the text classification interface"""
@@ -114,28 +117,19 @@ def handle_model_selection(request, context):
     return render(request, 'task1.html', context)
 
 
-def load_and_prepare_data(data_path):
-    """Load and preprocess data - matches Jupyter notebook logic"""
-    if DEBUG:
-        print(f"\nLoading data from: {data_path}")
-
+def load_data(data_path):
+    """Load and preprocess the dataset"""
     df = pd.read_csv(data_path)
     df = df[df['review'].notna()]
-
-    # Convert string representation of tokens to actual list
     df['review'] = df['review'].apply(ast.literal_eval)
-
-    # Join tokens to form space-separated strings
     df['review'] = df['review'].apply(lambda tokens: " ".join(tokens))
-
-    if DEBUG:
-        print(f"Loaded {len(df)} samples. First review sample: {df['review'].iloc[0][:50]}...")
-
     return df['review'].tolist(), df['sentiment'].tolist()
 
 
 def handle_model_training(request, context, data_path=None):
     """Handle model training process following Jupyter notebook steps"""
+    global model_global
+
     if DEBUG:
         print("\n=== DEBUG: handle_model_training() ===")
         print(f"Initial context: {context}")
@@ -173,7 +167,7 @@ def handle_model_training(request, context, data_path=None):
             print(f"Training session created: {training_session}")
 
         # 1. Load and prepare data
-        texts, labels = load_and_prepare_data(data_path)
+        texts, labels = load_data(data_path)
         training_session.status = 'data loaded'
         training_session.save()
         if DEBUG:
@@ -182,7 +176,8 @@ def handle_model_training(request, context, data_path=None):
         # 2. Create text representation
         X, vectorizer = tfidf_representation(texts)
         y = labels
-        training_session.status = 'representation created'
+
+        training_session.status = 'data vectorized'
         training_session.save()
         if DEBUG:
             print(f"Text representation created. Sample vector shape: {X.shape}")
@@ -191,8 +186,6 @@ def handle_model_training(request, context, data_path=None):
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
         training_session.status = 'data split'
         training_session.save()
-        if DEBUG:
-            print(f"Data split into {len(X_train)} training and {len(X_test)} testing samples.")
 
         # 4. Create and train model
         training_session.status = 'training model'
@@ -231,14 +224,7 @@ def handle_model_training(request, context, data_path=None):
         classifier_settings.test_accuracy = metrics['accuracy']
         classifier_settings.save()
 
-        # Store model and vectorizer in session for saving later
-        request.session['trained_model'] = {
-            'model': model,
-            'vectorizer': vectorizer,
-            'model_type': classifier_settings.model_type
-        }
-        if DEBUG:
-            print("Stored model in session")
+        model_global = model  # Store the trained model globally
 
         # Prepare context for GUI
         context.update({
@@ -251,7 +237,7 @@ def handle_model_training(request, context, data_path=None):
         messages.success(request, "Model trained successfully!")
 
     except Exception as e:
-        error_msg = f"Error training model: {str(e)}"
+        error_msg = f"Error training model after {training_session.status}: {str(e)}"
         if training_session:
             training_session.status = 'failed'
             training_session.error_message = error_msg
@@ -269,38 +255,22 @@ def handle_model_training(request, context, data_path=None):
 
 
 def handle_model_saving(request, context):
-    """Handle saving the trained model and vectorizer"""
+    global model_global
+
     try:
         if DEBUG:
             print("\n=== DEBUG: handle_model_saving() ===")
             print(f"Incoming context: {context}")
 
-        trained_data = request.session.get('trained_model')
-        if not trained_data:
-            raise ValueError("No trained model found in session.")
+        if not model_global or not model_global.is_trained:
+            raise ValueError("No trained model available to save")
 
-        model = trained_data['model']
-        vectorizer = trained_data['vectorizer']
-        model_type = trained_data['model_type']
+        # Save the model
+        model_global.save_classifier()
 
+        messages.success(request, "Model saved successfully!")
         if DEBUG:
-            print(f"Saving {model_type} model and vectorizer")
-
-        # Save vectorizer
-        vectorizer_path = f"{DATA_ROOT}/project2_data/tfidf_vectorizer.pkl"
-        with open(vectorizer_path, 'wb') as f:
-            pickle.dump(vectorizer, f)
-        if DEBUG:
-            print(f"Vectorizer saved to: {vectorizer_path}")
-
-        # Save model
-        model_path = f"{DATA_ROOT}/project2_data/{model_type}_model.pkl"
-        model.save_classifier(file_path=model_path)
-        if DEBUG:
-            print(f"Model saved to: {model_path}")
-
-        messages.success(request, "Model and vectorizer saved successfully!")
-        context['message'] = "Model and vectorizer saved successfully!"
+            print("Model saved successfully.")
 
     except Exception as e:
         error_msg = f"Error saving model: {str(e)}"

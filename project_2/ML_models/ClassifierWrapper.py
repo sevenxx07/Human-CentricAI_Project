@@ -105,20 +105,15 @@ class ClassifierWrapper(ABC):
         file_path : str or Path
             Path to save the model
         """
-        print("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAa")
-
         # Compute the default file path if none is provided
         if file_path is None:
             file_path = f"{DATA_ROOT}/project2_data/{type(self).__name__}"
-
         if not self.is_trained:
             raise RuntimeError("Model must be trained before saving")
-
         file_path = Path(file_path)
         file_path.parent.mkdir(parents=True, exist_ok=True)
-        print("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAa")
         with open(file_path, 'wb') as f:
-            pickle.dump(self.__dict__, f)
+            pickle.dump(self.classifier, f)
 
     @classmethod
     def load_model(cls, name, file_path=None):
