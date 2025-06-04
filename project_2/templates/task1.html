@@ -95,23 +95,29 @@
     <div class="step-box" style="margin-bottom: 20px;" id="step-2">
       <h3>Step 2: Train Model</h3>
 
-      <form method="post">
+      <form method="post" id="training-form">
         {% csrf_token %}
         <input type="hidden" name="action" value="train_model">
         <input type="hidden" name="scroll_to" value="step-2">
+{#        <input type="hidden" name="classifier_id" value="{{ classifier.id }}">#}
+{#        <input type="hidden" name="model" value="{{ classifier.model_type }}">#}
+{#        <input type="hidden" name="representation" value="{{ classifier.representation_type }}">#}
 
-{#        <div style="margin-bottom: 15px;">#}
-{#          <label for="train_size">Training Data Size:</label>#}
-{#          <select id="train_size" name="train_size">#}
-{#            <option value="1000">1,000 samples</option>#}
-{#            <option value="5000">5,000 samples</option>#}
-{#            <option value="10000" selected>10,000 samples</option>#}
-{#            <option value="25000">25,000 samples (full dataset)</option>#}
-{#          </select>#}
-{#        </div>#}
-
-        <button type="submit" class="train-button">Start Training</button>
+        <button type="submit" class="train-button" id="train-btn">
+          <span id="btn-text">Start Training</span>
+          <span id="btn-spinner" style="display: none;">🔄</span>
+        </button>
       </form>
+
+        <div id="loading-overlay" class="loading-overlay" style="display: none;">
+            <div class="loading-content">
+                <div class="spinner-large"></div>
+                <p>Training model... This may take a few minutes.</p>
+                <div class="progress-dots">
+                    <span>.</span><span>.</span><span>.</span>
+                </div>
+            </div>
+        </div>
 
       {% if training_session %}
       <div class="training-status" style="margin-top: 15px; padding: 10px; background-color: #fffaf0; border-radius: 5px;">
@@ -127,10 +133,10 @@
         {% if training_session.status == 'completed' %}
           <div class="training-results" style="margin-top: 10px; padding: 10px; background-color: #f0fff0; border-radius: 5px;">
             <h4>Training Results</h4>
-            <p>Accuracy: {{ training_session.final_accuracy|floatformat:3 }}</p>
-            <p>Precision: {{ training_session.final_precision|floatformat:3 }}</p>
-            <p>Recall: {{ training_session.final_recall|floatformat:3 }}</p>
-            <p>F1 Score: {{ training_session.final_f1|floatformat:3 }}</p>
+            <p>Accuracy: {{ training_session.final_accuracy|floatformat:3 }}%</p>
+            <p>Precision: {{ training_session.final_precision|floatformat:3 }}%</p>
+            <p>Recall: {{ training_session.final_recall|floatformat:3 }}%</p>
+            <p>F1 Score: {{ training_session.final_f1|floatformat:3 }}%</p>
           </div>
         {% elif training_session.status == 'failed' %}
           <div class="training-error" style="margin-top: 10px; padding: 10px; background-color: #fff0f0; border-radius: 5px;">
@@ -142,11 +148,12 @@
       {% endif %}
     </div>
     {% endif %}
-  </div>
 </div>
 {% endblock %}
+</div>
 
 {% block script %}
+<!-- Simple inline script - no external file needed -->
 <script>
 function updateModelFields(selectedModel) {
   // Hide all parameter fields
@@ -158,11 +165,38 @@ function updateModelFields(selectedModel) {
   document.getElementById(selectedModel + '-fields').style.display = 'block';
 }
 
-// Initialize fields on page load
 document.addEventListener('DOMContentLoaded', function() {
   const selectedModel = document.getElementById('model').value;
   updateModelFields(selectedModel);
+
+  // Add training form handler
+  const trainingForm = document.getElementById('training-form');
+  if (trainingForm) {
+    trainingForm.addEventListener('submit', function(e) {
+      console.log('Training started!'); // Debug message
+      showLoadingState();
+    });
+  }
 });
+
+function showLoadingState() {
+  const trainBtn = document.getElementById('train-btn');
+  const btnText = document.getElementById('btn-text');
+  const btnSpinner = document.getElementById('btn-spinner');
+  const loadingOverlay = document.getElementById('loading-overlay');
+
+  console.log('Showing loading state...'); // Debug message
+
+  if (trainBtn && btnText && btnSpinner) {
+    trainBtn.disabled = true;
+    btnText.textContent = 'Training...';
+    btnSpinner.style.display = 'inline-block';
+  }
+
+  if (loadingOverlay) {
+    loadingOverlay.style.display = 'flex';
+  }
+}
 
 {% if scroll_to %}
 window.onload = function () {
@@ -193,4 +227,3 @@ setInterval(checkTrainingStatus, 5000);
 {% endif %}
 </script>
 {% endblock %}
-[file content end]

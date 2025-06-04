@@ -17,6 +17,11 @@ class TextClassifier(models.Model):
 
     name = models.CharField(max_length=100, default="IMDB Sentiment Classifier")
     model_type = models.CharField(max_length=50, default="logistic")
+    representation = models.CharField(
+        max_length=50,
+        choices=REPRESENTATION_CHOICES,
+        default="tfidf"
+    )
     representation_type = models.CharField(
         max_length=50,
         choices=REPRESENTATION_CHOICES,
@@ -33,11 +38,15 @@ class TextClassifier(models.Model):
     kernel = models.CharField(max_length=50, default="linear", null=True, blank=True)  # For SVM
     alpha = models.FloatField(default=1.0, null=True, blank=True)  # For Naive Bayes
     def __str__(self):
-        return f"{self.name} - {self.model_type}"
+        return f"{self.name}_{self.model_type}"
+
+    def save(self, *args, **kwargs):
+        print(f"Saving classifier - Model: {self.model_type}, Rep: {self.representation_type}")
+        super().save(*args, **kwargs)
 
     def save_model(self, model, vectorizer=None):
         """Save trained model and vectorizer to files"""
-        model_dir = os.path.join(settings.MEDIA_ROOT, 'models')
+        model_dir = os.path.join(settings.DATA_ROOT, 'p2_models', self.__str__())
         os.makedirs(model_dir, exist_ok=True)
 
         # Save the classifier model
@@ -58,7 +67,8 @@ class TextClassifier(models.Model):
         Returns: sklearn model, vectorization
 
         """
-        model_dir = os.path.join(settings.DATA_ROOT, 'models')
+        # Fix: Use the same path structure as save_model
+        model_dir = os.path.join(settings.DATA_ROOT, 'p2_models', self.__str__())
 
         try:
             # Load classifier

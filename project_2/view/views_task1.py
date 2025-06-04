@@ -19,20 +19,11 @@ def index(request):
         'model_trained': False,
         'error': None,
         'scroll_to': request.POST.get('scroll_to', 'step-1'),
-        'selected_model': None,
-        'selected_representation': None,
-        'classifier': TextClassifier.objects.last(),
+        'selected_model': TextClassifier.objects.all().last().model_type if TextClassifier.objects.exists() else None,
+        'selected_representation': TextClassifier.objects.all().last().representation if TextClassifier.objects.exists() else None,
+        'classifier': TextClassifier.objects.all().last(),
         'training_session': None
     }
-
-    # Set current model and representation if classifier exists
-    if context['classifier']:
-        context['selected_model'] = context['classifier'].model_type
-        context['selected_representation'] = context['classifier'].representation_type
-        context['model_trained'] = context['classifier'].is_trained
-        context['training_session'] = TrainingSession.objects.filter(
-            classifier=context['classifier']
-        ).last()
 
     if request.method == 'POST':
         action = request.POST.get('action')
@@ -63,7 +54,6 @@ def handle_model_selection(request, context):
         representation_type = request.POST.get('representation', 'tfidf')
 
         # Get or create classifier
-
         classifier, created = TextClassifier.objects.get_or_create(
             model_type=model_type,
             defaults={
@@ -108,9 +98,22 @@ def handle_model_selection(request, context):
 def handle_model_training(request, context, data_path="./data/cleaned_imdb_reviews.csv"):
     """Handle model training process"""
     try:
-        classifier = context['classifier']
+        # Get classifier from request or context
+        classifier_id = request.POST.get('classifier_id')
+        if classifier_id:
+            classifier = TextClassifier.objects.get(id=classifier_id)
+        else:
+            classifier = context.get('classifier')
+
         if not classifier:
             raise ValueError("No model configured. Please select a model first.")
+
+        # Update context with correct classifier info
+        context.update({
+            'classifier': classifier,
+            'selected_model': classifier.model_type,
+            'selected_representation': classifier.representation_type
+        })
 
         # Load dataset
         df = pd.read_csv(data_path)
@@ -157,10 +160,20 @@ def handle_model_training(request, context, data_path="./data/cleaned_imdb_revie
         X_train_vec = vectorizer.fit_transform(X_train)
         X_test_vec = vectorizer.transform(X_test)
 
-        # Initialize and train model
+        # Initialize and train model based on classifier type
         if classifier.model_type == 'svm':
             model = SVMClassifier(kernel=classifier.kernel, random_state=42)
             model.train(X_train_vec, y_train)
+            y_pred = model.predict(X_test_vec)
+        elif classifier.model_type == 'logistic':
+            from sklearn.linear_model import LogisticRegression
+            model = LogisticRegression(C=classifier.regularization_c, random_state=42, max_iter=1000)
+            model.fit(X_train_vec, y_train)
+            y_pred = model.predict(X_test_vec)
+        elif classifier.model_type == 'naive_bayes':
+            from sklearn.naive_bayes import MultinomialNB
+            model = MultinomialNB(alpha=classifier.alpha)
+            model.fit(X_train_vec, y_train)
             y_pred = model.predict(X_test_vec)
         else:
             raise NotImplementedError(f"{classifier.model_type} not implemented yet")
@@ -184,6 +197,7 @@ def handle_model_training(request, context, data_path="./data/cleaned_imdb_revie
         training_session.final_precision = metrics['precision'] * 100
         training_session.final_recall = metrics['recall'] * 100
         training_session.final_f1 = metrics['f1'] * 100
+        training_session.end_time = datetime.now()
         training_session.save()
 
         # Update context
@@ -191,14 +205,18 @@ def handle_model_training(request, context, data_path="./data/cleaned_imdb_revie
             'model_trained': True,
             'training_session': training_session,
             'classifier': classifier,
+            'selected_model': classifier.model_type,
+            'selected_representation': classifier.representation_type,
             'scroll_to': request.POST.get('scroll_to', 'step-2')
         })
 
         messages.success(request, f"Model trained successfully! Accuracy: {metrics['accuracy'] * 100:.2f}%")
+
     except Exception as e:
         if 'training_session' in locals():
             training_session.status = 'failed'
             training_session.error_message = str(e)
+            training_session.end_time = datetime.now()
             training_session.save()
             context['training_session'] = training_session
 
