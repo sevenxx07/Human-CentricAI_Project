@@ -165,11 +165,9 @@ def clean_text(text):
     text = [wnl.lemmatize(word) for word in text]
 
     return ' '.join(text)
-print('Här är vi')
 df['review'] = df['review'].apply(clean_text)
 
 print(df['review'][1])
-print('hej')
 df.to_csv('cleaned_imdb_reviews.csv', index=False)
 
 

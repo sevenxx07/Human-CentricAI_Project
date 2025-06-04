@@ -21,7 +21,7 @@ from sentence_transformers import SentenceTransformer
 import gensim.downloader as api
 from tqdm import tqdm
 
-def load_dataset(path="imdb_dataset.csv"):
+def load_dataset(path="cleaned_imdb_reviews.csv"):
     import pandas as pd
     if not os.path.exists(path):
         raise FileNotFoundError("IMDB dataset not found. Please download it from Kaggle and place it here.")
