@@ -8,7 +8,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from django.utils.timezone import now
 from pbl.settings import DATA_ROOT
-from project_2.ML_models.Representation import tfidf_representation, sbert_representation, glove_representation
+from project_2.ML_models.representation import tfidf_representation, sbert_representation, glove_representation
 from project_2.models import TextClassifier, TrainingSession
 
 DEBUG = True  # Set to False in production
