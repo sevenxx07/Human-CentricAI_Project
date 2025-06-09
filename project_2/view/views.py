@@ -11,7 +11,7 @@ from django.http import JsonResponse
 from django.conf import settings
 
 # from .ML_models.Pre_Processing import clean_text
-from project_2.ML_models.Representation import load_dataset, tfidf_representation
+from project_2.ML_models.representation import load_dataset, tfidf_representation
 from project_2.ML_models.Logistic_regression import LogRegression
 
 from sklearn.model_selection import train_test_split
@@ -46,7 +46,7 @@ def handle_launch_training(request, context):
     context['training_started'] = True
 
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    data_path = os.path.join(BASE_DIR, 'project_2', 'ML_models', 'cleaned_imdb_reviews.csv') #TODO fix should be situated in the project dir
+    data_path = os.path.join(BASE_DIR, 'ML_models', 'cleaned_imdb_reviews.csv') #TODO fix should be situated in the project dir
 
     df = pd.read_csv(data_path)
     df = df[df['review'].notna()]
@@ -87,10 +87,40 @@ def handle_launch_training(request, context):
 # TODO should it be on the main page or just in the task 2?
 def handle_load_pre_trained(request, context):
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    model_dir = os.path.join(BASE_DIR, 'project_2', 'ML_models')
+    model_dir = os.path.join(BASE_DIR, 'ML_models')
 
+    selected_model = request.POST.get('model')
+    print('Selected model:', selected_model)
+
+    # model_map = {
+    #     'logistic': {
+    #     'classifier_file:' 'Logistic_regression_classifier'},
+    #     'SVM': {
+    #     'classifier_file:' 'svm_classifier'},
+    #     'naive_bayes': {
+    #     'classifier_file:' 'naive_bayes_classifier'}
+    # }
+
+    model_map = {
+        'logistic': {
+            'filename': 'Logistic_regression_classifier.pkl',
+            'class': LogRegression
+        },
+        'svm': {
+            'filename': 'svm_classifier.pkl',
+            'class': None  # Add SVM class here if you have one
+        },
+        'naive_bayes': {
+            'filename': 'naive_bayes_classifier.pkl',
+            'class': None  # Add NaiveBayes class here if applicable
+        }
+    }
+    if selected_model not in model_map:
+        context['error'] = 'Invalid model selected'
+        return
+    
     vectorizer_path = os.path.join(model_dir, 'tfidf_encoder.pkl')
-    model_path = os.path.join(model_dir, 'tfidf_classifier.pkl')
+    model_path = os.path.join(model_dir, model_map[selected_model]['filename'])
 
     print("Looking for model in:", model_dir)
     print("Vectorizer path:", vectorizer_path)
