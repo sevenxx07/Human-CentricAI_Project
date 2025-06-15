@@ -7,19 +7,6 @@
 
 {% block content %}
 
-<!---- FOR USER CHOICE TOGGLE (if we wan't classifier/representation to be a choice) ------->
-
-<!-- <script>
-    function toggleInfo(id) {
-        var el = document.getElementById(id);
-        if (el.style.display === 'none' || el.style.display === '') {
-            el.style.display = 'block';
-        } else {
-            el.style.display = 'none';
-        }
-    }
-</script> -->
-
 <!------------- TITLE -------------->
 
 <div class="box">
@@ -37,13 +24,14 @@
                 <p style="text-align:center;">In this project, a binary classifier is trained for sentiment analysis on the IMDB 50 k movie 
                     reviews dataset with the purpose of being able to clasify reviews as either positve or negtaive. 
                     The IMDB dataset has been cleaned and pre-processed and finally encoded from text into a real vector  represented
-                    using a TF-IDF representation. 
+                    using a TF-IDF representation. If you wish to load a pre-trained model, please do so by clicking the button below. 
+                    For training the model from scratch, please proceed to task 1. 
                 </p>
             </div>
         </div>
 
 <!------------- Classifier description -------------->
-    <div class="main-text">
+    <!-- <div class="main-text">
         <div class="summary">
             <div class="centered-text">
                 <h3>Logistic Regression</h3>
@@ -53,52 +41,47 @@
                     of a positive outcome based on the input data. 
                 </p>
             </div>
-        </div>
-<!------------- Model and representation selection -------------->
-
-            <!-- MODEL SELECTION 
-            <label for="model_choice"> Choose M model:</label>
-            <select name="model_choice" id="model_choice">
-                <option vale="logreg">Logistic Regression</option>
-                <option vale="svm">Support Vector Machine</option>
-                <option vale="nb">Naive Bayes</option>
-            </select>
-
-            <button type="button" onclick="toggleInfo('model-info')">ℹ️</button>
-            <div id="model-info" style="display: none;" class="info-box">
-                <p><strong>Logistic Regression:</strong> A linear model used for binary classification.</p>
-                <p><strong>SVM:</strong> Finds the best boundary that separates classes in high-dimensional space.</p>
-                <p><strong>Naive Bayes:</strong> Probabilistic model based on Bayes’ theorem with strong feature independence assumptions.</p>
-            </div>
-
-            <br>-->
-
-            <!-- REPRESENTATION SELECTION 
-            <label for="representation_choice">Choose Text Representation:</label>
-            <select name="representation_choice" id="representation_choice">
-                <option value="tfidf">TF-IDF</option>
-                <option value="bow">Bag of Words</option>
-                <option value="word2vec">Word2Vec</option>
-            </select>
-            <button type="button" onclick="toggleInfo('rep-info')">ℹ️</button>
-            <div id="rep-info" style="display: none;" class="info-box">
-                <p><strong>TF-IDF:</strong> Weighs words by importance relative to the document and corpus.</p>
-                <p><strong>Bag of Words:</strong> Simple frequency count of word occurrences.</p>
-                <p><strong>Word2Vec:</strong> Uses pre-trained word embeddings for semantic understanding.</p>
-            </div>
+        </div> -->
         
-            <br><br> -->
-
- <!------------- Launching training of classifier -------------->
+ <!------------- Loading Pre-Trained Model -------------->
             <form method = "POST">
                 {% csrf_token %}
+                <input type="hidden" name="action" value="select_model">
+                <input type="hidden" name="scroll_to" value="step-1">
+
+                <label for="model">Classification Model:</label>
+                <select name="model" id="model" onchange="updateModelFields(this.value)" required>
+                    <option value="logistic" {% if selected_model == 'logistic' %}selected{% endif %}>Logistic Regression</option>
+                    <option value="svm" {% if selected_model == 'svm' %}selected{% endif %}>SVM</option>
+                    <option value="naive_bayes" {% if selected_model == 'naive_bayes' %}selected{% endif %}>Naive Bayes</option>
+                </select>
+                <h5>Classifier description:</h5>
+                <div id="model-description" class="info_text" style="display:none; margin-top: 10px;"></div>
+                <br><br>
     
             <p id="loading-text" style="display:none;" class="info_text">Training started...</p>
-            <button type = 'submit' name="action" value="launch_training" class="train_button">
-                Train Classifier 
-            </button>
         </form>
 
+        <script>
+            function updateModelFields(model) {
+              const descriptions = {
+                logistic: "Logistic Regression is a statistical model that predicts the probability of a binary outcome by modeling the relationship between the dependent variable and one or more independent variables. Despite its name, Logistic Regression is used for classification rather than regression tasks. It assumes a linear relationship between input features and log-odds of the response variable. It handles both numerical and categorical features and offers good interpretability through coefficient analysis.",
+                svm: "Support Vector Machine (SVM) is a supervised machine learning algorithm used for classification and regression tasks. It tries to find the best boundary known as hyperplane that separates different classes in the data. It is useful when we want to do binary classification like positive or negative.",
+                naive_bayes: "Naïve Bayes is part of a family of generative learning algorithms, meaning that it seeks to model the distribution of inputs of a given class or category. Unlike discriminative classifiers, like logistic regression, it does not learn which features are most important to differentiate between classes. Naïve Bayes is also known as a probabilistic classifier since it is based on Bayes’ Theorem."
+              };
+          
+              const infoBox = document.getElementById("model-description");
+              infoBox.textContent = descriptions[model];
+              infoBox.style.display = "block";
+            }
+          
+            window.onload = function() {
+              const selectedModel = document.getElementById("model").value;
+              updateModelFields(selectedModel);
+            };
+          </script>
+
+<!-- 
         <div id="training-status">
             {% if training_started %}
                 <p class="info_text"> Training started...</p>
@@ -111,15 +94,24 @@
             {% if error %}
                 <p class="error-text"> {{ error }}</p>
             {% endif %}
-        </div>
+        </div> -->
 
 <!------------- Loading pre-trained classifier -------------->
-        <form method = "POST">
+            <form method="POST" onsubmit="copySelectedModelToHiddenInput()">
+
             {% csrf_token %}
+            <input type = 'hidden' name="model" id="hidden-model-input">
             <button type = 'submit' name="action" value="load_pre_trained" class="load_button">
                 Load Pre-Trained Classifier 
             </button>
         </form>
+
+        <script>
+            function copySelectedModelToHiddenInput() {
+                const selectedModel = document.getElementById("model").value;
+                document.getElementById("hidden-model-input").value = selectedModel;
+            }
+        </script>
 
         {% if message %}
             <p class="info_text">{{ message }}</p>
