@@ -1,3 +1,57 @@
-from django.shortcuts import render
+import pickle
+import numpy as np
+import pandas as pd
+import os
+import ast
 
-# Create your views here.
+from django.shortcuts import render
+from django.http import HttpResponse
+from django.template import loader
+from django.http import JsonResponse
+from django.conf import settings
+
+from sklearn.model_selection import train_test_split
+from sklearn.tree import export_graphviz
+from io import StringIO
+from IPython.display import Image
+import pydotplus
+from sklearn.metrics import accuracy_score 
+
+DEBUG = True  # Set to False in production
+model_global = None  # Global variable to hold the model instance
+vectorizer_global = None  # Global variable to hold the vectorizer instance
+
+
+def index(request):
+    template = loader.get_template("project3_base.html")
+    context = {}
+
+    global DATA_STORAGE
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+
+        if action == 'decision_tree_visualization':
+            decision_tree_visualization(request, context)
+        elif action == 'log_regression_visualization':
+            logistic_regression_visualization(request, context)
+
+
+    return render(request, 'project3_base.html', context)
+
+
+
+def decision_tree_visualization(request, context):
+    PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    model_dir = os.path.join(PROJECT_ROOT, 'data', 'project3_data')
+
+    model = request.POST.get('model')('decision_tree.pkl')
+
+    return render(request, 'task1.html', context)
+
+
+def logistic_regression_visualization(request, context):
+
+    return render(request, 'task2.html', context)
+
+
