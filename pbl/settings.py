@@ -41,7 +41,8 @@ INSTALLED_APPS = [
     "home", 
     "demos",
     "project_1", 
-    "project_2"
+    "project_2",
+    "project_3"
 ]
 
 MIDDLEWARE = [

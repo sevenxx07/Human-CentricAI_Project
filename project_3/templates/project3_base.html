@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'home/style.css' %}">
+{% endblock %}
+
+{% block content %}
+
+<!------------- TITLE -------------->
+
+<div class="box">
+    <div class="title-container">
+        <div class="title">Explainability</div>
+    </div>
+
+
+<!------------- Interprerability -------------->
+    <div class="main-text"></div>
+
+        <h3 style = "text-align:center">1. Interpretability and Model Complexity</h3>  
+        <p style="text-align:center;"> To promote interpretability, we optimize
+            \[
+            \arg \min_f \frac{1}{n} \sum_{i=1}^n \ell(f(x_i), y_i) + \lambda \, \Omega(f)
+            \] Where \(\Omega(f)\) is a complexity measure</p>
+        </p>
+         <!---Decision Tree -->
+        <div class="task-box">
+          <h4> a) Decision Tree </h4>
+          <p>Fit a decision tree on the Palmer Penguins dataset.
+            By varying \(\lambda(f)\), the importance of the model's sparsity changes. </p>
+
+            <form method = "POST">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="decision_tree_visualization">
+                <label for="lambda-slider">λ: <span id="lambda-value">{{ lambda_value|default:"0.1" }}</span></label><br>
+                <input type="range" id="lambda-slider" name="lambda" min="0" max="1" step="0.01" value="{{ lambda_value|default:"0.1" }}" 
+                    oninput="document.getElementById('lambda-value').textContent = this.value">
+                <br><br>
+
+            <button type="submit">Fit Decision Tree</button>
+            </form>
+
+            {% if decision_tree_accuracy %}
+            <p>Accuracy: {{ decision_tree_accuracy }}</p>
+            <p>Number of Leaves: {{ num_leaves }}</p>
+            <img src="data:image/png;base64,{{ decision_tree_image }}" alt="Decision Tree">
+            
+            {% endif %}
+        </div>
+
+        <div class="task-box">
+          <h4> b) Logistic Regression </h4>
+          <p>Fit a logistic regression model on teh Palmer Penguins dataset.</p>
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="log_regression_visualization">
+            <button type="submit">Fit Logistic Regression</button>
+        </form>
+      
+        {% if num_features %}
+          <p>Number of Features Used: {{ num_features }}</p>
+        {% endif %}
+        </div>
+
+
+<!------------- Counterfactual Explainations -------------->
+        <div class="task-box">
+          <h3 style = "text-align:center">2. Counterfactual Explainations</h3>
+          <p>Select an example x from the dataset, as well as a target label.</p>
+        </div>
+    </div>
+</div>
+
+
+
+
+
+<script>
+    document.querySelector('form').addEventListener('submit', function() {
+        document.getElementById('loading-text').style.display = 'block';
+    });
+    </script>
+
+<script type="text/javascript" id="MathJax-script" async
+  src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
+</script>
+
+{% endblock %}
