@@ -17,8 +17,8 @@ from IPython.display import Image
 import pydotplus
 from sklearn.metrics import accuracy_score 
 
-# from project_3.ML_models.LogisticRegressionmodel import LogisticRegressionModel
-# from project_3.ML_models.DT import DT
+# from project_3.generated_models.LogisticRegressionmodel import LogisticRegressionModel
+# from project_3.generated_models.DT import DT
 
 DEBUG = True  # Set to False in production
 model_global = None  # Global variable to hold the model instance
