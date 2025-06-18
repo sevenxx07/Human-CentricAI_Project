@@ -6,8 +6,8 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 import argparse
 
-from project_2.Active_learning.utility_function import UtilityFunction
-from project_2.ML_models.Logistic_regression import LogRegression
+from project_2.active_learning.utility_function import UtilityFunction
+from project_2.ml_models.Logistic_regression import LogRegression
 
 
 def load_vectors(path):

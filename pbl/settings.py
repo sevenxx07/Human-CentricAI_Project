@@ -111,6 +111,7 @@ AUTH_PASSWORD_VALIDATORS = [
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
+# Data
 DATA_ROOT = os.path.join(BASE_DIR, 'data')
 
 

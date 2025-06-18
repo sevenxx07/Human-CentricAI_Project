@@ -46,7 +46,7 @@ class TextClassifier(models.Model):
         }
 
         if self.model_type == 'svm':
-            from project_2.ML_models.SVMModel import SVMModel
+            from project_2.ml_models.SVMModel import SVMModel
             model_params.update({
                 'kernel': self.kernel,
                 'C': self.regularization_c
@@ -54,7 +54,7 @@ class TextClassifier(models.Model):
             return SVMModel(**model_params)
 
         elif self.model_type == 'logistic':
-            from project_2.ML_models.LogisticRegressionModel import LogisticRegressionModel
+            from project_2.ml_models.LogisticRegressionModel import LogisticRegressionModel
             model_params.update({
                 'C': self.regularization_c,
                 'max_iter': self.max_iter,
@@ -63,7 +63,7 @@ class TextClassifier(models.Model):
             return LogisticRegressionModel(**model_params)
 
         elif self.model_type == 'naive_bayes':
-            from project_2.ML_models.NaiveBayesModel import NaiveBayesModel
+            from project_2.ml_models.NaiveBayesModel import NaiveBayesModel
             model_params.update({
                 'variant': self.nb_variant,
                 'alpha': self.alpha

@@ -1,82 +1,67 @@
 import pickle
-import numpy as np
-import pandas as pd
 import os
-import ast
 
 from django.shortcuts import render
-from django.http import HttpResponse
 from django.template import loader
-from django.http import JsonResponse
 from django.conf import settings
 
-# from .ML_models.Pre_Processing import clean_text
-from project_2.ML_models.representation  import load_dataset, tfidf_representation
-
-from project_2.ML_models.LogisticRegressionModel import LogisticRegressionModel
-from project_2.ML_models.SVMModel import SVMModel
-from project_2.ML_models.NaiveBayesModel import NaiveBayesModel
-
-from sklearn.model_selection import train_test_split
+from project_2.ml_models.LogisticRegressionModel import LogisticRegressionModel
+from project_2.ml_models.NaiveBayesModel import NaiveBayesModel
+from project_2.ml_models.SVMModel import SVMModel
 
 DEBUG = True  # Set to False in production
 model_global = None  # Global variable to hold the model instance
 vectorizer_global = None  # Global variable to hold the vectorizer instance
+
+DATA_STORAGE = {}
 
 
 def index(request):
     template = loader.get_template("project2_base.html")
     context = {}
 
-    global DATA_STORAGE
-
     if request.method == 'POST':
         action = request.POST.get('action')
 
-        if action == 'launch_training':
-            handle_launch_training(request, context)
-        elif action == 'load_pre_trained':
+        if action == 'load_pre_trained':
             handle_load_pre_trained(request, context)
-        elif action == 'classify text':  # If we want to implement it later
-            pass
 
     return render(request, 'project2_base.html', context)
 
 
-
 def handle_load_pre_trained(request, context):
-    PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    model_dir = os.path.join(PROJECT_ROOT, 'data', 'project2_data')
+    model_dir = os.path.join(settings.BASE_DIR, 'project_2', 'data', 'models')
 
     selected_model = request.POST.get('model')
     print('Selected model:', selected_model)
 
+    # TODO only one classifier choicefor now
     model_map = {
         'logistic': {
-            'filename': 'Logistic_regression_classifier.pkl',
+            'filename': 'LogisticRegressionModel_tfidf.pkl',
             'class': LogisticRegressionModel
         },
         'svm': {
-            'filename': 'svm_classifier.pkl',
+            'filename': 'SVMModel_tfidf.pkl',
             'class': SVMModel
         },
         'naive_bayes': {
-            'filename': 'naive_bayes_classifier.pkl',
-            'class': NaiveBayesModel 
+            'filename': 'NaiveBayesModel_tfidf.pkl',
+            'class': NaiveBayesModel
         }
     }
 
     if selected_model not in model_map:
         context['error'] = 'Invalid model selected'
         return render(request, 'project2_base.html', context)
-    
-    vectorizer_path = os.path.join(model_dir, 'tfidf_encoder.pkl')
+
+    vectorizer_path = os.path.join(model_dir, 'tfidf_vectorizer.pkl')
     model_path = os.path.join(model_dir, model_map[selected_model]['filename'])
 
     print("File exists:", os.path.exists(vectorizer_path))
     print("File size:", os.path.getsize(vectorizer_path) if os.path.exists(vectorizer_path) else "N/A")
-    print("Size (bytes):", os.path.getsize(vectorizer_path) if os.path.exists(vectorizer_path) else "File does not exist")
-
+    print("Size (bytes):",
+          os.path.getsize(vectorizer_path) if os.path.exists(vectorizer_path) else "File does not exist")
 
     print("Looking for model in:", model_dir)
     print("Vectorizer path:", vectorizer_path)
@@ -87,76 +72,26 @@ def handle_load_pre_trained(request, context):
             vectorizer = pickle.load(f)
 
         model_class = model_map[selected_model]['class']
-        model = model_class(None, None, None, None)
-        clf = model.load_model(model_path)
+        print("Model class:", model_class)
+        model_instance = model_class()
+        clf = model_instance.load_model(model_path)
+        print("Model loaded successfully:", clf)
 
+        # TODO how to transfer it to task two?
         DATA_STORAGE.update({
             "vectorizer": vectorizer,
             'clf': clf
         })
 
         context.update({
-            'message': 'Pre-trained models loaded successfully', 
+            'message': 'Pre-trained models loaded successfully',
             'model_loaded': True,
-            'selected_model': selected_model 
+            'selected_model': selected_model
         })
 
-    except Exception as e: 
+    except Exception as e:
         context['error'] = f'Error loading pre-trained model: {str(e)}'
     return render(request, 'task1.html', context)
-
-
-
-# TODO IT SHOULD BE HERE
-
-# Launch the training of the classifier
-def handle_launch_training(request, context):
-    print("handel_launch_training() triggered")
-    context['training_started'] = True
-
-    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    data_path = os.path.join(BASE_DIR, 'ML_models', 'cleaned_imdb_reviews.csv') #TODO fix should be situated in the project dir
-
-    df = pd.read_csv(data_path)
-    df = df[df['review'].notna()]
-
-    df['review'] = df['review'].apply(ast.literal_eval)
-    print(f"HEAD:", df.head())
-
-    df['review'] = df['review'].apply(lambda tokens: " ".join(tokens))
-
-    texts = df['review'].tolist()
-    labels = df['sentiment'].tolist()
-    vectors, encoder = tfidf_representation(texts)
-
-    X_train, X_test, y_train, y_test = train_test_split(vectors, labels, test_size=0.2, random_state=42)
-
-    # # Inside your Django view or a helper function where you load vectors and labels
-
-    model = LogisticRegressionModel(X_train, y_train, X_test, y_test)  #TODO THE DATA SHOULDNT be in a wrapper
-    model.train_classifier()
-    accuracy = model.evaluate_classifier()
-    clf = model.clf
-
-    context['accuracy'] = accuracy
-
-    # TODO use models
-    DATA_STORAGE.update({
-        'df': df,
-        'X': vectors,
-        'y': labels,
-        'X_train': X_train,
-        'X_test': X_test,
-        'y_train': y_train,
-        'y_test': y_test,
-        'clf': clf
-    })
-
-
-def handle_classify_text(request, context):
-    pass
-
-    return render(request, 'project2_base.html', {})
 
 
 def task1_view(request):

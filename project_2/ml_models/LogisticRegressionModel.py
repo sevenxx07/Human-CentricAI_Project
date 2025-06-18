@@ -1,6 +1,6 @@
 from sklearn.linear_model import LogisticRegression
 
-from project_2.ML_models.ClassifierWrapper import ClassifierWrapper
+from project_2.ml_models.ClassifierWrapper import ClassifierWrapper
 
 
 class LogisticRegressionModel(ClassifierWrapper):

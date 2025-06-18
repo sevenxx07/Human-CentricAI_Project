@@ -1,6 +1,6 @@
 from sklearn.naive_bayes import GaussianNB, MultinomialNB, BernoulliNB
 from typing import Literal
-from project_2.ML_models.ClassifierWrapper import ClassifierWrapper
+from project_2.ml_models.ClassifierWrapper import ClassifierWrapper
 
 
 class NaiveBayesModel(ClassifierWrapper):

@@ -1,14 +1,16 @@
 import ast
+import os
+
 import pandas as pd
 import pickle
 
+from django.conf import settings
 from django.shortcuts import render
 from django.contrib import messages
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from django.utils.timezone import now
-from pbl.settings import DATA_ROOT
-from project_2.ML_models.representation import tfidf_representation, sbert_representation, glove_representation
+from project_2.ml_models.Representation import tfidf_representation, sbert_representation, glove_representation
 from project_2.models import TextClassifier, TrainingSession
 
 DEBUG = True  # Set to False in production
@@ -146,8 +148,7 @@ def handle_model_training(request, context, data_path=None):
     })
 
     if data_path is None:  # NOTE maybe configure better
-        data_path = f"{DATA_ROOT}/project2_data/cleaned_imdb_reviews.csv"
-
+        data_path = os.path.join(settings.BASE_DIR, 'project_2', 'data', 'cleaned_imdb_reviews.csv')
     try:
         classifier_settings = None
         if TextClassifier.objects.exists():
@@ -276,6 +277,9 @@ def handle_model_saving(request, context):
     save_error = None
 
     try:
+        model_dir = os.path.join(settings.BASE_DIR, 'project_2', 'data', 'models')
+        os.makedirs(model_dir, exist_ok=True)
+
         if DEBUG:
             print("\nDEBUG: Starting model save process")
 
@@ -288,7 +292,7 @@ def handle_model_saving(request, context):
         model_suffix = f"{representation_type}"
 
         model_global.save_classifier(name_suffix=model_suffix)
-        vectorizer_filename = f"{DATA_ROOT}/project2_data/{representation_type}_vectorizer.pkl"
+        vectorizer_filename = os.path.join(model_dir, f"{representation_type}_vectorizer.pkl")
         with open(vectorizer_filename, 'wb') as f:
             pickle.dump(vectorizer_global, f)
 

@@ -5,5 +5,6 @@ from django.template import loader
 
 
 def index(request):
-    template = loader.get_template("project_base2.html")
     context = {}
+
+    return render(request, 'task2.html', context)

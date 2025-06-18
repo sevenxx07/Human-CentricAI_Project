@@ -1,12 +1,12 @@
+import os
 import pickle
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, precision_score, recall_score, \
+
+from django.conf import settings
+from sklearn.metrics import accuracy_score, precision_score, recall_score, \
     f1_score
-from sklearn.model_selection import cross_val_score
 from pathlib import Path
-import numpy as np
 from abc import ABC, abstractmethod
 
-from pbl.settings import DATA_ROOT
 
 
 class ClassifierWrapper(ABC):
@@ -107,7 +107,7 @@ class ClassifierWrapper(ABC):
         """
         # Compute the default file path if none is provided
         if file_path is None:
-            file_path = f"{DATA_ROOT}/project2_data/{type(self).__name__}_{name_suffix}"
+            file_path = os.path.join(settings.BASE_DIR, 'project_2', 'data', 'models', f"{type(self).__name__}_{name_suffix}.pkl")
         if not self.is_trained:
             raise RuntimeError("Model must be trained before saving")
         file_path = Path(file_path)
@@ -133,15 +133,18 @@ class ClassifierWrapper(ABC):
 
         # Compute the default file path if none is provided
         if file_path is None:
-            file_path = f"{DATA_ROOT}/project2_data/{name}"
+            file_path = os.path.join(settings.BASE_DIR, 'project_2', 'data', 'models', name)
 
         file_path = Path(file_path)
 
         with open(file_path, 'rb') as f:
-            data = pickle.load(f)
+            loaded_clf = pickle.load(f)  # This is the actual scikit-learn classifier
 
-        # Create a new instance without calling __init__
-        classifier = cls.__new__(cls)
-        classifier.__dict__.update(data)
+        # Create a new instance of your wrapper class
+        # You need to call __init__ to set up other attributes like model_name
+        # Or if __init__ doesn't take args, just `instance = cls()`
+        instance = cls()
+        instance.clf = loaded_clf  # Assign the loaded scikit-learn classifier to the 'clf' attribute
 
-        return classifier
+        return instance
+
