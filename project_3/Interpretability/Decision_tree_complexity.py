@@ -1,56 +1,95 @@
 # sparse_decision_tree.py
 
-from gosdt import GOSDTClassifier
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
-from palmerpenguins import load_penguins
-import pandas as pd
 import graphviz
+import pandas as pd
+from palmerpenguins import load_penguins
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import GradientBoostingClassifier
+from gosdt import ThresholdGuessBinarizer, GOSDTClassifier
+from sklearn.metrics import accuracy_score
 
 class SparseDecisionTree:
-    def __init__(self, test_size=0.2, random_state=42):
-        self.test_size = test_size
-        self.random_state = random_state
-        self._load_data()
-        self.model = None
+    def __init__(self, alpha=0.01, depth_budget=6, time_limit=60, verbose=True):
+        self.alpha = alpha
+        self.depth_budget = depth_budget
+        self.time_limit = time_limit
+        self.verbose = verbose
 
-    def _load_data(self):
-        data = load_penguins()
-        data = data.dropna()
-        self.X = data.drop(columns=["species"])
-        self.y = data["species"]
+        self.X_train = None
+        self.X_test = None
+        self.y_train = None
+        self.y_test = None
+        self.X_train_bin = None
+        self.X_test_bin = None
+        self.ref_labels = None
+        self.clf = None
+
+    def load_data(self, test_size=0.2, random_state=42):
+        """Load and preprocess the Palmer Penguins dataset."""
+        df = load_penguins()
+        df = df.dropna()
+        y = df["species"]
+        X = df.drop(columns=["species"])
+        X = pd.get_dummies(X)  # Encode categorical variables
         self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(
-            self.X, self.y, test_size=self.test_size, random_state=self.random_state
+            X, y, test_size=test_size, random_state=random_state
         )
 
-    def train(self, alpha=0.0, depth_budget=5, time_limit=10):
-        self.model = GOSDTClassifier(regularization=alpha, time_limit=time_limit, depth_budget=depth_budget, verbose=False)
-        self.model.fit(self.X_train, self.y_train)
+    def guess_thresholds(self):
+        """Binarize continuous features using gradient boosting thresholds."""
+        enc = ThresholdGuessBinarizer(n_estimators=40, max_depth=1, random_state=42)
+        enc.set_output(transform="pandas")
+        self.X_train_bin = enc.fit_transform(self.X_train, self.y_train)
+        self.X_test_bin = enc.transform(self.X_test)
+
+    def get_reference_labels(self):
+        """Generate reference predictions from a black-box model."""
+        ref_model = GradientBoostingClassifier(n_estimators=40, max_depth=1, random_state=42)
+        ref_model.fit(self.X_train_bin, self.y_train)
+        self.ref_labels = ref_model.predict(self.X_train_bin)
+
+    def train(self):
+        """Train the GOSDT sparse decision tree."""
+        self.clf = GOSDTClassifier(
+            regularization=self.alpha,
+            similar_support=False,
+            time_limit=self.time_limit,
+            depth_budget=self.depth_budget,
+            verbose=self.verbose
+        )
+        self.clf.fit(self.X_train_bin, self.y_train, y_ref=self.ref_labels)
 
     def evaluate(self):
-        if self.model is None:
-            raise RuntimeError("You need to train the model before evaluation.")
-        preds = self.model.predict(self.X_test)
-        acc = accuracy_score(self.y_test, preds)
-        leaves = self.model.model["solution"]["leaf_count"]
-        return acc, leaves
+        """Return accuracy on train and test data."""
+        train_acc = self.clf.score(self.X_train_bin, self.y_train)
+        test_acc = self.clf.score(self.X_test_bin, self.y_test)
+        return train_acc, test_acc
+
+    def run_pipeline(self):
+        """Complete training pipeline."""
+        self.load_data()
+        self.guess_thresholds()
+        self.get_reference_labels()
+        self.train()
+        return self.evaluate()
 
     def export_tree_image(self, filename="tree_visualization"):
-        if self.model is None:
+        """Export the trained tree as a PNG image using Graphviz."""
+        if self.clf is None:
             raise RuntimeError("You need to train the model before visualization.")
-        dot = self.model.plot()
+
+        dot = self.clf.plot()  # get dot-format string from GOSDT
         graph = graphviz.Source(dot)
         graph.format = 'png'
         out_file = graph.render(filename, cleanup=True)
         return out_file
 
 if __name__ == "__main__":
-    tree_model = SparseDecisionTree()
-    tree_model.train(alpha=0.1)
+    tree_model = SparseDecisionTree(alpha=0.05)
+    train_acc, test_acc = tree_model.run_pipeline()
 
-    # Evaluate
-    acc, leaves = tree_model.evaluate()
-    print(f"Accuracy: {acc:.2f}, Leaves: {leaves}")
+    print(f"Train Accuracy: {train_acc:.3f}")
+    print(f"Test Accuracy: {test_acc:.3f}")
 
     # Visualize
     img_path = tree_model.export_tree_image()
