@@ -24,6 +24,7 @@
             \arg \min_f \frac{1}{n} \sum_{i=1}^n \ell(f(x_i), y_i) + \lambda \, \Omega(f)
             \] Where \(\Omega(f)\) is a complexity measure</p>
         </p>
+
          <!---Decision Tree -->
         <div class="task-box">
           <h4> a) Decision Tree </h4>
@@ -40,13 +41,28 @@
 
             <button type="submit">Fit Decision Tree</button>
             </form>
-
-            {% if decision_tree_accuracy %}
-            <p>Accuracy: {{ decision_tree_accuracy }}</p>
-            <p>Number of Leaves: {{ num_leaves }}</p>
-            <img src="data:image/png;base64,{{ decision_tree_image }}" alt="Decision Tree">
+            {% if train_accuracy and test_accuracy %}
+            <h2>Model Metrics</h2>
+              <ul>
+                <li>Train Accuracy: {{ train_accuracy }}</li>
+                <li>Test Accuracy: {{ test_accuracy }}</li>
+                <li>Tree Depth: {{ depth }}</li>
+                <li>Number of Nodes: {{ n_nodes }}</li>
+              </ul>
+              {% endif %}
+              
+            <!-- {% if show_tree %}
+              <h2>Model Metrics</h2>
+              <ul>
+                <li>Train Accuracy: {{ train_accuracy }}</li>
+                <li>Test Accuracy: {{ test_accuracy }}</li>
+                <li>Tree Depth: {{ depth }}</li>
+                <li>Number of Nodes: {{ n_nodes }}</li>
+              </ul>
+              <h2>Decision Tree</h2>
+            <img src="data:image/png;base64,{{ tree_image }}" alt="Decision Tree">
             
-            {% endif %}
+            {% endif %} -->
         </div>
 
         <div class="task-box">
