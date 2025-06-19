@@ -26,14 +26,13 @@ body {
   background-color: #7c0909;
 }
 
-
 .box {
   width: 95%;
   border-radius: 2px;
   background-color: white;
   display: grid;
-  grid-template-rows: 50px auto;
-  
+  grid-template-rows: 150px auto auto;
+
   position: absolute;
   top: 0 !important; /* Stick to top */
   left: 50%;
@@ -74,51 +73,177 @@ body {
   vertical-align: middle;
 }
 
-button{
-  background-color: #156e78;/* Dark red background */
+/* Enhanced Button Styling */
+button {
+  /* Base styling with gradient */
+  background: linear-gradient(135deg, #156e78 0%, #1a7a85 50%, #156e78 100%);
   color: white;
   cursor: pointer;
-  width: 30%;
-  opacity: 0.8;
-  height:45px;
+
+  /* Adaptive sizing */
+  min-width: 140px;
+  max-width: 400px;
+  width: auto;
+  height: auto;
+  min-height: 48px;
+
+  /* Spacing */
+  padding: 12px 20px;
+  margin: 8px auto;
+
+  /* Modern styling */
   border: none;
-  border-radius: 8px;
-  margin-left: auto;
-  margin-right: auto;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(21, 110, 120, 0.3);
+
+  /* Typography */
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  text-align: center;
+  white-space: normal;
+  word-wrap: break-word;
+  line-height: 1.4;
+
+  /* Layout - maintaining center alignment */
   display: table;
-  font-size: 20px;
-  padding: 10px 20px; /* Padding for the button */
-  transition: background-color 0.3s ease, transform 0.2s ease; /* Smooth transition for hover effects */
-}
+  align-items: center;
+  justify-content: center;
 
-button:hover {
+  /* Smooth animations */
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+
+  /* Remove old opacity */
   opacity: 1;
-  background-color: #4ca3ad; /
-  transform: translateY(-2px); /* Subtle lift effect on hover */
 }
 
+/* Enhanced hover effects */
+button:hover {
+  background: linear-gradient(135deg, #4ca3ad 0%, #5fb3bd 50%, #4ca3ad 100%);
+  transform: translateY(-3px) scale(1.02);
+  box-shadow: 0 8px 20px rgba(21, 110, 120, 0.4);
+}
+
+/* Active/pressed state */
 button:active {
-    background-color: #134c53; /* Darker red when button is clicked */
-    transform: translateY(0); /* Reset the lift effect */
+  background: linear-gradient(135deg, #134c53 0%, #165a61 50%, #134c53 100%);
+  transform: translateY(-1px) scale(0.98);
+  box-shadow: 0 2px 8px rgba(21, 110, 120, 0.3);
 }
 
+/* Disabled state */
 button:disabled {
-  background-color: #A1B4D4;
+  background: linear-gradient(135deg, #A1B4D4 0%, #B8C7E0 50%, #A1B4D4 100%);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: 0 2px 6px rgba(161, 180, 212, 0.2);
+  opacity: 0.7;
+}
+
+/* Ripple effect animation */
+button::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s ease, height 0.6s ease;
+  z-index: 0;
+  pointer-events: none;
+}
+
+button:active::before {
+  width: 300px;
+  height: 300px;
+}
+
+/* Ensure text stays above ripple effect */
+button span,
+button .btn-text,
+button .btn-spinner {
+  position: relative;
+  z-index: 1;
+}
+
+/* Existing button variants enhanced */
+.btn-primary {
+  background: linear-gradient(135deg, #156e78 0%, #1a7a85 50%, #156e78 100%);
+}
+
+.btn-success {
+  background: linear-gradient(135deg, #28a745 0%, #34ce57 50%, #28a745 100%);
+  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+}
+
+.btn-success:hover {
+  background: linear-gradient(135deg, #34ce57 0%, #48d16a 50%, #34ce57 100%);
+  box-shadow: 0 8px 20px rgba(40, 167, 69, 0.4);
+  transform: translateY(-3px) scale(1.02);
+}
+
+.btn-success:active {
+  background: linear-gradient(135deg, #1e7e34 0%, #228b3d 50%, #1e7e34 100%);
+  transform: translateY(-1px) scale(0.98);
 }
 
 .button-container {
   width: 100%;
   margin: 0 auto 20px;
+  text-align: center;
 }
 
-.box {
-      grid-template-rows: 150px auto auto;
+/* Enhanced spinner */
+.spinner {
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid white;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  animation: spin 1s linear infinite;
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 8px;
 }
 
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
 
+/* Form controls */
+.form-control {
+  border: 2px solid #e1e5e9;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
 
-.title{
-    vertical-align: bottom;
+.form-control:focus {
+  border-color: #156e78;
+  box-shadow: 0 0 0 3px rgba(21, 110, 120, 0.1);
+  outline: none;
+}
+
+/* Enhanced step boxes */
+.step-box {
+  border: 1px solid #e1e5e9;
+  padding: 24px;
+  border-radius: 12px;
+  margin-bottom: 24px;
+  background: linear-gradient(135deg, #f9f9f9 0%, #ffffff 100%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  transition: box-shadow 0.3s ease;
+}
+
+.step-box:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
 }
 
 .main-text{
@@ -135,12 +260,19 @@ button:disabled {
     text-indent: 22px ;
 }
 
-.step-box {
-    border: 1px solid #ccc;
-    padding: 16px;
-    border-radius: 8px;
-    margin-bottom: 20px;
-    background-color: #f9f9f9;
+/* Responsive design */
+@media (max-width: 768px) {
+  button {
+    width: 90%;
+    max-width: 100%;
+    font-size: 14px;
+    padding: 12px 16px;
+    min-height: 44px;
+  }
+
+  .main-text {
+    margin-left: 3%;
+    margin-right: 3%;
+    font-size: 18px;
+  }
 }
-
-

@@ -57,29 +57,6 @@ details[open] summary {
   color: #6c757d;
 }
 
-/* Progress bar styles */
-.progress-container {
-  width: 100%;
-  background-color: #f1f1f1;
-  border-radius: 4px;
-  margin-top: 10px;
-}
-
-.progress-bar {
-  width: 0;
-  height: 20px;
-  background-color: #4CAF50;
-  border-radius: 4px;
-  transition: width 0.3s;
-  animation: progress 2s infinite;
-}
-
-@keyframes progress {
-  0% { width: 0; background-color: #4CAF50; }
-  50% { width: 50%; background-color: #2196F3; }
-  100% { width: 100%; background-color: #4CAF50; }
-}
-
 /* Spinner styles */
 .spinner {
   border: 3px solid #f3f3f3;
