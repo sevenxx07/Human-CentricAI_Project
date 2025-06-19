@@ -27,14 +27,6 @@ class LogisticRegressionModel(ClassifierWrapper):
             verbose=verbose
         )
 
-    def train(self, X_train, y_train):
-        """
-        Train the Logistic Regression classifier on the provided data.
-        """
-        self.classifier.fit(X_train, y_train)
-        self.is_trained = True
-        return self
-
     def predict_log_proba(self, X):
         """
         Return log probability estimates for the test data (specific to Logistic Regression).

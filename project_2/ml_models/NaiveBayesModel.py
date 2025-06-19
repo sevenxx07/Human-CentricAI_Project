@@ -47,31 +47,3 @@ class NaiveBayesModel(ClassifierWrapper):
             raise ValueError(f"Unknown Naive Bayes variant: {variant}. "
                              "Choose from 'gaussian', 'multinomial', 'bernoulli'")
 
-    def train(self, X_train, y_train):
-        """
-        Train the Naive Bayes classifier on the provided data.
-        """
-        self.classifier.fit(X_train, y_train)
-        self.is_trained = True
-        return self
-
-    def partial_fit(self, X, y, classes=None):
-        """
-        Incremental fit on a batch of samples (for online learning).
-
-        Parameters:
-        -----------
-        X : array-like
-            Feature vectors
-        y : array-like
-            Target values
-        classes : array-like, optional
-            List of all possible classes (required for first call)
-        """
-        if not hasattr(self.classifier, 'partial_fit'):
-            raise NotImplementedError(
-                f"Partial fit not available for {self.variant} Naive Bayes")
-
-        self.classifier.partial_fit(X, y, classes=classes)
-        self.is_trained = True
-        return self

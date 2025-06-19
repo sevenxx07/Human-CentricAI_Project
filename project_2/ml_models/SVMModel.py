@@ -21,11 +21,3 @@ class SVMModel(ClassifierWrapper):
             verbose=verbose,
             probability=True
         )
-
-    def train(self, X_train, y_train):
-        """
-        Train the SVM classifier on the provided data.
-        """
-        self.classifier.fit(X_train, y_train)
-        self.is_trained = True
-        return self

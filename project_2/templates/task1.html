@@ -35,9 +35,9 @@
         <!-- Model Selection -->
         <div class="form-section">
           <h4>Classification Model</h4>
-          <select name="model" class="form-control" onchange="updateModelFields(this.value)">
+          <select name="model" class="form-control" id="model-select" onchange="updateModelFields(this.value)">
             {% for value, name in classifier_settings.MODEL_TYPES.items %}
-              <option value="{{ value }}" {% if classifier_settings.model_type == value %}selected{% endif %}>{{ name }}</option>
+              <option value="{{ value }}" {% if classifier_settings and classifier_settings.model_type == value %}selected{% endif %}>{{ name }}</option>
             {% endfor %}
           </select>
         </div>
@@ -155,17 +155,35 @@
 {% block script %}
 <script>
 function updateModelFields(selectedModel) {
-  // Simplified model fields toggling
+  console.log('Selected model:', selectedModel); // Debug line
+
+  // Hide all model fields first
   document.querySelectorAll('.model-fields').forEach(el => {
     el.style.display = 'none';
   });
-  document.getElementById(selectedModel + '-fields').style.display = 'block';
+
+  // Show the selected model fields
+  const targetElement = document.getElementById(selectedModel + '-fields');
+  if (targetElement) {
+    targetElement.style.display = 'block';
+    console.log('Showing fields for:', selectedModel); // Debug line
+  } else {
+    console.error('Could not find element:', selectedModel + '-fields'); // Debug line
+  }
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+  console.log('DOM loaded'); // Debug line
+
   // Initialize model fields display
-  const selectedModel = document.querySelector('select[name="model"]').value;
-  updateModelFields(selectedModel);
+  const modelSelect = document.querySelector('select[name="model"]');
+  if (modelSelect) {
+    const selectedModel = modelSelect.value;
+    console.log('Initial selected model:', selectedModel); // Debug line
+    updateModelFields(selectedModel);
+  } else {
+    console.error('Could not find model select element'); // Debug line
+  }
 
   // Training form submission handler
   const trainingForm = document.getElementById('training-form');
