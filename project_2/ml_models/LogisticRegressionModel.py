@@ -44,3 +44,18 @@ class LogisticRegressionModel(ClassifierWrapper):
         if not self.is_trained:
             raise RuntimeError("Model must be trained before making predictions")
         return self.classifier.predict_log_proba(X)
+
+    def get_hyperparameters(self):
+        """
+        Return hyperparameters as a dictionary.
+
+        Returns:
+        --------
+        dict : Hyperparameters of the model
+        """
+        return {
+            'penalty': self.penalty,
+            'C': self.C,
+            'solver': self.solver,
+            'max_iter': self.max_iter
+        }

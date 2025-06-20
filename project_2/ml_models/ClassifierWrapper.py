@@ -28,6 +28,12 @@ class ClassifierWrapper(ABC):
         self.verbose = verbose
         self.is_trained = False
         self.classifier = None
+        self.metrics = {
+            'accuracy': None,
+            'precision': None,
+            'recall': None,
+            'f1_score': None
+        }
 
     def train(self, X_train, y_train):
         """
@@ -159,7 +165,7 @@ class ClassifierWrapper(ABC):
 
         y_pred = self.predict(X_test)
 
-        metrics = {
+        self.metrics = {
             'accuracy': accuracy_score(y_test, y_pred),
             'precision': precision_score(y_test, y_pred, average='weighted'),
             'recall': recall_score(y_test, y_pred, average='weighted'),
@@ -168,10 +174,10 @@ class ClassifierWrapper(ABC):
 
         if self.verbose:
             print(f"Evaluation metrics for {type(self).__name__}:")
-            for metric, value in metrics.items():
+            for metric, value in self.metrics.items():
                 print(f"  {metric.capitalize()}: {value:.4f}")
 
-        return metrics
+        return self.metrics.copy()
 
     def save_classifier(self, file_path=None, name_suffix=None):
         """
@@ -193,8 +199,8 @@ class ClassifierWrapper(ABC):
         # Compute the default file path if none is provided
         if file_path is None:
             model_dir = os.path.join(settings.BASE_DIR, 'project_2', 'data', 'models')
-            suffix = f"_{name_suffix}" if name_suffix else ""
-            filename = f"{type(self).__name__}{suffix}.pkl"
+            suffix = f"{name_suffix}" if name_suffix else ""
+            filename = f"{type(self).__name__}_fullwraper_{suffix}.pkl"
             file_path = os.path.join(model_dir, filename)
 
         file_path = Path(file_path)
@@ -202,7 +208,7 @@ class ClassifierWrapper(ABC):
 
         try:
             with open(file_path, 'wb') as f:
-                pickle.dump(self.classifier, f)
+                pickle.dump(self, f) # Save the entire wrapper instance not just the classifier
 
             if self.verbose:
                 print(f"Model saved to: {file_path}")
@@ -213,19 +219,7 @@ class ClassifierWrapper(ABC):
     @classmethod
     def load_model(cls, file_path=None, name_suffix=None):
         """
-        Load a saved model from file and return a wrapped instance.
-
-        Parameters:
-        -----------
-        file_path : str or Path, optional
-            Path to the saved model. If None, uses default location.
-        name_suffix : str, optional
-            Suffix of the model file to load
-
-        Returns:
-        --------
-        instance : ClassifierWrapper
-            Loaded classifier instance with the model restored
+        Load a saved wrapper instance from file
         """
         # Compute the default file path if none is provided
         if file_path is None:
@@ -241,18 +235,25 @@ class ClassifierWrapper(ABC):
 
         try:
             with open(file_path, 'rb') as f:
-                loaded_classifier = pickle.load(f)
+                # Load the complete wrapper instance
+                instance = pickle.load(f)
 
-            # Create a new instance of the wrapper class
-            # Note: This assumes the child class can be initialized with default parameters
-            instance = cls()
-            instance.classifier = loaded_classifier
-            instance.is_trained = True
+            # Verify it's the right type
+            if not isinstance(instance, cls):
+                raise RuntimeError(f"Loaded object is not an instance of {cls.__name__}")
 
-            if instance.verbose:
-                print(f"Model loaded from: {file_path}")
+            if hasattr(instance, 'verbose') and instance.verbose:
+                print(f"Complete model wrapper loaded from: {file_path}")
 
             return instance
 
         except Exception as e:
             raise RuntimeError(f"Failed to load model: {str(e)}")
+
+    @abstractmethod
+    def get_hyperparameters(self):
+        """
+        Abstract method to return hyperparameters as a dictionary.
+        Must be implemented by subclasses.
+        """
+        raise NotImplementedError("Subclasses must implement get_hyperparameters()")
