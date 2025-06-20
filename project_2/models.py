@@ -85,9 +85,22 @@ class TextClassifier(models.Model):
 
     def get_hyperparameters(self):
         """Return hyperparameters as dict"""
-        return {f.name: getattr(self, f.name)
-                for f in self._meta.get_fields()
-                if not f.is_relation}
+        relevant_fields = {
+        'logistic': ['regularization_c', 'max_iter', 'solver', 'penalty'],
+        'svm': ['regularization_c', 'max_iter', 'kernel', 'gamma'],
+        'naive_bayes': ['nb_variant', 'alpha', 'fit_prior']
+        }
+
+        # Get the relevant fields for this model type
+        model_fields = relevant_fields.get(self.model_type, [])
+
+        # Return only the hyperparameters relevant to this model type
+        params = {}
+        for field_name in model_fields:
+            if hasattr(self, field_name):
+                params[field_name] = getattr(self, field_name)
+
+        return params
 
 class TrainingSession(models.Model):
     """Model to track training sessions"""
@@ -113,5 +126,3 @@ class TrainingSession(models.Model):
 
     class Meta:
         ordering = ['-start_time']
-
-

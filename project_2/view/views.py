@@ -100,6 +100,16 @@ def handle_load_pre_trained(request, context):
         if hasattr(model_wrapper, 'regularization_c'):
             print(f"  Wrapper regularization_c: {model_wrapper.regularization_c}")
 
+        # Convert metrics to percentage format if they exist
+        evaluation_results = None
+        if hasattr(model_wrapper, 'metrics') and model_wrapper.metrics:
+            evaluation_results = {}
+            for key, value in model_wrapper.metrics.items():
+                if value is not None:
+                    # Convert to percentage
+                    evaluation_results[key] = value * 100
+            print(f"✓ Evaluation results: {evaluation_results}")
+
         # Store EVERYTHING in DATA_STORAGE
         DATA_STORAGE.clear()
         DATA_STORAGE.update({
@@ -107,17 +117,15 @@ def handle_load_pre_trained(request, context):
             'model_wrapper': model_wrapper,  # The complete wrapper instance
             'classifier_settings': text_classifier,  # The Django model instance
             'model_loaded_from_file': True,
-            'evaluation_results': model_wrapper.metrics
+            'evaluation_results': evaluation_results  # Converted to percentage
         })
 
-        print(f"✓ DATA_STORAGE updated with keys: {list(DATA_STORAGE.keys())}")
+        print(f" DATA_STORAGE updated with keys: {list(DATA_STORAGE.keys())}")
+        print(f" Baseline accuracy available: {evaluation_results.get('accuracy') if evaluation_results else 'None'}")
 
         context.update({
             'message': 'Pre-trained models loaded successfully',
             'model_loaded': True,
-            'selected_model': selected_model,
-            'text_classifier': text_classifier,
-            'model_wrapper': model_wrapper
         })
 
     except TextClassifier.DoesNotExist:
