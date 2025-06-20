@@ -1,0 +1,14 @@
+<div class="config-summary">
+  <details>
+    <summary class="small-summary">Current Configuration</summary>
+    <div class="small-config">
+      <span class="badge">{{ classifier_settings.get_model_type_display }}</span>
+      <span class="badge">{{ classifier_settings.get_representation_type_display }}</span>
+      {% for name, value in classifier_settings.get_hyperparameters.items %}
+        {% if value %}
+          <span class="badge">{{ name|title }}: {{ value }}</span>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </details>
+</div>

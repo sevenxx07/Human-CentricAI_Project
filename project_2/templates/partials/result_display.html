@@ -1,0 +1,21 @@
+<div class="results-container">
+    <h4>Evaluation Metrics</h4>
+    <div class="metrics-grid">
+      <div class="metric">
+        <span class="metric-value">{{ evaluation_results.accuracy|floatformat:2 }}%</span>
+        <span class="metric-label">Accuracy</span>
+      </div>
+      <div class="metric">
+        <span class="metric-value">{{ evaluation_results.precision|floatformat:2 }}%</span>
+        <span class="metric-label">Precision</span>
+      </div>
+      <div class="metric">
+        <span class="metric-value">{{ evaluation_results.recall|floatformat:2 }}%</span>
+        <span class="metric-label">Recall</span>
+      </div>
+      <div class="metric">
+        <span class="metric-value">{{ evaluation_results.f1_score|floatformat:2 }}%</span>
+        <span class="metric-label">F1 Score</span>
+      </div>
+    </div>
+</div>

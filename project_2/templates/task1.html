@@ -55,20 +55,7 @@
 
      <!-- Current Configuration - Compact Version -->
         {% if classifier_settings %}
-        <div class="config-summary">
-          <details>
-            <summary class="small-summary">Current Configuration</summary>
-            <div class="small-config">
-              <span class="badge">{{ classifier_settings.get_model_type_display }}</span>
-              <span class="badge">{{ classifier_settings.get_representation_type_display }}</span>
-              {% for name, value in classifier_settings.get_hyperparameters.items %}
-                {% if value %}
-                  <span class="badge">{{ name|title }}: {{ value }}</span>
-                {% endif %}
-              {% endfor %}
-            </div>
-          </details>
-        </div>
+            {% include 'partials/model_config.html' %}
         {% endif %}
     </div>
 
@@ -91,7 +78,6 @@
       <!-- Training Status -->
       {% if training_session %}
         {% if training_session.status == 'completed' %}
-          <p>Accuracy: {{ training_session.final_accuracy|floatformat:2 }}%</p>
           <p>Training time: {{ training_session.duration.total_seconds|floatformat:2 }}s</p>
         {% elif training_session.status == 'failed' %}
           <p>Error: {{ training_session.error_message }}</p>
@@ -106,27 +92,7 @@
       <h3>Step 3: Results & Save Model</h3>
 
       <!-- Results Display -->
-      <div class="results-container">
-        <h4>Evaluation Metrics</h4>
-        <div class="metrics-grid">
-          <div class="metric">
-            <span class="metric-value">{{ evaluation_results.accuracy|floatformat:2 }}%</span>
-            <span class="metric-label">Accuracy</span>
-          </div>
-          <div class="metric">
-            <span class="metric-value">{{ evaluation_results.precision|floatformat:2 }}%</span>
-            <span class="metric-label">Precision</span>
-          </div>
-          <div class="metric">
-            <span class="metric-value">{{ evaluation_results.recall|floatformat:2 }}%</span>
-            <span class="metric-label">Recall</span>
-          </div>
-          <div class="metric">
-            <span class="metric-value">{{ evaluation_results.f1|floatformat:2 }}%</span>
-            <span class="metric-label">F1 Score</span>
-          </div>
-        </div>
-      </div>
+     {%  include 'partials/result_display.html' %}
 
       <!-- Save Button -->
       <form method="post">

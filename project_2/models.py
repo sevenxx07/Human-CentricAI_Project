@@ -26,7 +26,7 @@ class TextClassifier(models.Model):
 
     # Hyperparameters (simplified null/blank handling)
     regularization_c = models.FloatField(default=1.0, blank=True)
-    max_iter = models.IntegerField(default=1000, blank=True)
+    max_iter = models.IntegerField(default=1000, blank=True)  # Used by both Logistic and SVM
     solver = models.CharField(max_length=20, default="lbfgs", blank=True)
     penalty = models.CharField(max_length=20, default="l2", blank=True)
     nb_variant = models.CharField(max_length=20, default="gaussian", blank=True)
@@ -37,6 +37,13 @@ class TextClassifier(models.Model):
 
     def __str__(self):
         return f"{self.model_type}_{self.representation_type}_classifier"
+
+    def map_hyperparameters(self, hyperparams):
+        """Map hyperparameters from dict to model fields"""
+        for field in self._meta.get_fields():
+            if not field.is_relation and field.name in hyperparams:
+                setattr(self, field.name, hyperparams[field.name])
+        self.save()
 
     def create_model_instance(self):
         """Create appropriate model wrapper instance"""
@@ -49,7 +56,9 @@ class TextClassifier(models.Model):
             from project_2.ml_models.SVMModel import SVMModel
             model_params.update({
                 'kernel': self.kernel,
-                'C': self.regularization_c
+                'C': self.regularization_c,
+                'gamma': self.gamma,
+                'max_iter': self.max_iter
             })
             return SVMModel(**model_params)
 
@@ -57,8 +66,9 @@ class TextClassifier(models.Model):
             from project_2.ml_models.LogisticRegressionModel import LogisticRegressionModel
             model_params.update({
                 'C': self.regularization_c,
-                'max_iter': self.max_iter,
-                'solver': self.solver
+                'max_iter': self.max_iter,  # This was missing the proper parameter passing
+                'solver': self.solver,
+                'penalty': self.penalty  # Also add penalty parameter
             })
             return LogisticRegressionModel(**model_params)
 
@@ -66,7 +76,8 @@ class TextClassifier(models.Model):
             from project_2.ml_models.NaiveBayesModel import NaiveBayesModel
             model_params.update({
                 'variant': self.nb_variant,
-                'alpha': self.alpha
+                'alpha': self.alpha,
+                'fit_prior': self.fit_prior  # Also add fit_prior parameter
             })
             return NaiveBayesModel(**model_params)
 
