@@ -192,6 +192,23 @@ button .btn-spinner {
   transform: translateY(-1px) scale(0.98);
 }
 
+.btn-danger {
+  background: linear-gradient(135deg, #dc3545 0%, #e4606d 50%, #dc3545 100%);
+  box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+}
+
+.btn-danger:hover {
+  background: linear-gradient(135deg, #e4606d 0%, #f0808b 50%, #e4606d 100%);
+  box-shadow: 0 8px 20px rgba(220, 53, 69, 0.4);
+  transform: translateY(-3px) scale(1.02);
+}
+
+.btn-danger:active {
+  background: linear-gradient(135deg, #b02a37 0%, #c33d4a 50%, #b02a37 100%);
+  transform: translateY(-1px) scale(0.98);
+}
+
+
 .button-container {
   width: 100%;
   margin: 0 auto 20px;

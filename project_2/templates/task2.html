@@ -120,11 +120,11 @@
           <h4>Initial Parameters</h4>
           <div class="form-group">
             <label>Initial labeled samples:</label>
-            <input type="number" name="n_initial" min="5" max="100" value="{{ al_config.n_initial|default:'10' }}" class="form-control">
+            <input type="number" name="n_initial" min="5" value="{{ al_config.n_initial|default:'10' }}" class="form-control">
           </div>
           <div class="form-group">
             <label>Batch size (samples per query):</label>
-            <input type="number" name="batch_size" min="1" max="10" value="{{ al_config.batch_size|default:'1' }}" class="form-control">
+            <input type="number" name="batch_size" min="1" value="{{ al_config.batch_size|default:'1' }}" class="form-control">
           </div>
         </div>
 
@@ -193,20 +193,30 @@
           <p><strong>Utility Score:</strong> {{ next_query.utility_score|floatformat:3 }}</p>
         </div>
 
-        <form method="post" class="query-form">
+         <form method="post" class="query-form">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="label_sample">
+              <input type="hidden" name="sample_idx" value="{{ next_query.sample_idx }}">
+              <input type="hidden" name="scroll_to" value="step-2">
+
+              <div class="form-group">
+                <label>Label this review:</label>
+                <div class="label-buttons">
+                  <button type="submit" name="label" value="1" class="btn btn-success">Positive</button>
+                  <button type="submit" name="label" value="0" class="btn btn-danger">Negative</button>
+                </div>
+              </div>
+        </form>
+
+        <!-- Separate form for oracle -->
+        <form method="post" class="oracle-form" style="margin-top: 10px;">
           {% csrf_token %}
           <input type="hidden" name="action" value="label_sample">
           <input type="hidden" name="sample_idx" value="{{ next_query.sample_idx }}">
           <input type="hidden" name="scroll_to" value="step-2">
+          <input type="hidden" name="use_oracle" value="true">
 
-          <div class="form-group">
-            <label>Label this review:</label>
-            <div class="label-buttons">
-              <button type="submit" name="label" value="1" class="btn btn-success">Positive</button>
-              <button type="submit" name="label" value="0" class="btn btn-danger">Negative</button>
-              <button type="submit" name="use_oracle" value="true" class="btn btn-secondary">Use Oracle (Auto-label)</button>
-            </div>
-          </div>
+          <button type="submit" class="btn btn-secondary">Use Oracle (Auto-label)</button>
         </form>
 
         <!-- Auto Query Form -->
@@ -217,10 +227,10 @@
 
           <div class="form-group">
             <label>Number of automatic queries:</label>
-            <input type="number" name="n_queries" min="1" max="50" value="10" class="form-control" style="width: 100px; display: inline-block;">
+            <input type="number" name="n_queries" min="1" max="500" value="10" class="form-control" style="width: 100px; display: inline-block;">
             <button type="submit" class="btn btn-warning" id="auto-query-btn">
               <span class="btn-text">Run Auto Queries</span>
-              <span id="btn-spinner" class="spinner" style="display:none;"></span>
+              <span id="auto-btn-spinner" class="spinner" style="display:none;"></span>
             </button>
           </div>
         </form>
@@ -244,7 +254,7 @@
           <div class="form-group">
             <label>
               <input type="radio" name="termination_type" value="queries" {% if termination.type == 'queries' %}checked{% endif %}>
-              Max Queries: <input type="number" name="max_queries" min="10" max="500" value="{{ termination.max_queries|default:'100' }}" style="width: 80px;">
+              Max Queries: <input type="number" name="max_queries" min="10" max="10000" value="{{ termination.max_queries|default:'100' }}" style="width: 80px;">
             </label>
           </div>
           <div class="form-group">
@@ -274,11 +284,12 @@
         <canvas id="learningCurve" style="max-height: 250px;"></canvas>
       </div>
 
-      <!-- Reset/Save Options -->
+      <!-- Reset Options -->
       <div class="action-buttons">
         <form method="post" style="display: inline;">
           {% csrf_token %}
           <input type="hidden" name="action" value="reset_al">
+          <input type="hidden" name="scroll_to" value="step-1">
           <button type="submit" class="btn btn-warning">Reset Active Learning</button>
         </form>
       </div>
@@ -424,24 +435,43 @@ if (learningCtx) {
 console.log('No accuracy history available');
 {% endif %}
 
+// Enhanced auto-scroll functionality with multiple timing strategies
 {% if scroll_to %}
+// Auto-scroll to the specified step
 window.addEventListener('load', function() {
-  const element = document.getElementById('{{ scroll_to }}');
-  if (element) {
-    element.scrollIntoView({ behavior: 'smooth' });
-  }
+  document.getElementById('{{ scroll_to }}').scrollIntoView({ behavior: 'auto' });
 });
 {% endif %}
 
-// Initialize form submission handler
-const initForm = document.getElementById('init-form');
-if (initForm) {
-  initForm.addEventListener('submit', function() {
-    console.log('Init form submitted');
-    document.getElementById('init-btn-text').style.display = 'none';
-    document.getElementById('init-btn-spinner').style.display = 'inline-block';
-  });
-}
+// Form submission handlers with loading indicators
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('DOM loaded, setting up form handlers');
+
+  // Initialize form submission handler
+  const initForm = document.getElementById('init-form');
+  if (initForm) {
+    initForm.addEventListener('submit', function() {
+      console.log('Init form submitted');
+      const btnText = document.getElementById('init-btn-text');
+      const btnSpinner = document.getElementById('init-btn-spinner');
+      if (btnText) btnText.style.display = 'none';
+      if (btnSpinner) btnSpinner.style.display = 'inline-block';
+    });
+  }
+
+  // Auto query form handler
+  const autoQueryBtn = document.getElementById('auto-query-btn');
+  if (autoQueryBtn) {
+    autoQueryBtn.closest('form').addEventListener('submit', function() {
+      console.log('Auto query form submitted');
+      const btnText = autoQueryBtn.querySelector('.btn-text');
+      const btnSpinner = document.getElementById('auto-btn-spinner');
+      if (btnText) btnText.style.display = 'none';
+      if (btnSpinner) btnSpinner.style.display = 'inline-block';
+    });
+  }
+
+});
 
 // Debug: Log when page loads
 window.addEventListener('load', function() {
@@ -451,6 +481,12 @@ window.addEventListener('load', function() {
   console.log('- AL session:', {{ al_session|yesno:"true,false" }});
   console.log('- Accuracy history length:', {{ accuracy_history|length }});
   console.log('- Query indices length:', {{ query_indices|length }});
+
+  // Final scroll attempt after everything is loaded
+  {% if scroll_to %}
+  console.log('Final scroll check after window load...');
+  scrollToElement('{{ scroll_to }}', 300);
+  {% endif %}
 });
 
 </script>

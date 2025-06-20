@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 from django.contrib import messages
 from django.shortcuts import render, redirect
+from django.urls import reverse
 
 from pbl import settings
 from project_2.active_learning.active_learning_loop import ActiveLearningLoop
@@ -107,9 +108,10 @@ def index(request):
 
     if request.method == 'POST':
         action = request.POST.get('action')
+        scroll_to = request.POST.get('scroll_to')
 
         if DEBUG:
-            logger.info(f"POST action: {action}")
+            logger.info(f"POST action: {action}, scroll_to: {scroll_to}")
 
         # Block all active learning actions if no complete pre-trained model
         if action in ['initialize_al', 'label_sample', 'auto_query',
@@ -117,18 +119,33 @@ def index(request):
             logger.warning(f"Blocked action '{action}' - no complete pre-trained model available")
             messages.error(request, "Active learning requires a complete pre-trained model from Task 1. "
                                     "Please train a model in Task 1 first.")
-            return redirect('project2:task2')
+            context['scroll_to'] = scroll_to
+            return render(request, 'task2.html', context)
 
+        context['scroll_to'] = scroll_to
+
+        # Process actions and render with context instead of redirecting
         if action == 'initialize_al':
-            return handle_initialize_al(request, al_config)
+            handle_initialize_al(request, al_config)
         elif action == 'label_sample':
-            return handle_label_sample(request)
+            handle_label_sample(request)
         elif action == 'auto_query':
-            return handle_auto_query(request)
+            handle_auto_query(request)
         elif action == 'set_termination':
-            return handle_set_termination(request, termination)
+            handle_set_termination(request, termination)
         elif action == 'reset_al':
-            return handle_reset_al(request)
+            handle_reset_al(request)
+
+        # Reload configurations after processing
+        al_config = ActiveLearningConfig()
+        for key, value in request.session['al_config'].items():
+            setattr(al_config, key, value)
+        context['al_config'] = al_config
+
+        termination = TerminationConfig()
+        for key, value in request.session['termination_config'].items():
+            setattr(termination, key, value)
+        context['termination'] = termination
 
     # Load lightweight session context if exists AND we have pre-trained model
     if (request.session.get('al_session_data') and
@@ -141,7 +158,9 @@ def index(request):
             request.session.pop('al_session_data', None)
             messages.warning(request, "Active learning session was corrupted and has been reset")
 
-    context['scroll_to'] = request.GET.get('scroll_to')
+    # Preserve scroll_to from GET if not already set
+    if not context.get('scroll_to'):
+        context['scroll_to'] = request.GET.get('scroll_to')
 
     return render(request, 'task2.html', context)
 
@@ -224,8 +243,6 @@ def handle_initialize_al(request, al_config):
     except Exception as e:
         logger.error(f"Error initializing AL: {str(e)}")
         messages.error(request, f"Error initializing active learning: {str(e)}")
-
-    return redirect('project2:task2')
 
 
 def ensure_data_loaded_with_pretrained():
@@ -427,8 +444,9 @@ def handle_label_sample(request):
 
         if DEBUG:
             logger.info(f"Labeling sample {sample_idx}, use_oracle: {use_oracle}")
+            logger.info(f"POST data: {dict(request.POST)}")  # Debug log
 
-        al_loop = reconstruct_al_loop(request)         # Reconstruct active learning loop from session
+        al_loop = reconstruct_al_loop(request)  # Reconstruct active learning loop from session
 
         if sample_idx not in al_loop.unlabeled_indices:
             raise ValueError(f"Sample {sample_idx} is not available for labeling")
@@ -441,8 +459,12 @@ def handle_label_sample(request):
             messages.success(request,
                              f"Sample {sample_idx} auto-labeled as {'Positive' if oracle_label == 1 else 'Negative'} using oracle. New accuracy: {result['accuracy']:.3f}")
         else:
-            # Manual labeling
-            manual_label = int(request.POST.get('label'))
+            # Manual labeling - with better error handling
+            label_value = request.POST.get('label')
+            if label_value is None:
+                raise ValueError("No label value provided. Please click either Positive or Negative button.")
+
+            manual_label = int(label_value)
             if DEBUG:
                 logger.info(f"Manual label for sample {sample_idx}: {manual_label}")
             result = al_loop.query_sample(sample_idx, manual_label)
@@ -455,12 +477,12 @@ def handle_label_sample(request):
         if DEBUG:
             logger.info(f"Sample {sample_idx} labeled, new accuracy: {result['accuracy']:.3f}")
 
+    except ValueError as e:
+        logger.error(f"ValueError in labeling: {str(e)}")
+        messages.error(request, str(e))
     except Exception as e:
         logger.error(f"Error labeling sample: {str(e)}")
         messages.error(request, f"Error labeling sample: {str(e)}")
-
-    return redirect(f"project2:task2")
-
 
 def handle_auto_query(request):
     """Handle automatic queries using oracle"""
@@ -487,8 +509,6 @@ def handle_auto_query(request):
         logger.error(f"Error during auto query: {str(e)}")
         messages.error(request, f"Error during automatic querying: {str(e)}")
 
-    return redirect(f"project2:task2")
-
 
 def handle_set_termination(request, termination):
     """Handle termination condition setting"""
@@ -511,8 +531,6 @@ def handle_set_termination(request, termination):
         logger.error(f"Error setting termination: {str(e)}")
         messages.error(request, f"Error setting termination: {str(e)}")
 
-    return redirect(f"project2:task2")
-
 
 def handle_reset_al(request):
     """Handle active learning reset"""
@@ -524,7 +542,6 @@ def handle_reset_al(request):
         logger.info("Active learning session reset")
 
     messages.success(request, "Active learning session reset")
-    return redirect('project2:task2')
 
 
 def update_session_data_with_next_query(request, al_loop):
