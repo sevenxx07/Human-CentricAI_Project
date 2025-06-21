@@ -166,22 +166,30 @@ class ActiveLearningLoop:
         self._train_current_model()
         self.is_initialized = True
 
-    def get_next_query(self, n_candidates=None):
+    def get_next_query(self, n_candidates=None, batch_size=1, diversity_method='top_k'):
         """
-        Get the next sample to query based on utility function.
+        Get the next sample(s) to query based on utility function.
 
         Parameters:
         -----------
         n_candidates : int, optional
             Number of candidates to consider (None = all unlabeled)
+        batch_size : int
+            Number of samples to select (1 for single query, >1 for batch)
+        diversity_method : str
+            Method for batch selection ('top_k', 'diverse', 'uncertainty_diverse')
 
         Returns:
         --------
-        query_idx : int
-            Index of the sample to query next
+        query_idx or query_indices : int or list
+            Index of sample (batch_size=1) or list of indices (batch_size>1)
         utility_scores : dict
             Utility scores for all candidates (for debugging)
         """
+        if batch_size > 1:
+            return self.get_next_batch_query(batch_size, diversity_method)
+
+        # Single query (original behavior)
         if not self.is_initialized:
             raise RuntimeError("Must initialize before querying")
 
@@ -220,21 +228,133 @@ class ActiveLearningLoop:
 
         return query_idx, scores_dict
 
-    def query_sample(self, sample_idx, label=None):
+    def get_next_batch_query(self, batch_size=1, diversity_method='top_k'):
+        """
+        Get the next batch of samples to query based on utility function.
+        Updated with faster diversity methods.
+        """
+        if not self.is_initialized:
+            raise RuntimeError("Must initialize before querying")
+
+        if len(self.unlabeled_indices) == 0:
+            raise RuntimeError("No unlabeled samples remaining")
+
+        if self.termination_conditions['is_terminated']:
+            raise RuntimeError(f"Active learning terminated: {self.termination_conditions['termination_reason']}")
+
+        # Get unlabeled data
+        unlabeled_list = list(self.unlabeled_indices)
+        actual_batch_size = min(batch_size, len(unlabeled_list))
+
+        # Get features for candidates
+        if hasattr(self.X_train, 'toarray'):
+            X_candidates = self.X_train[unlabeled_list]
+        else:
+            X_candidates = self.X_train[unlabeled_list]
+
+        # Calculate utility scores
+        utility_scores = self.utility_function.apply(self.model, X_candidates)
+
+        # Select batch based on method
+        if diversity_method == 'top_k':
+            # Simply take top K samples by utility
+            top_indices = np.argsort(utility_scores)[-actual_batch_size:]
+            query_indices = [unlabeled_list[i] for i in top_indices]
+        elif diversity_method == 'diverse_random':
+            # Use weighted random selection (fastest)
+            query_indices = self._select_diverse_batch_random(
+                unlabeled_list, X_candidates, utility_scores, actual_batch_size
+            )
+        else:
+            raise ValueError(f"Unknown diversity method: {diversity_method}")
+
+        # Create utility scores dict for return
+        scores_dict = {unlabeled_list[i]: utility_scores[i] for i in range(len(unlabeled_list))}
+
+        return query_indices, scores_dict
+
+    def _select_diverse_batch(self, candidates, X_candidates, utility_scores, batch_size):
+        """
+        Select a diverse batch of samples using greedy selection.
+        """
+        from sklearn.metrics.pairwise import cosine_similarity
+
+        if batch_size == 1:
+            best_idx = np.argmax(utility_scores)
+            return [candidates[best_idx]]
+
+        selected_indices = []
+        selected_features = []
+
+        # Start with the highest utility sample
+        first_idx = np.argmax(utility_scores)
+        selected_indices.append(candidates[first_idx])
+
+        if hasattr(X_candidates, 'toarray'):
+            selected_features.append(X_candidates[first_idx].toarray().flatten())
+        else:
+            selected_features.append(X_candidates[first_idx].flatten())
+
+        # Greedily select remaining samples
+        for _ in range(batch_size - 1):
+            remaining_candidates = [i for i, c in enumerate(candidates) if c not in selected_indices]
+            if not remaining_candidates:
+                break
+
+            best_score = -float('inf')
+            best_candidate = None
+
+            for candidate_idx in remaining_candidates:
+                # Get candidate features
+                if hasattr(X_candidates, 'toarray'):
+                    candidate_features = X_candidates[candidate_idx].toarray().flatten()
+                else:
+                    candidate_features = X_candidates[candidate_idx].flatten()
+
+                # Calculate diversity score (minimum similarity to selected samples)
+                similarities = [cosine_similarity([candidate_features], [sf])[0][0]
+                                for sf in selected_features]
+                min_similarity = min(similarities) if similarities else 0
+                diversity_score = 1 - min_similarity
+
+                # Combine utility and diversity
+                combined_score = utility_scores[candidate_idx] + 0.5 * diversity_score
+
+                if combined_score > best_score:
+                    best_score = combined_score
+                    best_candidate = candidate_idx
+
+            if best_candidate is not None:
+                selected_indices.append(candidates[best_candidate])
+                if hasattr(X_candidates, 'toarray'):
+                    selected_features.append(X_candidates[best_candidate].toarray().flatten())
+                else:
+                    selected_features.append(X_candidates[best_candidate].flatten())
+
+        return selected_indices
+
+    def query_sample(self, sample_idx, label=None, batch_mode=False):
         """
         Query a sample (either with oracle or manual label).
 
         Parameters:
         -----------
-        sample_idx : int
-            Index of sample to query
-        label : int, optional
+        sample_idx : int or list
+            Index of sample to query (or list for batch mode)
+        label : int or list, optional
             Manual label (if None, uses oracle/true label)
+        batch_mode : bool
+            Whether this is a batch query
 
         Returns:
         --------
         dict : Query result information
         """
+        # Handle batch queries
+        if isinstance(sample_idx, list) or batch_mode:
+            return self.query_batch(sample_idx, label)
+
+        # Single sample query
         if sample_idx not in self.unlabeled_indices:
             raise ValueError(f"Sample {sample_idx} is not in unlabeled set")
 
@@ -257,7 +377,8 @@ class ActiveLearningLoop:
             'label': label,
             'n_labeled': len(self.labeled_indices),
             'n_unlabeled': len(self.unlabeled_indices),
-            'accuracy': self.get_current_accuracy()
+            'accuracy': self.get_current_accuracy(),
+            'batch_size': 1
         }
 
         self.query_history.append(query_info)
@@ -270,16 +391,104 @@ class ActiveLearningLoop:
 
         return query_info
 
-    def run_automatic_loop(self, n_queries, n_candidates=None):
+    def query_batch(self, sample_indices, labels=None):
+        """
+        Query a batch of samples (either with oracle or manual labels).
+
+        Parameters:
+        -----------
+        sample_indices : list
+            Indices of samples to query
+        labels : list, optional
+            Manual labels (if None, uses oracle/true labels)
+
+        Returns:
+        --------
+        dict : Batch query result information
+        """
+        if not all(idx in self.unlabeled_indices for idx in sample_indices):
+            invalid_indices = [idx for idx in sample_indices if idx not in self.unlabeled_indices]
+            raise ValueError(f"Samples {invalid_indices} are not in unlabeled set")
+
+        if self.termination_conditions['is_terminated']:
+            raise RuntimeError(f"Active learning terminated: {self.termination_conditions['termination_reason']}")
+
+        # Use oracle if no labels provided
+        if labels is None:
+            labels = [self.y_train[idx] for idx in sample_indices]
+
+        # Label all samples in the batch
+        for idx, label in zip(sample_indices, labels):
+            self._label_sample(idx, label)
+
+        # Retrain model once for the entire batch
+        self._train_current_model()
+
+        # Record batch query
+        current_accuracy = self.get_current_accuracy()
+
+        batch_query_info = {
+            'sample_indices': sample_indices,
+            'labels': labels,
+            'batch_size': len(sample_indices),
+            'n_labeled': len(self.labeled_indices),
+            'n_unlabeled': len(self.unlabeled_indices),
+            'accuracy': current_accuracy
+        }
+
+        # Add to history (one entry per batch)
+        self.query_history.append(batch_query_info)
+        self.accuracy_history.append(current_accuracy)
+
+        # Check termination conditions after this batch
+        is_terminated = self.check_termination_conditions()
+        batch_query_info['is_terminated'] = is_terminated
+        batch_query_info['termination_reason'] = self.termination_conditions.get('termination_reason')
+
+        return batch_query_info
+
+    def _select_diverse_batch_random(self, candidates, X_candidates, utility_scores, batch_size):
+        """
+        Fast diverse selection: weighted random sampling from top candidates.
+        Fastest option - O(n log n) for sorting only.
+        """
+        if batch_size == 1:
+            best_idx = np.argmax(utility_scores)
+            return [candidates[best_idx]]
+
+        # Take top candidates (more than batch_size for diversity)
+        top_k = min(batch_size * 5, len(candidates))  # Consider 5x batch_size top candidates
+        top_indices = np.argsort(utility_scores)[-top_k:]
+
+        # Weighted random selection from top candidates
+        top_utilities = utility_scores[top_indices]
+        # Normalize utilities to probabilities
+        probabilities = top_utilities / np.sum(top_utilities)
+
+        # Sample without replacement
+        selected_indices = np.random.choice(
+            top_indices,
+            size=min(batch_size, len(top_indices)),
+            replace=False,
+            p=probabilities
+        )
+
+        return [candidates[i] for i in selected_indices]
+
+    def run_automatic_loop(self, n_queries, n_candidates=None, batch_size=1, diversity_method='top_k'):
         """
         Run the active learning loop automatically using oracle.
 
         Parameters:
         -----------
         n_queries : int
-            Maximum number of queries to make (may stop early due to termination conditions)
+            Maximum number of queries to make (or batches if batch_size > 1)
         n_candidates : int, optional
             Number of candidates to consider per query
+        batch_size : int
+            Number of samples per query (1 for single, >1 for batch)
+        diversity_method : str
+            Method for batch selection
 
         Returns:
         --------
@@ -300,20 +509,26 @@ class ActiveLearningLoop:
                 print(f"No more unlabeled samples. Stopped after {i} queries.")
                 break
 
-            # Get next query
+            # Get next query (single or batch)
             try:
-                query_idx, _ = self.get_next_query(n_candidates)
+                if batch_size > 1:
+                    query_indices, _ = self.get_next_batch_query(batch_size, diversity_method)
+                    result = self.query_batch(query_indices)
+                    print(f"Batch {i + 1}: Samples {query_indices}, "
+                          f"Accuracy: {result['accuracy']:.3f}, "
+                          f"Labeled: {result['n_labeled']}")
+                else:
+                    query_idx, _ = self.get_next_query(n_candidates)
+                    result = self.query_sample(query_idx)
+                    print(f"Query {i + 1}: Sample {query_idx}, "
+                          f"Accuracy: {result['accuracy']:.3f}, "
+                          f"Labeled: {result['n_labeled']}")
+
+                results.append(result)
+
             except RuntimeError as e:
                 print(f"Cannot get next query: {e}")
                 break
-
-            # Query with oracle
-            result = self.query_sample(query_idx)
-            results.append(result)
-
-            print(f"Query {i + 1}: Sample {query_idx}, "
-                  f"Accuracy: {result['accuracy']:.3f}, "
-                  f"Labeled: {result['n_labeled']}")
 
             # Check if terminated after this query
             if result.get('is_terminated', False):

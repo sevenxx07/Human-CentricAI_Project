@@ -73,7 +73,6 @@
             <option value="lc" {% if al_config.utility_function == 'lc' %}selected{% endif %}>Least Confident</option>
             <option value="margin" {% if al_config.utility_function == 'margin' %}selected{% endif %}>Margin Sampling</option>
             <option value="entropy" {% if al_config.utility_function == 'entropy' %}selected{% endif %}>Entropy</option>
-            <option value="density" {% if al_config.utility_function == 'density' %}selected{% endif %}>Density</option>
             <option value="cluster" {% if al_config.utility_function == 'cluster' %}selected{% endif %}>Cluster-based</option>
             <option value="hybrid" {% if al_config.utility_function == 'hybrid' %}selected{% endif %}>Hybrid (Mixture)</option>
           </select>
@@ -93,7 +92,6 @@
           <div class="form-group">
             <label>Secondary Strategy:</label>
             <select id="secondary-strategy" class="form-control">
-              <option value="density" {% if al_config.secondary_strategy == 'density' %}selected{% endif %}>Density</option>
               <option value="cluster" {% if al_config.secondary_strategy == 'cluster' %}selected{% endif %}>Cluster-based</option>
             </select>
           </div>
@@ -111,16 +109,31 @@
           </div>
         </div>
 
-        <!-- Initial Parameters -->
+        <!-- Batch Configuration -->
         <div class="form-section">
-          <h4>Initial Parameters</h4>
+          <h4>Batch Configuration</h4>
           <div class="form-group">
             <label>Initial labeled samples:</label>
             <input type="number" id="n-initial" min="5" value="{{ al_config.n_initial|default:'10' }}" class="form-control">
           </div>
           <div class="form-group">
             <label>Batch size (samples per query):</label>
-            <input type="number" id="batch-size" min="1" value="{{ al_config.batch_size|default:'1' }}" class="form-control">
+            <input type="number" id="batch-size" min="1" max="20" value="{{ al_config.batch_size|default:'1' }}" class="form-control" onchange="updateBatchFields(this.value)">
+            <small class="form-text">1 = single sample, >1 = batch active learning</small>
+          </div>
+
+          <!-- Diversity Method for Batching -->
+          <div class="form-group" id="diversity-config" style="display: {% if al_config.batch_size > 1 %}block{% else %}none{% endif %};">
+            <label>Batch Diversity Method:</label>
+            <select id="diversity-method" class="form-control">
+              <option value="top_k" {% if al_config.diversity_method == 'top_k' %}selected{% endif %}>Top-K (Highest Utility)</option>
+              <option value="diverse_random" {% if al_config.diversity_method == 'diverse_random' %}selected{% endif %}>Diverse (Random) - Fastest</option>
+            </select>
+            <small class="form-text">
+                <br>
+              <strong>Top-K:</strong> Select samples with highest utility scores (fastest, no diversity)<br>
+              <strong>Diverse (Random):</strong> Weighted random from top candidates (fast + diverse)<br>
+            </small>
           </div>
         </div>
 
@@ -139,6 +152,9 @@
             <span class="badge">{{ al_config.utility_function|title }}</span>
             <span class="badge">Initial: {{ al_config.n_initial }}</span>
             <span class="badge">Batch: {{ al_config.batch_size }}</span>
+            {% if al_config.batch_size > 1 %}
+              <span class="badge">{{ al_config.diversity_method|title }}</span>
+            {% endif %}
             {% if al_config.utility_function == 'hybrid' %}
               <span class="badge">{{ al_config.primary_strategy|title }} + {{ al_config.secondary_strategy|title }}</span>
             {% endif %}
@@ -244,6 +260,15 @@ function updateUtilityFields(selectedUtility) {
   }
 }
 
+function updateBatchFields(batchSize) {
+  const diversityConfig = document.getElementById('diversity-config');
+  if (parseInt(batchSize) > 1) {
+    diversityConfig.style.display = 'block';
+  } else {
+    diversityConfig.style.display = 'none';
+  }
+}
+
 function showMessage(message, type = 'success') {
   const container = document.getElementById('messages-container');
   const messageDiv = document.createElement('div');
@@ -278,7 +303,8 @@ function initializeActivelearning() {
   const data = {
     utility_function: document.getElementById('utility-select').value,
     n_initial: parseInt(document.getElementById('n-initial').value),
-    batch_size: parseInt(document.getElementById('batch-size').value)
+    batch_size: parseInt(document.getElementById('batch-size').value),
+    diversity_method: document.getElementById('diversity-method').value
   };
 
   if (data.utility_function === 'hybrid') {
@@ -370,7 +396,7 @@ function setTermination() {
 function updateMetricsDisplay(status, baseline) {
   let baselineHtml = '';
   if (baseline) {
-    baselineHtml = `<div class="metric baseline"><span class="metric-value">${baseline.toFixed(3)}%</span><span class="metric-label"> Target accuracy (Task 1)</span></div>`;
+    baselineHtml = `<div class="metric baseline"><span class="metric-value">${baseline.toFixed(3)}%</span><span class="metric-label"> Target (Task 1)</span></div>`;
   }
 
   let budgetHtml = '';
@@ -388,7 +414,7 @@ function updateMetricsDisplay(status, baseline) {
       <span class="metric-label">Unlabeled</span>
     </div>
     <div class="metric">
-      <span class="metric-value">${status.current_accuracy.toFixed(3)}%</span>
+      <span class="metric-value">${status.current_accuracy.toFixed(3)}</span>
       <span class="metric-label">Accuracy</span>
     </div>
     <div class="metric">
@@ -434,29 +460,69 @@ function updateQueryInterface(nextQuery, isTerminated) {
   }
 
   if (nextQuery) {
-    const queryHtml = `
-      <h4>Next Query</h4>
-      <div class="sample-display">
-        <p><strong>Sample ${nextQuery.sample_idx}:</strong></p>
-        <div class="review-text">${nextQuery.text}</div>
-        <p><strong>Utility Score:</strong> ${nextQuery.utility_score.toFixed(3)}</p>
-      </div>
+    if (nextQuery.batch_size > 1) {
+      // Batch query interface
+      let batchHtml = `
+        <h4>Next Batch Query (${nextQuery.batch_size} samples)</h4>
+        <p><strong>Diversity Method:</strong> ${nextQuery.diversity_method}</p>
+        <div class="batch-samples">
+      `;
 
-      <div class="query-form">
-        <div class="form-group">
-          <label>Label this review:</label>
-          <div class="label-buttons">
-            <button type="button" class="btn btn-success" onclick="labelSample(${nextQuery.sample_idx}, 1)">Positive</button>
-            <button type="button" class="btn btn-danger" onclick="labelSample(${nextQuery.sample_idx}, 0)">Negative</button>
+      for (let i = 0; i < nextQuery.sample_indices.length; i++) {
+        batchHtml += `
+          <div class="sample-card" style="border: 1px solid #ddd; margin: 10px 0; padding: 10px; border-radius: 4px;">
+            <p><strong>Sample ${nextQuery.sample_indices[i]}:</strong> (Score: ${nextQuery.utility_scores[i].toFixed(3)})</p>
+            <div class="review-text" style="max-height: 100px; overflow-y: auto; background: #f8f9fa; padding: 8px; border-radius: 3px;">${nextQuery.texts[i]}</div>
+            <div class="label-selection" style="margin-top: 8px;">
+              <select id="label-${nextQuery.sample_indices[i]}" class="form-control" style="width: auto; display: inline-block;">
+                <option value="">Select Label</option>
+                <option value="1">Positive</option>
+                <option value="0">Negative</option>
+              </select>
+            </div>
+          </div>
+        `;
+      }
+
+      batchHtml += `
+        </div>
+        <div class="batch-actions" style="margin-top: 15px;">
+          <button type="button" class="btn btn-success" onclick="labelBatch()">Label Batch</button>
+          <button type="button" class="btn btn-secondary" onclick="labelBatchWithOracle()">Use Oracle for All</button>
+        </div>
+      `;
+
+      queryInterface.innerHTML = batchHtml;
+    } else {
+      // Single query interface
+      const queryHtml = `
+        <h4>Next Query</h4>
+        <div class="sample-display">
+          <p><strong>Sample ${nextQuery.sample_idx}:</strong></p>
+          <div class="review-text">${nextQuery.text}</div>
+          <p><strong>Utility Score:</strong> ${nextQuery.utility_score.toFixed(3)}</p>
+        </div>
+
+        <div class="query-form">
+          <div class="form-group">
+            <label>Label this review:</label>
+            <div class="label-buttons">
+              <button type="button" class="btn btn-success" onclick="labelSample(${nextQuery.sample_idx}, 1)">Positive</button>
+              <button type="button" class="btn btn-danger" onclick="labelSample(${nextQuery.sample_idx}, 0)">Negative</button>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="oracle-form" style="margin-top: 10px;">
-        <button type="button" class="btn btn-secondary" onclick="labelSample(${nextQuery.sample_idx}, null, true)">Use Oracle (Auto-label)</button>
-      </div>
+        <div class="oracle-form" style="margin-top: 10px;">
+          <button type="button" class="btn btn-secondary" onclick="labelSample(${nextQuery.sample_idx}, null, true)">Use Oracle (Auto-label)</button>
+        </div>
+      `;
+      queryInterface.innerHTML = queryHtml;
+    }
 
-      <div class="auto-query-form">
+    // Add auto-query section
+    queryInterface.innerHTML += `
+      <div class="auto-query-form" style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 15px;">
         <div class="form-group">
           <label>Number of automatic queries:</label>
           <input type="number" id="auto-queries-input" min="1" max="500" value="10" class="form-control" style="width: 100px; display: inline-block;">
@@ -467,7 +533,6 @@ function updateQueryInterface(nextQuery, isTerminated) {
         </div>
       </div>
     `;
-    queryInterface.innerHTML = queryHtml;
   } else {
     queryInterface.innerHTML = '<p>No more samples available for querying.</p>';
   }
@@ -503,6 +568,92 @@ function labelSample(sampleIdx, label, useOracle = false) {
   })
   .catch(error => {
     showMessage('Error labeling sample: ' + error, 'error');
+  });
+}
+
+function labelBatch() {
+  const sampleCards = document.querySelectorAll('.sample-card');
+  const sampleIndices = [];
+  const labels = [];
+
+  for (const card of sampleCards) {
+    const select = card.querySelector('select');
+    const sampleIdx = parseInt(select.id.replace('label-', ''));
+    const label = select.value;
+
+    if (label === '') {
+      showMessage('Please select labels for all samples in the batch', 'error');
+      return;
+    }
+
+    sampleIndices.push(sampleIdx);
+    labels.push(parseInt(label));
+  }
+
+  const data = {
+    action: 'label_batch',
+    sample_indices: sampleIndices,
+    labels: labels,
+    use_oracle: false
+  };
+
+  fetch("{% url 'project2:task2' %}", {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': '{{ csrf_token }}',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(data)
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.error) {
+      showMessage(data.error, 'error');
+    } else {
+      showMessage(data.message || 'Batch labeled successfully');
+      updateStateFromResponse(data);
+    }
+  })
+  .catch(error => {
+    showMessage('Error labeling batch: ' + error, 'error');
+  });
+}
+
+function labelBatchWithOracle() {
+  const sampleCards = document.querySelectorAll('.sample-card');
+  const sampleIndices = [];
+
+  for (const card of sampleCards) {
+    const select = card.querySelector('select');
+    const sampleIdx = parseInt(select.id.replace('label-', ''));
+    sampleIndices.push(sampleIdx);
+  }
+
+  const data = {
+    action: 'label_batch',
+    sample_indices: sampleIndices,
+    use_oracle: true
+  };
+
+  fetch("{% url 'project2:task2' %}", {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': '{{ csrf_token }}',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(data)
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.error) {
+      showMessage(data.error, 'error');
+    } else {
+      showMessage(data.message || 'Batch labeled with oracle successfully');
+      updateStateFromResponse(data);
+    }
+  })
+  .catch(error => {
+    showMessage('Error labeling batch with oracle: ' + error, 'error');
   });
 }
 
@@ -674,6 +825,12 @@ document.addEventListener('DOMContentLoaded', function() {
   // Initial state will be loaded from server-side context
 });
 {% endif %}
+
+// Initialize diversity field visibility on page load
+document.addEventListener('DOMContentLoaded', function() {
+  const batchSize = document.getElementById('batch-size').value;
+  updateBatchFields(batchSize);
+});
 
 </script>
 {% endblock %}
