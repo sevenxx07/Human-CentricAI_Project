@@ -166,7 +166,7 @@ function getFormData() {
     data.max_iter = document.getElementById('max_iter')?.value || 1000;
   } else if (modelType === 'naive_bayes') {
     data.alpha = document.getElementById('alpha')?.value || 1.0;
-    data.nb_variant = document.getElementById('nb_variant')?.value || 'gaussian';
+    data.nb_variant = document.getElementById('nb_variant')?.value || 'multinomial';
     data.fit_prior = document.getElementById('fit_prior')?.checked || true;
   }
 

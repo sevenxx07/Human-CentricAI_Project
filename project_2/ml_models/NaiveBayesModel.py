@@ -1,6 +1,6 @@
 import numpy as np
 from overrides import override
-from sklearn.naive_bayes import GaussianNB, MultinomialNB, BernoulliNB
+from sklearn.naive_bayes import MultinomialNB, BernoulliNB
 from typing import Literal
 from project_2.ml_models.ClassifierWrapper import ClassifierWrapper
 
@@ -12,7 +12,7 @@ class NaiveBayesModel(ClassifierWrapper):
     """
 
     def __init__(self,
-                 variant: Literal['gaussian', 'multinomial', 'bernoulli'] = 'gaussian',
+                 variant: Literal['multinomial', 'bernoulli'] = 'gaumultinomialssian',
                  alpha: float = 1.0,
                  fit_prior: bool = True,
                  random_state: int = None,
@@ -22,8 +22,8 @@ class NaiveBayesModel(ClassifierWrapper):
 
         Parameters:
         -----------
-        variant : str, default='gaussian'
-            Type of Naive Bayes classifier ('gaussian', 'multinomial', 'bernoulli')
+        variant : str, default='multinomial'
+            Type of Naive Bayes classifier ( 'multinomial', 'bernoulli')
         alpha : float, default=1.0
             Additive (Laplace/Lidstone) smoothing parameter
         fit_prior : bool, default=True
@@ -39,15 +39,13 @@ class NaiveBayesModel(ClassifierWrapper):
         self.fit_prior = fit_prior
 
         # Initialize the appropriate Naive Bayes variant
-        if variant == 'gaussian':
-            self.classifier = GaussianNB()
-        elif variant == 'multinomial':
+        if variant == 'multinomial':
             self.classifier = MultinomialNB(alpha=alpha, fit_prior=fit_prior)
         elif variant == 'bernoulli':
             self.classifier = BernoulliNB(alpha=alpha, fit_prior=fit_prior)
         else:
             raise ValueError(f"Unknown Naive Bayes variant: {variant}. "
-                             "Choose from 'gaussian', 'multinomial', 'bernoulli'")
+                             "Choose from 'multinomial', 'bernoulli'")
 
     @override
     def evaluate(self, X_test, y_test):
