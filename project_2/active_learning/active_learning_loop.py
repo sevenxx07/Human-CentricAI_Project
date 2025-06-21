@@ -47,7 +47,81 @@ class ActiveLearningLoop:
         self.accuracy_history = []
         self.is_initialized = False
 
+        # Termination conditions
+        self.termination_conditions = {
+            'type': None,  # 'accuracy', 'queries', 'budget'
+            'target_accuracy': 0.85,
+            'max_queries': 100,
+            'budget_percent': 10,
+            'is_terminated': False,
+            'termination_reason': None
+        }
+
         print(f"DEBUG: Initialized AL loop with {self.X_train.shape[0]} training samples")
+
+    def set_termination_conditions(self, termination_type, **kwargs):
+        """
+        Set termination conditions for the active learning loop.
+
+        Parameters:
+        -----------
+        termination_type : str
+            Type of termination ('accuracy', 'queries', 'budget')
+        **kwargs : dict
+            Termination parameters (target_accuracy, max_queries, budget_percent)
+        """
+        self.termination_conditions['type'] = termination_type
+        self.termination_conditions['is_terminated'] = False
+        self.termination_conditions['termination_reason'] = None
+
+        if 'target_accuracy' in kwargs:
+            self.termination_conditions['target_accuracy'] = float(kwargs['target_accuracy'])
+        if 'max_queries' in kwargs:
+            self.termination_conditions['max_queries'] = int(kwargs['max_queries'])
+        if 'budget_percent' in kwargs:
+            self.termination_conditions['budget_percent'] = float(kwargs['budget_percent'])
+
+        print(f"DEBUG: Set termination condition: {termination_type} with params {kwargs}")
+
+    def check_termination_conditions(self):
+        """
+        Check if termination conditions are met.
+
+        Returns:
+        --------
+        bool : True if termination conditions are met
+        """
+        if self.termination_conditions['type'] is None:
+            return False
+
+        current_accuracy = self.get_current_accuracy()
+        n_queries = len(self.query_history)
+        n_labeled = len(self.labeled_indices)
+        total_training_samples = self.X_train.shape[0]
+        budget_used_percent = (n_labeled / total_training_samples) * 100
+
+        if self.termination_conditions['type'] == 'accuracy':
+            if current_accuracy >= self.termination_conditions['target_accuracy']:
+                self.termination_conditions['is_terminated'] = True
+                self.termination_conditions[
+                    'termination_reason'] = f"Target accuracy {self.termination_conditions['target_accuracy']:.3f} reached (current: {current_accuracy:.3f})"
+                return True
+
+        elif self.termination_conditions['type'] == 'queries':
+            if n_queries >= self.termination_conditions['max_queries']:
+                self.termination_conditions['is_terminated'] = True
+                self.termination_conditions[
+                    'termination_reason'] = f"Maximum queries {self.termination_conditions['max_queries']} reached"
+                return True
+
+        elif self.termination_conditions['type'] == 'budget':
+            if budget_used_percent >= self.termination_conditions['budget_percent']:
+                self.termination_conditions['is_terminated'] = True
+                self.termination_conditions[
+                    'termination_reason'] = f"Budget {self.termination_conditions['budget_percent']:.1f}% of dataset used (current: {budget_used_percent:.1f}%)"
+                return True
+
+        return False
 
     def initialize_with_random_samples(self, n_initial=10):
         """
@@ -114,6 +188,9 @@ class ActiveLearningLoop:
         if len(self.unlabeled_indices) == 0:
             raise RuntimeError("No unlabeled samples remaining")
 
+        if self.termination_conditions['is_terminated']:
+            raise RuntimeError(f"Active learning terminated: {self.termination_conditions['termination_reason']}")
+
         # Get unlabeled data
         unlabeled_list = list(self.unlabeled_indices)
 
@@ -161,6 +238,9 @@ class ActiveLearningLoop:
         if sample_idx not in self.unlabeled_indices:
             raise ValueError(f"Sample {sample_idx} is not in unlabeled set")
 
+        if self.termination_conditions['is_terminated']:
+            raise RuntimeError(f"Active learning terminated: {self.termination_conditions['termination_reason']}")
+
         # Use oracle if no label provided
         if label is None:
             label = self.y_train[sample_idx]
@@ -183,6 +263,11 @@ class ActiveLearningLoop:
         self.query_history.append(query_info)
         self.accuracy_history.append(query_info['accuracy'])
 
+        # Check termination conditions after this query
+        is_terminated = self.check_termination_conditions()
+        query_info['is_terminated'] = is_terminated
+        query_info['termination_reason'] = self.termination_conditions.get('termination_reason')
+
         return query_info
 
     def run_automatic_loop(self, n_queries, n_candidates=None):
@@ -192,7 +277,7 @@ class ActiveLearningLoop:
         Parameters:
         -----------
         n_queries : int
-            Number of queries to make
+            Maximum number of queries to make (may stop early due to termination conditions)
         n_candidates : int, optional
             Number of candidates to consider per query
 
@@ -206,12 +291,21 @@ class ActiveLearningLoop:
         results = []
 
         for i in range(n_queries):
+            # Check termination conditions before making query
+            if self.check_termination_conditions():
+                print(f"Termination condition met: {self.termination_conditions['termination_reason']}")
+                break
+
             if len(self.unlabeled_indices) == 0:
                 print(f"No more unlabeled samples. Stopped after {i} queries.")
                 break
 
             # Get next query
-            query_idx, _ = self.get_next_query(n_candidates)
+            try:
+                query_idx, _ = self.get_next_query(n_candidates)
+            except RuntimeError as e:
+                print(f"Cannot get next query: {e}")
+                break
 
             # Query with oracle
             result = self.query_sample(query_idx)
@@ -220,6 +314,11 @@ class ActiveLearningLoop:
             print(f"Query {i + 1}: Sample {query_idx}, "
                   f"Accuracy: {result['accuracy']:.3f}, "
                   f"Labeled: {result['n_labeled']}")
+
+            # Check if terminated after this query
+            if result.get('is_terminated', False):
+                print(f"Termination condition met: {result.get('termination_reason')}")
+                break
 
         return results
 
@@ -295,14 +394,22 @@ class ActiveLearningLoop:
         --------
         dict : Status information
         """
-        return {
+        total_training_samples = self.X_train.shape[0]
+        n_labeled = len(self.labeled_indices)
+        budget_used_percent = (n_labeled / total_training_samples) * 100 if total_training_samples > 0 else 0
+
+        status = {
             'is_initialized': self.is_initialized,
-            'n_labeled': len(self.labeled_indices),
+            'n_labeled': n_labeled,
             'n_unlabeled': len(self.unlabeled_indices),
             'n_queries_made': len(self.query_history),
             'current_accuracy': self.get_current_accuracy() if self.is_initialized else 0.0,
-            'model_trained': self.model.is_trained
+            'model_trained': self.model.is_trained,
+            'budget_used_percent': budget_used_percent,
+            'termination': self.termination_conditions.copy()
         }
+
+        return status
 
     def _label_sample(self, sample_idx, label=None):
         """Internal method to label a sample."""

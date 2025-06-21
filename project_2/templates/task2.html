@@ -157,13 +157,18 @@
         <!-- Metrics will be populated by JavaScript -->
       </div>
 
+      <!-- Termination Status -->
+      <div id="termination-status" style="display: none;">
+        <!-- Termination status will be populated by JavaScript -->
+      </div>
+
       <!-- Query Interface -->
       <div class="query-section" id="query-interface">
         <!-- Query interface will be populated by JavaScript -->
       </div>
 
       <!-- Termination Options -->
-      <div class="termination-section">
+      <div class="termination-section" id="termination-section">
         <h4>Termination Conditions</h4>
         <div>
           <div class="form-group">
@@ -185,7 +190,10 @@
             </label>
           </div>
 
-          <button type="button" class="btn btn-info" onclick="setTermination()">Set Termination</button>
+          <button type="button" class="btn btn-info" onclick="setTermination()">
+            <span id="set-term-btn-text">Set Termination</span>
+            <span id="set-term-btn-spinner" class="spinner" style="display:none;"></span>
+          </button>
         </div>
       </div>
     </div>
@@ -311,15 +319,63 @@ function initializeActivelearning() {
   });
 }
 
-function loadSessionState() {
-  // This function is no longer needed since state comes in each response
-  console.log('loadSessionState() is deprecated - using updateStateFromResponse() instead');
+function setTermination() {
+  const btnText = document.getElementById('set-term-btn-text');
+  const btnSpinner = document.getElementById('set-term-btn-spinner');
+
+  btnText.style.display = 'none';
+  btnSpinner.style.display = 'inline-block';
+
+  const selectedType = document.querySelector('input[name="termination_type"]:checked').value;
+  const data = {
+    action: 'set_termination',
+    termination_type: selectedType
+  };
+
+  if (selectedType === 'accuracy') {
+    data.target_accuracy = parseFloat(document.getElementById('target-accuracy').value);
+  } else if (selectedType === 'queries') {
+    data.max_queries = parseInt(document.getElementById('max-queries').value);
+  } else if (selectedType === 'budget') {
+    data.budget_percent = parseFloat(document.getElementById('budget-percent').value);
+  }
+
+  fetch("{% url 'project2:task2' %}", {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': '{{ csrf_token }}',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(data)
+  })
+  .then(response => response.json())
+  .then(data => {
+    btnText.style.display = 'inline';
+    btnSpinner.style.display = 'none';
+
+    if (data.error) {
+      showMessage(data.error, 'error');
+    } else {
+      showMessage(data.message || 'Termination conditions set successfully');
+      updateStateFromResponse(data);
+    }
+  })
+  .catch(error => {
+    btnText.style.display = 'inline';
+    btnSpinner.style.display = 'none';
+    showMessage('Error setting termination conditions: ' + error, 'error');
+  });
 }
 
 function updateMetricsDisplay(status, baseline) {
   let baselineHtml = '';
   if (baseline) {
-    baselineHtml = `<div class="metric baseline"><span class="metric-value">${baseline.toFixed(3)}</span><span class="metric-label">Target (Task 1)</span></div>`;
+    baselineHtml = `<div class="metric baseline"><span class="metric-value">${baseline.toFixed(3)}%</span><span class="metric-label"> Target accuracy (Task 1)</span></div>`;
+  }
+
+  let budgetHtml = '';
+  if (status.budget_used_percent !== undefined) {
+    budgetHtml = `<div class="metric"><span class="metric-value">${status.budget_used_percent.toFixed(1)}%</span><span class="metric-label"> Budget Used</span></div>`;
   }
 
   const metricsHtml = `
@@ -332,20 +388,50 @@ function updateMetricsDisplay(status, baseline) {
       <span class="metric-label">Unlabeled</span>
     </div>
     <div class="metric">
-      <span class="metric-value">${status.current_accuracy.toFixed(3)}</span>
+      <span class="metric-value">${status.current_accuracy.toFixed(3)}%</span>
       <span class="metric-label">Accuracy</span>
     </div>
     <div class="metric">
       <span class="metric-value">${status.n_queries_made}</span>
       <span class="metric-label">Queries</span>
     </div>
+    ${budgetHtml}
     ${baselineHtml}
   `;
   document.getElementById('metrics-display').innerHTML = metricsHtml;
 }
 
-function updateQueryInterface(nextQuery) {
+function updateTerminationStatus(termination) {
+  const statusDiv = document.getElementById('termination-status');
+  const terminationSection = document.getElementById('termination-section');
+
+  if (termination && termination.is_terminated) {
+    statusDiv.style.display = 'block';
+    statusDiv.innerHTML = `
+      <div class="alert alert-warning" style="margin: 10px 0;">
+        <h4>🏁 Active Learning Terminated</h4>
+        <p><strong>Reason:</strong> ${termination.termination_reason}</p>
+      </div>
+    `;
+    terminationSection.style.display = 'none';
+  } else {
+    statusDiv.style.display = 'none';
+    terminationSection.style.display = 'block';
+  }
+}
+
+function updateQueryInterface(nextQuery, isTerminated) {
   const queryInterface = document.getElementById('query-interface');
+
+  if (isTerminated) {
+    queryInterface.innerHTML = `
+      <div class="alert alert-info">
+        <h4>Active Learning Completed</h4>
+        <p>Termination conditions have been met. No more queries are needed.</p>
+      </div>
+    `;
+    return;
+  }
 
   if (nextQuery) {
     const queryHtml = `
@@ -492,8 +578,16 @@ function resetActivelearning() {
 function updateStateFromResponse(data) {
   if (data.al_session) {
     alSession = data.al_session;
-    updateMetricsDisplay(data.al_status);
-    updateQueryInterface(data.next_query);
+    updateMetricsDisplay(data.al_status, data.baseline_accuracy);
+
+    // Update termination status
+    if (data.termination_conditions) {
+      updateTerminationStatus(data.termination_conditions);
+    }
+
+    // Update query interface
+    const isTerminated = data.termination_conditions && data.termination_conditions.is_terminated;
+    updateQueryInterface(data.next_query, isTerminated);
 
     if (data.accuracy_history && data.accuracy_history.length > 0) {
       document.getElementById('step-3').style.display = 'block';
@@ -577,7 +671,7 @@ function updateLearningCurve(accuracyData, queryData, baseline) {
 {% if al_session %}
 document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('step-2').style.display = 'block';
-  loadSessionState();
+  // Initial state will be loaded from server-side context
 });
 {% endif %}
 
