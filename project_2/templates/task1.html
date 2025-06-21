@@ -2,9 +2,8 @@
 {% load static %}
 
 {% block extra_css %}
-        <link rel= "stylesheet" href="{% static 'custom_style.css'%}">
+<link rel="stylesheet" href="{% static 'custom_style.css'%}">
 {% endblock %}
-
 
 {% block content %}
 <div class="box">
@@ -17,15 +16,11 @@
     <div class="step-box" id="step-1">
       <h3>Step 1: Configure Text Classifier</h3>
 
-      <form method="post">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="select_model">
-        <input type="hidden" name="scroll_to" value="step-1">
-
+      <div id="config-form">
         <!-- Representation Selection -->
         <div class="form-section">
           <h4>Text Representation</h4>
-          <select name="representation" class="form-control">
+          <select id="representation-select" class="form-control">
             {% for value, name in classifier_settings.REPRESENTATIONS.items %}
               <option value="{{ value }}" {% if selected_representation == value %}selected{% endif %}>{{ name }}</option>
             {% endfor %}
@@ -35,7 +30,7 @@
         <!-- Model Selection -->
         <div class="form-section">
           <h4>Classification Model</h4>
-          <select name="model" class="form-control" id="model-select" onchange="updateModelFields(this.value)">
+          <select id="model-select" class="form-control" onchange="updateModelFields(this.value)">
             {% for value, name in classifier_settings.MODEL_TYPES.items %}
               <option value="{{ value }}" {% if classifier_settings and classifier_settings.model_type == value %}selected{% endif %}>{{ name }}</option>
             {% endfor %}
@@ -50,122 +45,398 @@
           </div>
         </div>
 
-        <button type="submit" class="btn btn-primary">Configure Model</button>
-      </form>
+        <button type="button" class="btn btn-primary" onclick="configureModel()">
+          <span id="config-btn-text">Configure Model</span>
+          <span id="config-btn-spinner" class="spinner" style="display:none;"></span>
+        </button>
+      </div>
 
-     <!-- Current Configuration - Compact Version -->
+      <!-- Current Configuration -->
+      <div id="model-config-display">
         {% if classifier_settings %}
-            {% include 'partials/model_config.html' %}
+        {% include 'partials/model_config.html' %}
         {% endif %}
+      </div>
     </div>
 
     <!-- STEP 2: Training -->
-    {% if classifier_settings %}
-    <div class="step-box" id="step-2">
+    <div class="step-box" id="step-2" style="display: {% if configured %}block{% else %}none{% endif %};">
       <h3>Step 2: Train Model</h3>
 
-      <form method="post" id="training-form">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="train_model">
-        <input type="hidden" name="scroll_to" value="step-2">
-
-        <button type="submit" class="btn btn-primary" id="train-btn">
-          <span id="btn-text">Start Training</span>
-          <span id="btn-spinner" class="spinner" style="display:none;"></span>
-        </button>
-      </form>
+      <button type="button" class="btn btn-primary" id="train-btn" onclick="trainModel()">
+        <span id="train-btn-text">Start Training</span>
+        <span id="train-btn-spinner" class="spinner" style="display:none;"></span>
+      </button>
 
       <!-- Training Status -->
-      {% if training_session %}
-        {% if training_session.status == 'completed' %}
-          <p>Training time: {{ training_session.duration.total_seconds|floatformat:2 }}s</p>
-        {% elif training_session.status == 'failed' %}
-          <p>Error: {{ training_session.error_message }}</p>
-        {% endif %}
-      {% endif %}
+      <div id="training-status"></div>
     </div>
-    {% endif %}
 
     <!-- STEP 3: Results & Saving -->
-    {% if classifier_settings.is_trained %}
-    <div class="step-box" id="step-3">
+    <div class="step-box" id="step-3" style="display: {% if trained %}block{% else %}none{% endif %};">
       <h3>Step 3: Results & Save Model</h3>
 
       <!-- Results Display -->
-     {%  include 'partials/result_display.html' %}
+      <div id="results-display">
+        {% if evaluation_results %}
+        {% include 'partials/result_display.html' %}
+        {% endif %}
+      </div>
 
       <!-- Save Button -->
-      <form method="post">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="save_model">
-        <input type="hidden" name="scroll_to" value="step-3">
-        <button type="submit" class="btn btn-success">Save Model</button>
- {% if save_success %}
-    <div class="small-config" style="margin-top: 10px; color: #28a745;">
-      Model saved successfully!
-    </div>
-  {% endif %}
+      <button type="button" class="btn btn-success" onclick="saveModel()">
+        <span id="save-btn-text">Save Model</span>
+        <span id="save-btn-spinner" class="spinner" style="display:none;"></span>
+      </button>
 
-  {% if save_error %}
-    <div class="small-config" style="margin-top: 10px; color: #dc3545;">
-      {{ save_error }}
+      <div id="save-status">
+        {% if save_success %}
+        <div style="color: #28a745; margin-top: 10px;">Model saved successfully!</div>
+        {% endif %}
+      </div>
     </div>
-  {% endif %}
-      </form>
-    </div>
-    {% endif %}
   </div>
 </div>
+
+<!-- Messages container -->
+<div id="messages-container" style="position: fixed; top: 20px; right: 20px; z-index: 1000;">
+</div>
+
 {% endblock %}
 
 {% block script %}
 <script>
-function updateModelFields(selectedModel) {
-  console.log('Selected model:', selectedModel); // Debug line
+console.log('Task 1 script loaded');
 
-  // Hide all model fields first
+// Global state
+let task1State = null;
+
+function showMessage(message, type = 'success') {
+  const container = document.getElementById('messages-container');
+  const messageDiv = document.createElement('div');
+  messageDiv.className = `alert alert-${type}`;
+  messageDiv.style.cssText = `
+    padding: 10px 15px;
+    margin-bottom: 10px;
+    border-radius: 4px;
+    background-color: ${type === 'success' ? '#d4edda' : '#f8d7da'};
+    border: 1px solid ${type === 'success' ? '#c3e6cb' : '#f5c6cb'};
+    color: ${type === 'success' ? '#155724' : '#721c24'};
+  `;
+  messageDiv.textContent = message;
+
+  container.appendChild(messageDiv);
+
+  setTimeout(() => {
+    if (messageDiv.parentNode) {
+      messageDiv.parentNode.removeChild(messageDiv);
+    }
+  }, 5000);
+}
+
+function updateModelFields(selectedModel) {
   document.querySelectorAll('.model-fields').forEach(el => {
     el.style.display = 'none';
   });
 
-  // Show the selected model fields
   const targetElement = document.getElementById(selectedModel + '-fields');
   if (targetElement) {
     targetElement.style.display = 'block';
-    console.log('Showing fields for:', selectedModel); // Debug line
-  } else {
-    console.error('Could not find element:', selectedModel + '-fields'); // Debug line
   }
 }
 
+function getFormData() {
+  const data = {
+    representation: document.getElementById('representation-select').value,
+    model: document.getElementById('model-select').value
+  };
+
+  const modelType = data.model;
+
+  // Get hyperparameters based on model type
+  if (modelType === 'logistic') {
+    data.log_C = document.getElementById('log_C')?.value || 1.0;
+    data.log_max_iter = document.getElementById('log_max_iter')?.value || 1000;
+    data.solver = document.getElementById('solver')?.value || 'lbfgs';
+    data.penalty = document.getElementById('penalty')?.value || 'l2';
+  } else if (modelType === 'svm') {
+    data.C = document.getElementById('C')?.value || 1.0;
+    data.kernel = document.getElementById('kernel')?.value || 'linear';
+    data.gamma = document.getElementById('gamma')?.value || 'scale';
+    data.max_iter = document.getElementById('max_iter')?.value || 1000;
+  } else if (modelType === 'naive_bayes') {
+    data.alpha = document.getElementById('alpha')?.value || 1.0;
+    data.nb_variant = document.getElementById('nb_variant')?.value || 'gaussian';
+    data.fit_prior = document.getElementById('fit_prior')?.checked || true;
+  }
+
+  console.log('Form data collected:', data);
+  return data;
+}
+
+function configureModel() {
+  const btnText = document.getElementById('config-btn-text');
+  const btnSpinner = document.getElementById('config-btn-spinner');
+
+  btnText.style.display = 'none';
+  btnSpinner.style.display = 'inline-block';
+
+  const data = getFormData();
+
+  fetch("{% url 'project2:task1' %}", {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': '{{ csrf_token }}',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      action: 'select_model',
+      ...data
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    btnText.style.display = 'inline';
+    btnSpinner.style.display = 'none';
+
+    console.log('Configure response:', data);
+
+    if (data.error) {
+      showMessage(data.error, 'error');
+    } else {
+      showMessage(data.message || 'Model configured successfully');
+      updateStateFromResponse(data);
+    }
+  })
+  .catch(error => {
+    console.error('Configure error:', error);
+    btnText.style.display = 'inline';
+    btnSpinner.style.display = 'none';
+    showMessage('Error configuring model: ' + error, 'error');
+  });
+}
+
+function trainModel() {
+  const btnText = document.getElementById('train-btn-text');
+  const btnSpinner = document.getElementById('train-btn-spinner');
+
+  btnText.style.display = 'none';
+  btnSpinner.style.display = 'inline-block';
+
+  fetch("{% url 'project2:task1' %}", {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': '{{ csrf_token }}',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      action: 'train_model'
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    btnText.style.display = 'inline';
+    btnSpinner.style.display = 'none';
+
+    console.log('Train response:', data);
+
+    if (data.error) {
+      showMessage(data.error, 'error');
+    } else {
+      showMessage(data.message || 'Model trained successfully');
+      updateStateFromResponse(data);
+    }
+  })
+  .catch(error => {
+    console.error('Train error:', error);
+    btnText.style.display = 'inline';
+    btnSpinner.style.display = 'none';
+    showMessage('Error training model: ' + error, 'error');
+  });
+}
+
+function saveModel() {
+  const btnText = document.getElementById('save-btn-text');
+  const btnSpinner = document.getElementById('save-btn-spinner');
+
+  btnText.style.display = 'none';
+  btnSpinner.style.display = 'inline-block';
+
+  fetch("{% url 'project2:task1' %}", {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': '{{ csrf_token }}',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      action: 'save_model'
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    btnText.style.display = 'inline';
+    btnSpinner.style.display = 'none';
+
+    console.log('Save response:', data);
+
+    if (data.error) {
+      showMessage(data.error, 'error');
+    } else {
+      showMessage(data.message || 'Model saved successfully');
+      updateStateFromResponse(data);
+    }
+  })
+  .catch(error => {
+    console.error('Save error:', error);
+    btnText.style.display = 'inline';
+    btnSpinner.style.display = 'none';
+    showMessage('Error saving model: ' + error, 'error');
+  });
+}
+
+function updateStateFromResponse(data) {
+  console.log('Updating state from response:', data);
+
+  if (data.configured) {
+    task1State = data;
+    document.getElementById('step-2').style.display = 'block';
+
+    // Update model config display with new settings
+    updateModelConfigDisplay(data.classifier_settings);
+  }
+
+  if (data.trained) {
+    document.getElementById('step-3').style.display = 'block';
+    updateTrainingStatus(data.training_session);
+    updateResultsDisplay(data.evaluation_results);
+  }
+
+  if (data.save_success) {
+    updateSaveStatus(true);
+  }
+}
+
+function updateModelConfigDisplay(classifierSettings) {
+  console.log('Updating model config display:', classifierSettings);
+
+  if (!classifierSettings) return;
+
+  // Create the configuration summary HTML
+  const configHtml = `
+    <div class="config-summary">
+      <details>
+        <summary class="small-summary">Current Configuration</summary>
+        <div class="small-config">
+          <span class="badge">${getModelDisplayName(classifierSettings.model_type)}</span>
+          <span class="badge">${getRepresentationDisplayName(classifierSettings.representation_type)}</span>
+          ${generateHyperparameterBadges(classifierSettings)}
+        </div>
+      </details>
+    </div>
+  `;
+
+  document.getElementById('model-config-display').innerHTML = configHtml;
+}
+
+function getModelDisplayName(modelType) {
+  const modelNames = {
+    'svm': 'Support Vector Machine',
+    'logistic': 'Logistic Regression',
+    'naive_bayes': 'Naive Bayes'
+  };
+  return modelNames[modelType] || modelType;
+}
+
+function getRepresentationDisplayName(repType) {
+  const repNames = {
+    'tfidf': 'TF-IDF',
+    'glove': 'GloVe',
+    'sbert': 'SBERT'
+  };
+  return repNames[repType] || repType;
+}
+
+function generateHyperparameterBadges(settings) {
+  let badges = '';
+  const hyperparams = settings.hyperparameters || {};
+
+  for (const [name, value] of Object.entries(hyperparams)) {
+    if (value !== null && value !== undefined && value !== '') {
+      const displayName = name.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+      badges += `<span class="badge">${displayName}: ${value}</span>`;
+    }
+  }
+
+  return badges;
+}
+
+function updateTrainingStatus(trainingSession) {
+  if (!trainingSession) return;
+
+  const statusHtml = `
+    <div class="training-info">
+      <p>Training completed successfully!</p>
+      ${trainingSession.duration ? `<p>Duration: ${trainingSession.duration}</p>` : ''}
+    </div>
+  `;
+  document.getElementById('training-status').innerHTML = statusHtml;
+}
+
+function updateResultsDisplay(results) {
+  if (!results) return;
+
+  const resultsHtml = `
+    <div class="results-container">
+      <h4>Evaluation Metrics</h4>
+      <div class="metrics-grid">
+        <div class="metric">
+          <span class="metric-value">${results.accuracy.toFixed(2)}%</span>
+          <span class="metric-label">Accuracy</span>
+        </div>
+        <div class="metric">
+          <span class="metric-value">${results.precision.toFixed(2)}%</span>
+          <span class="metric-label">Precision</span>
+        </div>
+        <div class="metric">
+          <span class="metric-value">${results.recall.toFixed(2)}%</span>
+          <span class="metric-label">Recall</span>
+        </div>
+        <div class="metric">
+          <span class="metric-value">${results.f1_score.toFixed(2)}%</span>
+          <span class="metric-label">F1 Score</span>
+        </div>
+      </div>
+    </div>
+  `;
+  document.getElementById('results-display').innerHTML = resultsHtml;
+}
+
+function updateSaveStatus(success) {
+  const statusHtml = success ?
+    '<div style="color: #28a745; margin-top: 10px;">Model saved successfully!</div>' :
+    '<div style="color: #dc3545; margin-top: 10px;">Error saving model</div>';
+  document.getElementById('save-status').innerHTML = statusHtml;
+}
+
+// Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
-  console.log('DOM loaded'); // Debug line
+  console.log('DOM loaded, initializing...');
 
-  // Initialize model fields display
-  const modelSelect = document.querySelector('select[name="model"]');
+  const modelSelect = document.getElementById('model-select');
   if (modelSelect) {
-    const selectedModel = modelSelect.value;
-    console.log('Initial selected model:', selectedModel); // Debug line
-    updateModelFields(selectedModel);
-  } else {
-    console.error('Could not find model select element'); // Debug line
+    updateModelFields(modelSelect.value);
   }
 
-  // Training form submission handler
-  const trainingForm = document.getElementById('training-form');
-  if (trainingForm) {
-    trainingForm.addEventListener('submit', function() {
-      document.getElementById('btn-text').style.display = 'none';
-      document.getElementById('btn-spinner').style.display = 'inline-block';
-    });
-  }
-});
+  // Load initial state if configured
+  {% if configured %}
+  console.log('Initial state: configured');
+  document.getElementById('step-2').style.display = 'block';
+  {% endif %}
 
-{% if scroll_to %}
-// Auto-scroll to the specified step
-window.addEventListener('load', function() {
-  document.getElementById('{{ scroll_to }}').scrollIntoView({ behavior: 'smooth' });
+  {% if trained %}
+  console.log('Initial state: trained');
+  document.getElementById('step-3').style.display = 'block';
+  {% endif %}
 });
-{% endif %}
 </script>
 {% endblock %}

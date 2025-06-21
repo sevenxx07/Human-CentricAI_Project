@@ -65,15 +65,11 @@
     <div class="step-box" id="step-1">
       <h3>Step 1: Configure Active Learning</h3>
 
-      <form method="post" id="init-form">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="initialize_al">
-        <input type="hidden" name="scroll_to" value="step-1">
-
+      <div id="init-form">
         <!-- Utility Function Selection -->
         <div class="form-section">
           <h4>Utility Function</h4>
-          <select name="utility_function" class="form-control" id="utility-select" onchange="updateUtilityFields(this.value)">
+          <select id="utility-select" class="form-control" onchange="updateUtilityFields(this.value)">
             <option value="lc" {% if al_config.utility_function == 'lc' %}selected{% endif %}>Least Confident</option>
             <option value="margin" {% if al_config.utility_function == 'margin' %}selected{% endif %}>Margin Sampling</option>
             <option value="entropy" {% if al_config.utility_function == 'entropy' %}selected{% endif %}>Entropy</option>
@@ -88,7 +84,7 @@
           <h4>Hybrid Configuration</h4>
           <div class="form-group">
             <label>Primary Strategy:</label>
-            <select name="primary_strategy" class="form-control">
+            <select id="primary-strategy" class="form-control">
               <option value="lc" {% if al_config.primary_strategy == 'lc' %}selected{% endif %}>Least Confident</option>
               <option value="margin" {% if al_config.primary_strategy == 'margin' %}selected{% endif %}>Margin Sampling</option>
               <option value="entropy" {% if al_config.primary_strategy == 'entropy' %}selected{% endif %}>Entropy</option>
@@ -96,19 +92,19 @@
           </div>
           <div class="form-group">
             <label>Secondary Strategy:</label>
-            <select name="secondary_strategy" class="form-control">
+            <select id="secondary-strategy" class="form-control">
               <option value="density" {% if al_config.secondary_strategy == 'density' %}selected{% endif %}>Density</option>
               <option value="cluster" {% if al_config.secondary_strategy == 'cluster' %}selected{% endif %}>Cluster-based</option>
             </select>
           </div>
           <div class="form-group">
             <label>Alpha (mixing parameter):</label>
-            <input type="number" name="alpha" step="0.1" min="0" max="1" value="{{ al_config.alpha|default:'0.5' }}" class="form-control">
+            <input type="number" id="alpha" step="0.1" min="0" max="1" value="{{ al_config.alpha|default:'0.5' }}" class="form-control">
             <small class="form-text">0 = only primary, 1 = only secondary</small>
           </div>
           <div class="form-group">
             <label>Combination method:</label>
-            <select name="combination_method" class="form-control">
+            <select id="combination-method" class="form-control">
               <option value="sum" {% if al_config.combination_method == 'sum' %}selected{% endif %}>Sum</option>
               <option value="product" {% if al_config.combination_method == 'product' %}selected{% endif %}>Product</option>
             </select>
@@ -120,19 +116,19 @@
           <h4>Initial Parameters</h4>
           <div class="form-group">
             <label>Initial labeled samples:</label>
-            <input type="number" name="n_initial" min="5" value="{{ al_config.n_initial|default:'10' }}" class="form-control">
+            <input type="number" id="n-initial" min="5" value="{{ al_config.n_initial|default:'10' }}" class="form-control">
           </div>
           <div class="form-group">
             <label>Batch size (samples per query):</label>
-            <input type="number" name="batch_size" min="1" value="{{ al_config.batch_size|default:'1' }}" class="form-control">
+            <input type="number" id="batch-size" min="1" value="{{ al_config.batch_size|default:'1' }}" class="form-control">
           </div>
         </div>
 
-        <button type="submit" class="btn btn-primary" id="init-btn">
+        <button type="button" class="btn btn-primary" id="init-btn" onclick="initializeActivelearning()">
           <span id="init-btn-text">Initialize Active Learning</span>
           <span id="init-btn-spinner" class="spinner" style="display:none;"></span>
         </button>
-      </form>
+      </div>
 
       <!-- Current Configuration -->
       {% if al_config %}
@@ -153,158 +149,83 @@
     </div>
 
     <!-- STEP 2: Active Learning Loop -->
-    {% if al_session %}
-    <div class="step-box" id="step-2">
+    <div class="step-box" id="step-2" style="display: none;">
       <h3>Step 2: Active Learning Loop</h3>
 
       <!-- Current Status -->
-      <div class="metrics-grid">
-        <div class="metric">
-          <span class="metric-value">{{ al_status.n_labeled }}</span>
-          <span class="metric-label">Labeled</span>
-        </div>
-        <div class="metric">
-          <span class="metric-value">{{ al_status.n_unlabeled }}</span>
-          <span class="metric-label">Unlabeled</span>
-        </div>
-        <div class="metric">
-          <span class="metric-value">{{ al_status.current_accuracy|floatformat:3 }}</span>
-          <span class="metric-label">Accuracy</span>
-        </div>
-        <div class="metric">
-          <span class="metric-value">{{ al_status.n_queries_made }}</span>
-          <span class="metric-label">Queries</span>
-        </div>
-        {% if baseline_accuracy %}
-        <div class="metric baseline">
-          <span class="metric-value">{{ baseline_accuracy|floatformat:3 }}</span>
-          <span class="metric-label">Target (Task 1)</span>
-        </div>
-        {% endif %}
+      <div class="metrics-grid" id="metrics-display">
+        <!-- Metrics will be populated by JavaScript -->
       </div>
 
       <!-- Query Interface -->
-      {% if next_query %}
-      <div class="query-section">
-        <h4>Next Query</h4>
-        <div class="sample-display">
-          <p><strong>Sample {{ next_query.sample_idx }}:</strong></p>
-          <div class="review-text">{{ next_query.text}}</div>
-          <p><strong>Utility Score:</strong> {{ next_query.utility_score|floatformat:3 }}</p>
-        </div>
-
-         <form method="post" class="query-form">
-              {% csrf_token %}
-              <input type="hidden" name="action" value="label_sample">
-              <input type="hidden" name="sample_idx" value="{{ next_query.sample_idx }}">
-              <input type="hidden" name="scroll_to" value="step-2">
-
-              <div class="form-group">
-                <label>Label this review:</label>
-                <div class="label-buttons">
-                  <button type="submit" name="label" value="1" class="btn btn-success">Positive</button>
-                  <button type="submit" name="label" value="0" class="btn btn-danger">Negative</button>
-                </div>
-              </div>
-        </form>
-
-        <!-- Separate form for oracle -->
-        <form method="post" class="oracle-form" style="margin-top: 10px;">
-          {% csrf_token %}
-          <input type="hidden" name="action" value="label_sample">
-          <input type="hidden" name="sample_idx" value="{{ next_query.sample_idx }}">
-          <input type="hidden" name="scroll_to" value="step-2">
-          <input type="hidden" name="use_oracle" value="true">
-
-          <button type="submit" class="btn btn-secondary">Use Oracle (Auto-label)</button>
-        </form>
-
-        <!-- Auto Query Form -->
-        <form method="post" class="auto-query-form">
-          {% csrf_token %}
-          <input type="hidden" name="action" value="auto_query">
-          <input type="hidden" name="scroll_to" value="step-2">
-
-          <div class="form-group">
-            <label>Number of automatic queries:</label>
-            <input type="number" name="n_queries" min="1" max="500" value="10" class="form-control" style="width: 100px; display: inline-block;">
-            <button type="submit" class="btn btn-warning" id="auto-query-btn">
-              <span class="btn-text">Run Auto Queries</span>
-              <span id="auto-btn-spinner" class="spinner" style="display:none;"></span>
-            </button>
-          </div>
-        </form>
+      <div class="query-section" id="query-interface">
+        <!-- Query interface will be populated by JavaScript -->
       </div>
-      {% endif %}
 
       <!-- Termination Options -->
       <div class="termination-section">
         <h4>Termination Conditions</h4>
-        <form method="post">
-          {% csrf_token %}
-          <input type="hidden" name="action" value="set_termination">
-          <input type="hidden" name="scroll_to" value="step-2">
-
+        <div>
           <div class="form-group">
             <label>
               <input type="radio" name="termination_type" value="accuracy" {% if termination.type == 'accuracy' %}checked{% endif %}>
-              Target Accuracy: <input type="number" name="target_accuracy" step="0.01" min="0.5" max="1.0" value="{{ termination.target_accuracy|default:'0.85' }}" style="width: 80px;">
+              Target Accuracy: <input type="number" id="target-accuracy" step="0.01" min="0.5" max="1.0" value="{{ termination.target_accuracy|default:'0.85' }}" style="width: 80px;">
             </label>
           </div>
           <div class="form-group">
             <label>
               <input type="radio" name="termination_type" value="queries" {% if termination.type == 'queries' %}checked{% endif %}>
-              Max Queries: <input type="number" name="max_queries" min="10" max="10000" value="{{ termination.max_queries|default:'100' }}" style="width: 80px;">
+              Max Queries: <input type="number" id="max-queries" min="10" max="10000" value="{{ termination.max_queries|default:'100' }}" style="width: 80px;">
             </label>
           </div>
           <div class="form-group">
             <label>
               <input type="radio" name="termination_type" value="budget" {% if termination.type == 'budget' %}checked{% endif %}>
-              Budget (% of dataset): <input type="number" name="budget_percent" min="1" max="50" value="{{ termination.budget_percent|default:'10' }}" style="width: 80px;">%
+              Budget (% of dataset): <input type="number" id="budget-percent" min="1" max="50" value="{{ termination.budget_percent|default:'10' }}" style="width: 80px;">%
             </label>
           </div>
 
-          <button type="submit" class="btn btn-info">Set Termination</button>
-        </form>
+          <button type="button" class="btn btn-info" onclick="setTermination()">Set Termination</button>
+        </div>
       </div>
     </div>
-    {% endif %}
 
     <!-- STEP 3: Results and Comparison -->
-    {% if al_session and al_status.n_queries_made > 0 %}
-    <div class="step-box" id="step-3">
+    <div class="step-box" id="step-3" style="display: none;">
       <h3>Step 3: Results & Analysis</h3>
 
       <!-- Learning Curve -->
       <div class="chart-container" style="height: 300px; width: 100%; margin-bottom: 20px;">
         <h4>Learning Curve</h4>
-        {% if baseline_accuracy %}
-        <p class="baseline-info">Target accuracy from Task 1: <strong>{{ baseline_accuracy|floatformat:3 }}</strong></p>
-        {% endif %}
+        <div id="baseline-info"></div>
         <canvas id="learningCurve" style="max-height: 250px;"></canvas>
       </div>
 
       <!-- Reset Options -->
       <div class="action-buttons">
-        <form method="post" style="display: inline;">
-          {% csrf_token %}
-          <input type="hidden" name="action" value="reset_al">
-          <input type="hidden" name="scroll_to" value="step-1">
-          <button type="submit" class="btn btn-warning">Reset Active Learning</button>
-        </form>
+        <button type="button" class="btn btn-warning" onclick="resetActivelearning()">Reset Active Learning</button>
       </div>
     </div>
-    {% endif %}
     {% endif %}
 
   </div>
 </div>
+
+<!-- Messages container for displaying success/error messages -->
+<div id="messages-container" style="position: fixed; top: 20px; right: 20px; z-index: 1000;">
+  <!-- Messages will be added here dynamically -->
+</div>
+
 {% endblock %}
 
 {% block script %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
 <script>
 console.log('Script block loaded');
+
+// Global variables for state management
+let alSession = null;
+let chart = null;
 
 function updateUtilityFields(selectedUtility) {
   const hybridConfig = document.getElementById('hybrid-config');
@@ -315,48 +236,296 @@ function updateUtilityFields(selectedUtility) {
   }
 }
 
-// Learning curve chart
-{% if accuracy_history %}
-console.log('Accuracy history available, creating chart...');
-console.log('Raw accuracy history:', {{ accuracy_history|safe }});
-console.log('Raw query indices:', {{ query_indices|safe }});
+function showMessage(message, type = 'success') {
+  const container = document.getElementById('messages-container');
+  const messageDiv = document.createElement('div');
+  messageDiv.className = `alert alert-${type}`;
+  messageDiv.style.cssText = `
+    padding: 10px 15px;
+    margin-bottom: 10px;
+    border-radius: 4px;
+    background-color: ${type === 'success' ? '#d4edda' : '#f8d7da'};
+    border: 1px solid ${type === 'success' ? '#c3e6cb' : '#f5c6cb'};
+    color: ${type === 'success' ? '#155724' : '#721c24'};
+  `;
+  messageDiv.textContent = message;
 
-const learningCtx = document.getElementById('learningCurve');
-if (learningCtx) {
-  console.log('Canvas element found, creating chart...');
+  container.appendChild(messageDiv);
 
-  // Ensure we have valid arrays
-  let accuracyData = {{ accuracy_history|safe }};
-  let queryData = {{ query_indices|safe }};
+  // Auto-remove after 5 seconds
+  setTimeout(() => {
+    if (messageDiv.parentNode) {
+      messageDiv.parentNode.removeChild(messageDiv);
+    }
+  }, 5000);
+}
 
-  // Validate data
-  if (!Array.isArray(accuracyData)) {
-    console.error('Accuracy data is not an array:', accuracyData);
-    accuracyData = [];
+function initializeActivelearning() {
+  const btnText = document.getElementById('init-btn-text');
+  const btnSpinner = document.getElementById('init-btn-spinner');
+
+  btnText.style.display = 'none';
+  btnSpinner.style.display = 'inline-block';
+
+  const data = {
+    utility_function: document.getElementById('utility-select').value,
+    n_initial: parseInt(document.getElementById('n-initial').value),
+    batch_size: parseInt(document.getElementById('batch-size').value)
+  };
+
+  if (data.utility_function === 'hybrid') {
+    data.primary_strategy = document.getElementById('primary-strategy').value;
+    data.secondary_strategy = document.getElementById('secondary-strategy').value;
+    data.alpha = parseFloat(document.getElementById('alpha').value);
+    data.combination_method = document.getElementById('combination-method').value;
   }
-  if (!Array.isArray(queryData)) {
-    console.error('Query data is not an array:', queryData);
-    queryData = [];
+
+  fetch("{% url 'project2:task2' %}", {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': '{{ csrf_token }}',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      action: 'initialize_al',
+      ...data
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    btnText.style.display = 'inline';
+    btnSpinner.style.display = 'none';
+
+    if (data.error) {
+      showMessage(data.error, 'error');
+    } else {
+      showMessage(data.message || 'Active learning initialized successfully');
+      document.getElementById('step-2').style.display = 'block';
+      updateStateFromResponse(data);
+    }
+  })
+  .catch(error => {
+    btnText.style.display = 'inline';
+    btnSpinner.style.display = 'none';
+    showMessage('Error initializing active learning: ' + error, 'error');
+  });
+}
+
+function loadSessionState() {
+  // This function is no longer needed since state comes in each response
+  console.log('loadSessionState() is deprecated - using updateStateFromResponse() instead');
+}
+
+function updateMetricsDisplay(status, baseline) {
+  let baselineHtml = '';
+  if (baseline) {
+    baselineHtml = `<div class="metric baseline"><span class="metric-value">${baseline.toFixed(3)}</span><span class="metric-label">Target (Task 1)</span></div>`;
   }
 
-  console.log('Final accuracy data:', accuracyData);
-  console.log('Final query data:', queryData);
+  const metricsHtml = `
+    <div class="metric">
+      <span class="metric-value">${status.n_labeled}</span>
+      <span class="metric-label">Labeled</span>
+    </div>
+    <div class="metric">
+      <span class="metric-value">${status.n_unlabeled}</span>
+      <span class="metric-label">Unlabeled</span>
+    </div>
+    <div class="metric">
+      <span class="metric-value">${status.current_accuracy.toFixed(3)}</span>
+      <span class="metric-label">Accuracy</span>
+    </div>
+    <div class="metric">
+      <span class="metric-value">${status.n_queries_made}</span>
+      <span class="metric-label">Queries</span>
+    </div>
+    ${baselineHtml}
+  `;
+  document.getElementById('metrics-display').innerHTML = metricsHtml;
+}
 
-  // Only create chart if we have data
-  if (accuracyData.length > 0) {
-    const datasets = [{
-      label: 'Active Learning Accuracy',
-      data: accuracyData,
-      borderColor: 'rgb(75, 192, 192)',
-      backgroundColor: 'rgba(75, 192, 192, 0.2)',
-      tension: 0.1,
-      pointRadius: 4,
-      pointHoverRadius: 6
-    }];
+function updateQueryInterface(nextQuery) {
+  const queryInterface = document.getElementById('query-interface');
 
-    {% if baseline_accuracy %}
-    // Add baseline line
-    const baselineData = Array(queryData.length).fill({{ baseline_accuracy }});
+  if (nextQuery) {
+    const queryHtml = `
+      <h4>Next Query</h4>
+      <div class="sample-display">
+        <p><strong>Sample ${nextQuery.sample_idx}:</strong></p>
+        <div class="review-text">${nextQuery.text}</div>
+        <p><strong>Utility Score:</strong> ${nextQuery.utility_score.toFixed(3)}</p>
+      </div>
+
+      <div class="query-form">
+        <div class="form-group">
+          <label>Label this review:</label>
+          <div class="label-buttons">
+            <button type="button" class="btn btn-success" onclick="labelSample(${nextQuery.sample_idx}, 1)">Positive</button>
+            <button type="button" class="btn btn-danger" onclick="labelSample(${nextQuery.sample_idx}, 0)">Negative</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="oracle-form" style="margin-top: 10px;">
+        <button type="button" class="btn btn-secondary" onclick="labelSample(${nextQuery.sample_idx}, null, true)">Use Oracle (Auto-label)</button>
+      </div>
+
+      <div class="auto-query-form">
+        <div class="form-group">
+          <label>Number of automatic queries:</label>
+          <input type="number" id="auto-queries-input" min="1" max="500" value="10" class="form-control" style="width: 100px; display: inline-block;">
+          <button type="button" class="btn btn-warning" id="auto-query-btn" onclick="runAutoQueries()">
+            <span class="btn-text">Run Auto Queries</span>
+            <span id="auto-btn-spinner" class="spinner" style="display:none;"></span>
+          </button>
+        </div>
+      </div>
+    `;
+    queryInterface.innerHTML = queryHtml;
+  } else {
+    queryInterface.innerHTML = '<p>No more samples available for querying.</p>';
+  }
+}
+
+function labelSample(sampleIdx, label, useOracle = false) {
+  const data = {
+    action: 'label_sample',
+    sample_idx: sampleIdx,
+    use_oracle: useOracle
+  };
+
+  if (!useOracle) {
+    data.label = label;
+  }
+
+  fetch("{% url 'project2:task2' %}", {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': '{{ csrf_token }}',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(data)
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.error) {
+      showMessage(data.error, 'error');
+    } else {
+      showMessage(data.message || 'Sample labeled successfully');
+      updateStateFromResponse(data);
+    }
+  })
+  .catch(error => {
+    showMessage('Error labeling sample: ' + error, 'error');
+  });
+}
+
+function runAutoQueries() {
+  const nQueries = parseInt(document.getElementById('auto-queries-input').value);
+  const btnText = document.querySelector('#auto-query-btn .btn-text');
+  const btnSpinner = document.getElementById('auto-btn-spinner');
+
+  btnText.style.display = 'none';
+  btnSpinner.style.display = 'inline-block';
+
+  fetch("{% url 'project2:task2' %}", {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': '{{ csrf_token }}',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      action: 'auto_query',
+      n_queries: nQueries
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    btnText.style.display = 'inline';
+    btnSpinner.style.display = 'none';
+
+    if (data.error) {
+      showMessage(data.error, 'error');
+    } else {
+      showMessage(data.message || 'Auto queries completed successfully');
+      updateStateFromResponse(data);
+    }
+  })
+  .catch(error => {
+    btnText.style.display = 'inline';
+    btnSpinner.style.display = 'none';
+    showMessage('Error running auto queries: ' + error, 'error');
+  });
+}
+
+function resetActivelearning() {
+  fetch("{% url 'project2:task2' %}", {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': '{{ csrf_token }}',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      action: 'reset_al'
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.error) {
+      showMessage(data.error, 'error');
+    } else {
+      showMessage(data.message || 'Active learning reset successfully');
+      document.getElementById('step-2').style.display = 'none';
+      document.getElementById('step-3').style.display = 'none';
+      alSession = null;
+      if (chart) {
+        chart.destroy();
+        chart = null;
+      }
+    }
+  })
+  .catch(error => {
+    showMessage('Error resetting active learning: ' + error, 'error');
+  });
+}
+
+function updateStateFromResponse(data) {
+  if (data.al_session) {
+    alSession = data.al_session;
+    updateMetricsDisplay(data.al_status);
+    updateQueryInterface(data.next_query);
+
+    if (data.accuracy_history && data.accuracy_history.length > 0) {
+      document.getElementById('step-3').style.display = 'block';
+      updateLearningCurve(data.accuracy_history, data.query_indices, data.baseline_accuracy);
+    }
+  }
+}
+
+function updateLearningCurve(accuracyData, queryData, baseline) {
+  const ctx = document.getElementById('learningCurve');
+
+  if (chart) {
+    chart.destroy();
+  }
+
+  if (baseline) {
+    document.getElementById('baseline-info').innerHTML =
+      `<p class="baseline-info">Target accuracy from Task 1: <strong>${baseline.toFixed(3)}</strong></p>`;
+  }
+
+  const datasets = [{
+    label: 'Active Learning Accuracy',
+    data: accuracyData,
+    borderColor: 'rgb(75, 192, 192)',
+    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+    tension: 0.1,
+    pointRadius: 4,
+    pointHoverRadius: 6
+  }];
+
+  if (baseline) {
+    const baselineData = Array(queryData.length).fill(baseline);
     datasets.push({
       label: 'Task 1 Baseline',
       data: baselineData,
@@ -366,128 +535,51 @@ if (learningCtx) {
       tension: 0,
       pointRadius: 0
     });
-    console.log('Added baseline data:', baselineData);
-    {% endif %}
+  }
 
-    try {
-      const chart = new Chart(learningCtx, {
-        type: 'line',
-        data: {
-          labels: queryData,
-          datasets: datasets
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: queryData,
+      datasets: datasets
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      aspectRatio: 2,
+      scales: {
+        y: {
+          beginAtZero: true,
+          max: 1.0,
+          title: {
+            display: true,
+            text: 'Accuracy'
+          }
         },
-        options: {
-          responsive: true,
-          maintainAspectRatio: true,
-          aspectRatio: 2,
-          scales: {
-            y: {
-              beginAtZero: true,
-              max: 1.0,
-              title: {
-                display: true,
-                text: 'Accuracy'
-              },
-              grid: {
-                display: true,
-                color: 'rgba(0, 0, 0, 0.1)'
-              }
-            },
-            x: {
-              title: {
-                display: true,
-                text: 'Number of Queries'
-              },
-              grid: {
-                display: true,
-                color: 'rgba(0, 0, 0, 0.1)'
-              }
-            }
-          },
-          plugins: {
-            legend: {
-              display: true,
-              position: 'top'
-            },
-            tooltip: {
-              mode: 'index',
-              intersect: false
-            }
-          },
-          interaction: {
-            mode: 'nearest',
-            axis: 'x',
-            intersect: false
+        x: {
+          title: {
+            display: true,
+            text: 'Number of Queries'
           }
         }
-      });
-      console.log('Chart created successfully:', chart);
-    } catch (error) {
-      console.error('Error creating chart:', error);
+      },
+      plugins: {
+        legend: {
+          display: true,
+          position: 'top'
+        }
+      }
     }
-  } else {
-    console.log('No accuracy data available, chart not created');
-  }
-} else {
-  console.error('Canvas element not found!');
+  });
 }
-{% else %}
-console.log('No accuracy history available');
-{% endif %}
 
-// Enhanced auto-scroll functionality with multiple timing strategies
-{% if scroll_to %}
-// Auto-scroll to the specified step
-window.addEventListener('load', function() {
-  document.getElementById('{{ scroll_to }}').scrollIntoView({ behavior: 'auto' });
-});
-{% endif %}
-
-// Form submission handlers with loading indicators
+// Load initial state if AL session exists
+{% if al_session %}
 document.addEventListener('DOMContentLoaded', function() {
-  console.log('DOM loaded, setting up form handlers');
-
-  // Initialize form submission handler
-  const initForm = document.getElementById('init-form');
-  if (initForm) {
-    initForm.addEventListener('submit', function() {
-      console.log('Init form submitted');
-      const btnText = document.getElementById('init-btn-text');
-      const btnSpinner = document.getElementById('init-btn-spinner');
-      if (btnText) btnText.style.display = 'none';
-      if (btnSpinner) btnSpinner.style.display = 'inline-block';
-    });
-  }
-
-  // Auto query form handler
-  const autoQueryBtn = document.getElementById('auto-query-btn');
-  if (autoQueryBtn) {
-    autoQueryBtn.closest('form').addEventListener('submit', function() {
-      console.log('Auto query form submitted');
-      const btnText = autoQueryBtn.querySelector('.btn-text');
-      const btnSpinner = document.getElementById('auto-btn-spinner');
-      if (btnText) btnText.style.display = 'none';
-      if (btnSpinner) btnSpinner.style.display = 'inline-block';
-    });
-  }
-
+  document.getElementById('step-2').style.display = 'block';
+  loadSessionState();
 });
-
-// Debug: Log when page loads
-window.addEventListener('load', function() {
-  console.log('Page fully loaded');
-  console.log('Available context variables:');
-  console.log('- Has pretrained:', {{ has_pretrained|yesno:"true,false" }});
-  console.log('- AL session:', {{ al_session|yesno:"true,false" }});
-  console.log('- Accuracy history length:', {{ accuracy_history|length }});
-  console.log('- Query indices length:', {{ query_indices|length }});
-
-  // Final scroll attempt after everything is loaded
-  {% if scroll_to %}
-  console.log('Final scroll check after window load...');
-  scrollToElement('{{ scroll_to }}', 300);
-  {% endif %}
-});
+{% endif %}
 
 </script>
 {% endblock %}
