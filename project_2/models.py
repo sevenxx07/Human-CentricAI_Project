@@ -29,7 +29,7 @@ class TextClassifier(models.Model):
     max_iter = models.IntegerField(default=1000, blank=True)  # Used by both Logistic and SVM
     solver = models.CharField(max_length=20, default="lbfgs", blank=True)
     penalty = models.CharField(max_length=20, default="l2", blank=True)
-    nb_variant = models.CharField(max_length=20, default="gaussian", blank=True)
+    nb_variant = models.CharField(max_length=20, default="multinomial", blank=True)
     fit_prior = models.BooleanField(default=True, blank=True)
     alpha = models.FloatField(default=1.0, blank=True)
     kernel = models.CharField(max_length=50, default="linear", blank=True)
