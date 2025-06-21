@@ -102,6 +102,7 @@
         Variant <i class="help-icon">?</i>
       </label>
       <select id="nb_variant" name="nb_variant" class="form-control">
+        <option value="gaussian" {% if not classifier_settings or classifier_settings.nb_variant == 'gaussian' %}selected{% endif %}>Gaussian (continuous features)</option>
         <option value="multinomial" {% if classifier_settings.nb_variant == 'multinomial' %}selected{% endif %}>Multinomial (discrete counts)</option>
         <option value="bernoulli" {% if classifier_settings.nb_variant == 'bernoulli' %}selected{% endif %}>Bernoulli (binary features)</option>
       </select>
