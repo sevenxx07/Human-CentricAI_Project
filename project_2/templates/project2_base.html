@@ -14,139 +14,143 @@
         <div class="title">Active Learning for Text Classification</div>
     </div>
 
-
 <!------------- Project description -------------->
 
     <div class="main-text">
         <div class="summary">
             <div class="centered-text">
                 <h3>Project Description</h3>
-                <p style="text-align:center;">In this project, a binary classifier is trained for sentiment analysis on the IMDB 50 k movie 
-                    reviews dataset with the purpose of being able to clasify reviews as either positve or negtaive. 
-                    The IMDB dataset has been cleaned and pre-processed and finally encoded from text into a real vector  represented
-                    using a TF-IDF representation. If you wish to load a pre-trained model, please do so by clicking the button below. 
-                    For training the model from scratch, please proceed to task 1. 
+                <p style="text-align:center;">In this project, a binary classifier is trained for sentiment analysis on the IMDB 50k movie
+                    reviews dataset with the purpose of being able to classify reviews as either positive or negative.
+                    The IMDB dataset has been cleaned and pre-processed and finally encoded from text into a real vector represented
+                    using a TF-IDF representation. If you wish to load a pre-trained model, please do so by clicking the button below.
+                    For training the model from scratch, please proceed to task 1.
                 </p>
             </div>
         </div>
 
-<!------------- Classifier description -------------->
-    <!-- <div class="main-text">
+<!------------- Current Model Status -------------->
+        {% if model_loaded %}
+        <div class="summary" style="background-color: #d4edda; border: 1px solid #c3e6cb; margin: 20px 0;">
+            <div class="centered-text">
+                <h4>✓ Model Loaded Successfully</h4>
+                {% if loaded_model_info %}
+                <p><strong>Model Type:</strong> {{ loaded_model_info.model_type|capfirst }}</p>
+                <p><strong>Representation:</strong> {{ loaded_model_info.representation_type|upper }}</p>
+                <p><strong>Status:</strong> {% if loaded_model_info.is_trained %}Trained{% else %}Not Trained{% endif %}</p>
+                {% if evaluation_results %}
+                <p><strong>Test Accuracy:</strong> {{ evaluation_results.accuracy|floatformat:2 }}%</p>
+                {% endif %}
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+<!------------- Loading Pre-Trained Model Section -------------->
         <div class="summary">
             <div class="centered-text">
-                <h3>Logistic Regression</h3>
-                <p style="text-align:center;">The classifier used for this sentiment analysis is Logistic Regression. This is a statistical method
-                    used for binary classification, predicting binary outcomes (here: positive/negtative). It is a type
-                    of supervised machine learning algorithm that uses the sigmoid function to model the probability
-                    of a positive outcome based on the input data. 
-                </p>
+                <h3>Load Pre-Trained Model</h3>
+
+                <form method="POST" id="load-model-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="load_pre_trained">
+
+                    <div style="margin: 20px 0;">
+                        <label for="model"><strong>Classification Model:</strong></label><br>
+                        <select name="model" id="model" onchange="updateModelFields(this.value)" required style="margin: 10px 0; padding: 8px; font-size: 16px;">
+                            <option value="logistic" {% if selected_model == 'logistic' %}selected{% endif %}>Logistic Regression</option>
+                            <option value="svm" {% if selected_model == 'svm' %}selected{% endif %}>Support Vector Machine (SVM)</option>
+                            <option value="naive_bayes" {% if selected_model == 'naive_bayes' %}selected{% endif %}>Naive Bayes</option>
+                        </select>
+                    </div>
+
+                    <div id="model-description" class="info_text" style="display:none; margin: 15px 0; padding: 15px; background-color: #f8f9fa; border-radius: 5px; text-align: left;"></div>
+
+                    <button type="submit" class="load_button" style="margin: 20px 0; padding: 12px 24px; font-size: 16px;">
+                        <span id="load-btn-text">Load Pre-Trained Classifier</span>
+                        <span id="load-btn-spinner" style="display: none;">Loading...</span>
+                    </button>
+                </form>
+
+                <!-- Status Messages -->
+                <div id="status-messages" style="margin: 20px 0;">
+                    {% if message %}
+                        <div class="success-message" style="color: #28a745; font-weight: bold; margin: 10px 0;">
+                            ✓ {{ message }}
+                        </div>
+                    {% endif %}
+
+                    {% if error %}
+                        <div class="error-message" style="color: #dc3545; font-weight: bold; margin: 10px 0;">
+                            ✗ {{ error }}
+                        </div>
+                    {% endif %}
+                </div>
             </div>
-        </div> -->
-        
- <!------------- Loading Pre-Trained Model -------------->
-            <form method = "POST">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="select_model">
-                <input type="hidden" name="scroll_to" value="step-1">
-
-                <label for="model">Classification Model:</label>
-                <select name="model" id="model" onchange="updateModelFields(this.value)" required>
-                    <option value="logistic" {% if selected_model == 'logistic' %}selected{% endif %}>Logistic Regression</option>
-                    <option value="svm" {% if selected_model == 'svm' %}selected{% endif %}>SVM</option>
-                    <option value="naive_bayes" {% if selected_model == 'naive_bayes' %}selected{% endif %}>Naive Bayes</option>
-                </select>
-                <h5>Classifier description:</h5>
-                <div id="model-description" class="info_text" style="display:none; margin-top: 10px;"></div>
-                <br><br>
-    
-            <p id="loading-text" style="display:none;" class="info_text">Training started...</p>
-        </form>
-
-        <script>
-            function updateModelFields(model) {
-              const descriptions = {
-                logistic: "Logistic Regression is a statistical model that predicts the probability of a binary outcome by modeling the relationship between the dependent variable and one or more independent variables. Despite its name, Logistic Regression is used for classification rather than regression tasks. It assumes a linear relationship between input features and log-odds of the response variable. It handles both numerical and categorical features and offers good interpretability through coefficient analysis.",
-                svm: "Support Vector Machine (SVM) is a supervised machine learning algorithm used for classification and regression tasks. It tries to find the best boundary known as hyperplane that separates different classes in the data. It is useful when we want to do binary classification like positive or negative.",
-                naive_bayes: "Naïve Bayes is part of a family of generative learning algorithms, meaning that it seeks to model the distribution of inputs of a given class or category. Unlike discriminative classifiers, like logistic regression, it does not learn which features are most important to differentiate between classes. Naïve Bayes is also known as a probabilistic classifier since it is based on Bayes’ Theorem."
-              };
-          
-              const infoBox = document.getElementById("model-description");
-              infoBox.textContent = descriptions[model];
-              infoBox.style.display = "block";
-            }
-          
-            window.onload = function() {
-              const selectedModel = document.getElementById("model").value;
-              updateModelFields(selectedModel);
-            };
-          </script>
-
-<!-- 
-        <div id="training-status">
-            {% if training_started %}
-                <p class="info_text"> Training started...</p>
-            {% endif %}
-        
-            {% if accuracy %}
-                <p class="success-text"> Training complete! Accuracy on test set: <strong>{{ accuracy|floatformat:2 }}</strong></p>
-            {% endif %}
-        
-            {% if error %}
-                <p class="error-text"> {{ error }}</p>
-            {% endif %}
-        </div> -->
-
-<!------------- Loading pre-trained classifier -------------->
-            <form method="POST" onsubmit="copySelectedModelToHiddenInput()">
-
-            {% csrf_token %}
-            <input type = 'hidden' name="model" id="hidden-model-input">
-            <button type = 'submit' name="action" value="load_pre_trained" class="load_button">
-                Load Pre-Trained Classifier 
-            </button>
-        </form>
-
-        <script>
-            function copySelectedModelToHiddenInput() {
-                const selectedModel = document.getElementById("model").value;
-                document.getElementById("hidden-model-input").value = selectedModel;
-            }
-        </script>
-
-        {% if message %}
-            <p class="info_text">{{ message }}</p>
-        {% endif %}
-
-        {% if error %}
-            <p class="error-text"> {{ error }}</p>
-        {% endif %}
+        </div>
     </div>
     <hr>
 
-
-<!------------- Task 2 -------------->
+<!------------- Task Selection -------------->
 
     <div class="main-text">
         <h2>Select a Task</h2>
-    
+
         <div class="task-box">
           <h3>Task 1: Supervised Learning</h3>
           <p>Train a sentiment classifier using the full labeled IMDB dataset. Compare results with active learning.</p>
           <a href="{% url 'project2:task1' %}" class="btn">Go to Task 1</a>
         </div>
-    
+
         <div class="task-box">
           <h3>Task 2: Active Learning</h3>
           <p>Interactively label samples with active learning. Choose a strategy and improve model performance with fewer labels.</p>
+          {% if model_loaded %}
+          <p style="color: #28a745; font-size: 14px;">✓ Pre-trained model available for active learning</p>
+          {% else %}
+          <p style="color: #856404; font-size: 14px;">⚠ Load a pre-trained model or train one in Task 1 first</p>
+          {% endif %}
           <a href="{% url 'project2:task2' %}" class="btn">Go to Task 2</a>
         </div>
     </div>
 </div>
 
 <script>
-    document.querySelector('form').addEventListener('submit', function() {
-      document.getElementById('loading-text').style.display = 'block';
+    function updateModelFields(model) {
+        const descriptions = {
+            logistic: "Logistic Regression is a statistical model that predicts the probability of a binary outcome by modeling the relationship between the dependent variable and one or more independent variables. Despite its name, Logistic Regression is used for classification rather than regression tasks. It assumes a linear relationship between input features and log-odds of the response variable. It handles both numerical and categorical features and offers good interpretability through coefficient analysis.",
+            svm: "Support Vector Machine (SVM) is a supervised machine learning algorithm used for classification and regression tasks. It tries to find the best boundary known as hyperplane that separates different classes in the data. It is useful when we want to do binary classification like positive or negative. SVMs can handle non-linear relationships through kernel functions.",
+            naive_bayes: "Naïve Bayes is part of a family of generative learning algorithms, meaning that it seeks to model the distribution of inputs of a given class or category. Unlike discriminative classifiers, like logistic regression, it does not learn which features are most important to differentiate between classes. Naïve Bayes is also known as a probabilistic classifier since it is based on Bayes' Theorem."
+        };
+
+        const infoBox = document.getElementById("model-description");
+        infoBox.textContent = descriptions[model];
+        infoBox.style.display = "block";
+    }
+
+    // Handle form submission with loading indicator
+    document.getElementById('load-model-form').addEventListener('submit', function(e) {
+        const btnText = document.getElementById('load-btn-text');
+        const btnSpinner = document.getElementById('load-btn-spinner');
+
+        btnText.style.display = 'none';
+        btnSpinner.style.display = 'inline';
+
+        // Disable the button to prevent double submission
+        e.target.querySelector('button[type="submit"]').disabled = true;
     });
-  </script>
-  
+
+    // Initialize on page load
+    window.onload = function() {
+        const selectedModel = document.getElementById("model").value;
+        updateModelFields(selectedModel);
+
+        console.log('Page loaded with model status:', {
+            model_loaded: {{ model_loaded|yesno:"true,false" }},
+            selected_model: '{{ selected_model }}',
+            has_evaluation_results: {{ evaluation_results|yesno:"true,false" }}
+        });
+    };
+</script>
+
 {% endblock %}
