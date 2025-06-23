@@ -23,6 +23,8 @@ class SparseDecisionTree:
         self.ref_labels = None
         self.clf = None
         self.label_encoder = None
+        self.test_accuracy = None
+        self.num_leaves = 0
 
     def load_data(self, test_size=0.2, random_state=42):
         df = load_penguins()
@@ -74,130 +76,223 @@ class SparseDecisionTree:
         self.train()
         return self.evaluate()
 
-    def _parse_tree_recursive(self, tree_node, feature_names, depth=0, path=""):
+    def parse_gosdt_string(self, input_string):
         """
-        Recursively parse the tree node and extract decision rules.
+        Parse a single string containing GOSDT tree, feature index, and number of classes.
+
+        Args:
+            input_string (str): Combined string with tree, Index, and number of classes
+
+        Returns:
+            tuple: (tree_dict, feature_array, num_classes)
+                - tree_dict: Dictionary representation of the tree structure
+                - feature_array: List of feature conditions
+                - num_classes: Number of classes
         """
-        rules = []
+        import re
 
-        if hasattr(tree_node, 'prediction') and tree_node.prediction is not None:
-            # Leaf node
-            prediction = tree_node.prediction
-            loss = getattr(tree_node, 'loss', 0)
-            species_name = self.label_encoder.inverse_transform([prediction])[0]
+        def parse_tree_node(text):
+            """Recursively parse tree nodes from string representation."""
+            text = text.strip()
 
-            if path:
-                rule = f"IF {path} THEN predict {species_name} (loss: {loss:.4f})"
-            else:
-                rule = f"predict {species_name} (loss: {loss:.4f})"
-            rules.append(rule)
+            # Check if this is a leaf node (prediction)
+            if 'prediction:' in text and 'feature:' not in text:
+                prediction_match = re.search(r'prediction:\s*(\d+),\s*loss:\s*([\d.]+)', text)
+                if prediction_match:
+                    return {
+                        'prediction': int(prediction_match.group(1)),
+                        'loss': float(prediction_match.group(2))
+                    }
 
-        elif hasattr(tree_node, 'feature') and tree_node.feature is not None:
-            # Internal node
-            feature_idx = tree_node.feature
-            feature_name = feature_names[feature_idx]
+            # Check if this is an internal node (feature split)
+            feature_match = re.search(r'feature:\s*(\d+)', text)
+            if not feature_match:
+                return None
 
-            # Process left child (feature is True/satisfied)
-            if hasattr(tree_node, 'left') and tree_node.left is not None:
-                left_path = f"{path} AND {feature_name}" if path else feature_name
-                rules.extend(self._parse_tree_recursive(tree_node.left, feature_names, depth + 1, left_path))
+            feature_idx = int(feature_match.group(1))
 
-            # Process right child (feature is False/not satisfied)
-            if hasattr(tree_node, 'right') and tree_node.right is not None:
-                negated_condition = self._negate_condition(feature_name)
-                right_path = f"{path} AND {negated_condition}" if path else negated_condition
-                rules.extend(self._parse_tree_recursive(tree_node.right, feature_names, depth + 1, right_path))
+            # Find the bracket that contains the children
+            children_start = text.find('[', text.find('feature:'))
+            if children_start == -1:
+                return None
 
-        return rules
+            # Find the matching closing bracket
+            bracket_count = 1
+            children_end = children_start + 1
+            while children_end < len(text) and bracket_count > 0:
+                if text[children_end] == '[':
+                    bracket_count += 1
+                elif text[children_end] == ']':
+                    bracket_count -= 1
+                children_end += 1
 
-    def _negate_condition(self, condition):
-        """
-        Negate a condition (e.g., 'x <= 5' becomes 'x > 5').
-        """
-        if '<=' in condition:
-            return condition.replace('<=', '>')
-        elif '<' in condition:
-            return condition.replace('<', '>=')
-        elif '>=' in condition:
-            return condition.replace('>=', '<')
-        elif '>' in condition:
-            return condition.replace('>', '<=')
-        else:
-            return f"NOT {condition}"
+            if bracket_count > 0:
+                return None
 
-    def print_decision_rules(self):
-        """
-        Recursively parses the GOSDT tree and prints human-readable if-then rules.
-        """
-        if self.clf is None or not self.clf.trees_:
-            raise RuntimeError("Train the model before extracting rules.")
+            children_content = text[children_start + 1:children_end - 1].strip()
 
-        tree_root = self.clf.trees_[0]
-        feature_names = self.X_train_bin.columns.tolist()
+            # Find left child and right child
+            left_start = children_content.find('left child:')
+            right_start = children_content.find('right child:')
 
-        print("\n" + "=" * 60)
-        print("DECISION RULES")
-        print("=" * 60)
+            if left_start == -1 or right_start == -1:
+                return None
 
-        # Parse the tree structure
-        rules = self._parse_tree_recursive(tree_root, feature_names)
+            # Extract left child - need to find the complete block
+            left_content_start = left_start + len('left child:')
+            left_content = children_content[left_content_start:right_start].strip()
 
-        for i, rule in enumerate(rules, 1):
-            print(f"\nRule {i}:")
-            print(f"  {rule}")
+            # Remove trailing comma and whitespace
+            left_content = left_content.rstrip(',').strip()
 
-        print("\n" + "=" * 60)
+            # If it starts and ends with braces, remove them
+            if left_content.startswith('{') and left_content.endswith('}'):
+                left_content = left_content[1:-1].strip()
 
-    def _add_nodes_to_graph(self, dot, tree_node, feature_names, node_id=0, parent_id=None, edge_label=""):
-        """
-        Recursively add nodes and edges to the graphviz graph.
-        """
-        current_id = node_id
+            # Extract right child - from right_start to end
+            right_content_start = right_start + len('right child:')
+            right_content = children_content[right_content_start:].strip()
 
-        if hasattr(tree_node, 'prediction') and tree_node.prediction is not None:
-            # Leaf node
-            prediction = tree_node.prediction
-            loss = getattr(tree_node, 'loss', 0)
-            species_name = self.label_encoder.inverse_transform([prediction])[0]
+            # Handle the right child which might have nested brackets
+            if right_content.startswith('{'):
+                # Find the matching closing brace
+                brace_count = 1
+                end_pos = 1
+                while end_pos < len(right_content) and brace_count > 0:
+                    if right_content[end_pos] == '{':
+                        brace_count += 1
+                    elif right_content[end_pos] == '}':
+                        brace_count -= 1
+                    end_pos += 1
 
-            label = f"{species_name}\\nloss: {loss:.4f}"
-            dot.node(str(current_id), label, shape='box', style='filled', fillcolor='lightblue')
+                if brace_count == 0:
+                    right_content = right_content[1:end_pos - 1].strip()
 
-            if parent_id is not None:
-                dot.edge(str(parent_id), str(current_id), label=edge_label)
+            # Recursively parse children
+            left_child = parse_tree_node(left_content)
+            right_child = parse_tree_node(right_content)
 
-            return current_id + 1
+            return {
+                'feature': feature_idx,
+                'left_child': left_child,
+                'right_child': right_child
+            }
 
-        elif hasattr(tree_node, 'feature') and tree_node.feature is not None:
-            # Internal node
-            feature_idx = tree_node.feature
-            feature_name = feature_names[feature_idx]
+        # Step 1: Separate the three components from the input string
 
-            # Clean up feature name for display
-            display_name = feature_name.replace('_', ' ').title()
-            if len(display_name) > 25:
-                display_name = display_name[:22] + "..."
+        # Find the end of the tree structure (look for the closing brace followed by }, Index)
+        # The tree starts after the first { and we need to find its matching }
+        tree_start = input_string.find('{ feature:')
+        if tree_start == -1:
+            tree_start = input_string.find('{')
 
-            dot.node(str(current_id), display_name, shape='ellipse', style='filled', fillcolor='lightgreen')
+        # Find the matching closing brace for the tree
+        brace_count = 0
+        tree_end = tree_start
+        for i in range(tree_start, len(input_string)):
+            if input_string[i] == '{':
+                brace_count += 1
+            elif input_string[i] == '}':
+                brace_count -= 1
+                if brace_count == 0:
+                    tree_end = i + 1
+                    break
 
-            if parent_id is not None:
-                dot.edge(str(parent_id), str(current_id), label=edge_label)
+        # Extract tree string
+        tree_part = input_string[tree_start:tree_end]
 
-            next_id = current_id + 1
+        # Find the Index part
+        index_start = input_string.find("Index([", tree_end)
+        if index_start == -1:
+            raise ValueError("Could not find Index in the input string")
 
-            # Add left child (True/Yes)
-            if hasattr(tree_node, 'left') and tree_node.left is not None:
-                next_id = self._add_nodes_to_graph(dot, tree_node.left, feature_names,
-                                                   next_id, current_id, "Yes")
+        # Find the end of the Index (look for the closing bracket and parenthesis)
+        paren_count = 0
+        bracket_count = 0
+        index_end = index_start
 
-            # Add right child (False/No)
-            if hasattr(tree_node, 'right') and tree_node.right is not None:
-                next_id = self._add_nodes_to_graph(dot, tree_node.right, feature_names,
-                                                   next_id, current_id, "No")
+        for i in range(index_start, len(input_string)):
+            if input_string[i] == '(':
+                paren_count += 1
+            elif input_string[i] == ')':
+                paren_count -= 1
+            elif input_string[i] == '[':
+                bracket_count += 1
+            elif input_string[i] == ']':
+                bracket_count -= 1
 
-            return next_id
+            if paren_count == 0 and bracket_count == 0 and i > index_start + 6:
+                index_end = i + 1
+                break
 
-        return current_id + 1
+        # Extract index string
+        index_part = input_string[index_start:index_end]
+
+        # Extract number of classes (should be the remaining part)
+        remaining = input_string[index_end:].strip().strip(',').strip()
+        num_classes = int(remaining)
+
+        # Step 2: Parse the tree structure
+        tree_dict = parse_tree_node(tree_part)
+
+        # Step 3: Parse the Index to extract feature names
+        # Extract content between the square brackets
+        features_match = re.search(r"Index\(\[(.*?)\],", index_part, re.DOTALL)
+        if not features_match:
+            raise ValueError("Could not parse feature index")
+
+        features_content = features_match.group(1)
+
+        # Split by comma and clean up each feature name
+        feature_array = []
+        current_feature = ""
+        in_quotes = False
+        quote_char = None
+
+        i = 0
+        while i < len(features_content):
+            char = features_content[i]
+
+            if not in_quotes and (char == "'" or char == '"'):
+                in_quotes = True
+                quote_char = char
+            elif in_quotes and char == quote_char:
+                # Check if it's escaped
+                if i > 0 and features_content[i - 1] != '\\':
+                    in_quotes = False
+                    quote_char = None
+            elif not in_quotes and char == ',':
+                # End of current feature
+                feature = current_feature.strip().strip("'\"")
+                if feature:
+                    feature_array.append(feature)
+                current_feature = ""
+                i += 1
+                continue
+
+            current_feature += char
+            i += 1
+
+        # Add the last feature
+        feature = current_feature.strip().strip("'\"")
+        if feature:
+            feature_array.append(feature)
+
+        return tree_dict, feature_array, num_classes
+
+    def swap_numbers_for_text_dictionary(self, dict, classes, features):
+        for k in dict:
+            if k == 'feature':
+                n = dict[k]
+                dict[k] = features[n]
+            if k == 'prediction':
+                n = dict[k]
+                dict[k] = classes[n]
+                self.num_leaves += 1
+                return
+            if k == 'left_child' or k == 'right_child':
+                self.swap_numbers_for_text_dictionary(dict[k], classes, features)
+        return
 
     def export_tree_image(self, filename="decision_tree", format="png"):
         """
@@ -214,11 +309,44 @@ class SparseDecisionTree:
 
         tree_root = self.clf.trees_[0]
         print(tree_root)
-        feature_names = self.X_train_bin.columns.tolist()
+        a, b, c = self.parse_gosdt_string(str(tree_root))
+        predicted_labels = [0, 1, 2]
+        class_names = self.label_encoder.inverse_transform(predicted_labels)
+        self.swap_numbers_for_text_dictionary(a, class_names, b)
+        print(a)
 
-        # Build the graph
-        self._add_nodes_to_graph(dot, tree_root, feature_names)
+        def build_tree(dict, par, r, counter):
+            current_id = counter[0]
 
+            for k in dict:
+                if k == 'feature':
+                    dot.node(str(current_id), label=dict[k])
+                    if par is not None:
+                        if r == 1:
+                            dot.edge(str(par), str(current_id), label="NO")
+                        elif r == 0:
+                            dot.edge(str(par), str(current_id), label="YES")
+                    counter[0] += 1
+                elif k == 'prediction':
+                    color = {
+                        'Adelie': 'lightblue',
+                        'Gentoo': 'lightgreen',
+                        'Chinstrap': 'lightpink'
+                    }.get(dict[k], 'white')
+                    dot.node(str(current_id), label=f"{dict[k]}\nloss: {dict['loss']}", fillcolor=color, style='filled')
+                    if par is not None:
+                        if r == 1:
+                            dot.edge(str(par), str(current_id), label="NO")
+                        elif r == 0:
+                            dot.edge(str(par), str(current_id), label="YES")
+                    counter[0] += 1
+                    return
+                elif k == 'left_child':
+                    build_tree(dict[k], current_id, 0, counter)
+                elif k == 'right_child':
+                    build_tree(dict[k], current_id, 1, counter)
+        build_tree(a, None, None, [0])
+        print(self.num_leaves)
         # Save the file
         output_path = dot.render(filename, format=format, cleanup=True)
 
@@ -233,4 +361,3 @@ if __name__ == "__main__":
 
     img_path = tree_model.export_tree_image()
     print(f"Tree image saved to: {img_path}")
-    tree_model.print_decision_rules()
