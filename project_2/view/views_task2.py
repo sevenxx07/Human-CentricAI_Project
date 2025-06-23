@@ -10,7 +10,6 @@ from django.shortcuts import render
 
 from pbl import settings
 from project_2.active_learning.active_learning_loop import ActiveLearningLoop
-from project_2.active_learning.utility_function import UtilityFunction
 from project_2.view.view2_utils import create_model_from_pretrained_config, get_raw_text_for_sample
 from project_2.view.views import DATA_STORAGE
 
@@ -55,8 +54,8 @@ def index(request):
         'vectorizer_loaded': has_pretrained_vectorizer,
         'evaluation_results': DATA_STORAGE.get('evaluation_results', None),
         # Default configs
-        'al_config': {'utility_function': 'lc', 'n_initial': 10, 'batch_size': 1},
-        'termination': {'type': 'accuracy', 'target_accuracy': 0.85}
+        'al_config': {'utility_function': 'lc', 'n_initial': 10, 'batch_size': 1, 'diversity_method': 'top_k'},
+        'termination': {'type': 'accuracy', 'target_accuracy': 0.85, 'max_queries': 100, 'budget_percent': 10}
     }
 
     # Add current AL state if exists
@@ -80,7 +79,7 @@ def handle_ajax_request(request):
                                    DATA_STORAGE.get('model_wrapper') is not None and
                                    DATA_STORAGE.get('classifier_settings') is not None)
 
-        if action in ['initialize_al', 'label_sample', 'auto_query'] and not has_complete_pretrained:
+        if action in ['initialize_al', 'label_sample', 'label_batch', 'auto_query'] and not has_complete_pretrained:
             return JsonResponse({
                 'error': "Active learning requires a complete pre-trained model from Task 1."
             }, status=400)
@@ -89,8 +88,12 @@ def handle_ajax_request(request):
             return initialize_active_learning(data)
         elif action == 'label_sample':
             return label_sample(data)
+        elif action == 'label_batch':
+            return label_batch(data)
         elif action == 'auto_query':
             return auto_query(data)
+        elif action == 'set_termination':
+            return set_termination_conditions(data)
         elif action == 'reset_al':
             return reset_active_learning()
         else:
@@ -118,16 +121,33 @@ def initialize_active_learning(data):
         n_initial = int(data.get('n_initial', 10))
         al_loop.initialize_with_random_samples(n_initial)
 
-        # Get next query
+        # Get batch size and diversity method from config
+        batch_size = int(data.get('batch_size', 1))
+        diversity_method = data.get('diversity_method', 'top_k')
+
+        # Get next query (single or batch)
         next_query = None
-        if len(al_loop.unlabeled_indices) > 0:
-            query_idx, utility_scores = al_loop.get_next_query()
-            raw_text = get_raw_text_for_sample(query_idx)
-            next_query = {
-                'sample_idx': int(query_idx),
-                'text': raw_text,
-                'utility_score': float(utility_scores.get(query_idx, 0))
-            }
+        if len(al_loop.unlabeled_indices) > 0 and not al_loop.termination_conditions['is_terminated']:
+            if batch_size > 1:
+                query_indices, utility_scores = al_loop.get_next_batch_query(batch_size, diversity_method)
+                raw_texts_batch = [get_raw_text_for_sample(idx) for idx in query_indices]
+                utility_scores_batch = [float(utility_scores.get(idx, 0)) for idx in query_indices]
+                next_query = {
+                    'sample_indices': [int(idx) for idx in query_indices],
+                    'texts': raw_texts_batch,
+                    'utility_scores': utility_scores_batch,
+                    'batch_size': len(query_indices),
+                    'diversity_method': diversity_method
+                }
+            else:
+                query_idx, utility_scores = al_loop.get_next_query()
+                raw_text = get_raw_text_for_sample(query_idx)
+                next_query = {
+                    'sample_idx': int(query_idx),
+                    'text': raw_text,
+                    'utility_score': float(utility_scores.get(query_idx, 0)),
+                    'batch_size': 1
+                }
 
         # Store in global state
         ACTIVE_LEARNING_STATE = {
@@ -139,7 +159,7 @@ def initialize_active_learning(data):
 
         # Return complete state
         response_data = {
-            'message': f"Active learning initialized with {n_initial} samples",
+            'message': f"Active learning initialized with {n_initial} samples (batch size: {batch_size})",
             'success': True
         }
         response_data.update(get_current_al_context())
@@ -151,8 +171,8 @@ def initialize_active_learning(data):
         return JsonResponse({'error': str(e)}, status=500)
 
 
-def label_sample(data):
-    """Label a sample and return updated state"""
+def set_termination_conditions(data):
+    """Set termination conditions for active learning"""
     global ACTIVE_LEARNING_STATE
 
     try:
@@ -160,6 +180,61 @@ def label_sample(data):
             return JsonResponse({'error': 'Active learning not initialized'}, status=400)
 
         al_loop = ACTIVE_LEARNING_STATE['al_loop']
+        termination_type = data.get('termination_type')
+
+        termination_params = {}
+        if 'target_accuracy' in data:
+            termination_params['target_accuracy'] = float(data['target_accuracy'])
+        if 'max_queries' in data:
+            termination_params['max_queries'] = int(data['max_queries'])
+        if 'budget_percent' in data:
+            termination_params['budget_percent'] = float(data['budget_percent'])
+
+        al_loop.set_termination_conditions(termination_type, **termination_params)
+
+        # Check if already terminated
+        is_terminated = al_loop.check_termination_conditions()
+
+        message = f"Termination condition set: {termination_type}"
+        if termination_type == 'accuracy':
+            message += f" (target: {termination_params.get('target_accuracy', 0.85):.3f})"
+        elif termination_type == 'queries':
+            message += f" (max: {termination_params.get('max_queries', 100)})"
+        elif termination_type == 'budget':
+            message += f" (budget: {termination_params.get('budget_percent', 10):.1f}%)"
+
+        if is_terminated:
+            message += f" - Already met! {al_loop.termination_conditions['termination_reason']}"
+
+        response_data = {
+            'message': message,
+            'success': True
+        }
+        response_data.update(get_current_al_context())
+
+        return JsonResponse(response_data)
+
+    except Exception as e:
+        logger.error(f"Error setting termination conditions: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+def label_sample(data):
+    """Label a single sample and return updated state"""
+    global ACTIVE_LEARNING_STATE
+
+    try:
+        if not ACTIVE_LEARNING_STATE.get('is_initialized'):
+            return JsonResponse({'error': 'Active learning not initialized'}, status=400)
+
+        al_loop = ACTIVE_LEARNING_STATE['al_loop']
+
+        # Check if already terminated
+        if al_loop.termination_conditions['is_terminated']:
+            return JsonResponse({
+                'error': f"Active learning terminated: {al_loop.termination_conditions['termination_reason']}"
+            }, status=400)
+
         sample_idx = int(data.get('sample_idx'))
         use_oracle = data.get('use_oracle', False)
 
@@ -177,16 +252,12 @@ def label_sample(data):
         result = al_loop.query_sample(sample_idx, label)
         message += f". New accuracy: {result['accuracy']:.3f}"
 
+        # Check if terminated
+        if result.get('is_terminated', False):
+            message += f" - {result['termination_reason']}"
+
         # Get next query
-        next_query = None
-        if len(al_loop.unlabeled_indices) > 0:
-            query_idx, utility_scores = al_loop.get_next_query()
-            raw_text = get_raw_text_for_sample(query_idx)
-            next_query = {
-                'sample_idx': int(query_idx),
-                'text': raw_text,
-                'utility_score': float(utility_scores.get(query_idx, 0))
-            }
+        next_query = get_next_query_for_context(al_loop)
 
         # Return complete updated state
         response_data = {
@@ -202,6 +273,60 @@ def label_sample(data):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+def label_batch(data):
+    """Label a batch of samples and return updated state"""
+    global ACTIVE_LEARNING_STATE
+
+    try:
+        if not ACTIVE_LEARNING_STATE.get('is_initialized'):
+            return JsonResponse({'error': 'Active learning not initialized'}, status=400)
+
+        al_loop = ACTIVE_LEARNING_STATE['al_loop']
+
+        # Check if already terminated
+        if al_loop.termination_conditions['is_terminated']:
+            return JsonResponse({
+                'error': f"Active learning terminated: {al_loop.termination_conditions['termination_reason']}"
+            }, status=400)
+
+        sample_indices = [int(idx) for idx in data.get('sample_indices', [])]
+        use_oracle = data.get('use_oracle', False)
+
+        if not all(idx in al_loop.unlabeled_indices for idx in sample_indices):
+            invalid_indices = [idx for idx in sample_indices if idx not in al_loop.unlabeled_indices]
+            return JsonResponse({'error': f'Samples {invalid_indices} not available for labeling'}, status=400)
+
+        if use_oracle:
+            labels = [int(al_loop.y_train[idx]) for idx in sample_indices]
+            message = f"Batch of {len(sample_indices)} samples auto-labeled using oracle"
+        else:
+            labels = [int(label) for label in data.get('labels', [])]
+            if len(labels) != len(sample_indices):
+                return JsonResponse({'error': 'Number of labels must match number of samples'}, status=400)
+            message = f"Batch of {len(sample_indices)} samples manually labeled"
+
+        # Query the batch
+        result = al_loop.query_batch(sample_indices, labels)
+        message += f". New accuracy: {result['accuracy']:.3f}"
+
+        # Check if terminated
+        if result.get('is_terminated', False):
+            message += f" - {result['termination_reason']}"
+
+        # Return complete updated state
+        response_data = {
+            'message': message,
+            'success': True
+        }
+        response_data.update(get_current_al_context())
+
+        return JsonResponse(response_data)
+
+    except Exception as e:
+        logger.error(f"Error labeling batch: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
 def auto_query(data):
     """Run automatic queries and return updated state"""
     global ACTIVE_LEARNING_STATE
@@ -211,26 +336,45 @@ def auto_query(data):
             return JsonResponse({'error': 'Active learning not initialized'}, status=400)
 
         al_loop = ACTIVE_LEARNING_STATE['al_loop']
+
+        # Check if already terminated
+        if al_loop.termination_conditions['is_terminated']:
+            return JsonResponse({
+                'error': f"Active learning terminated: {al_loop.termination_conditions['termination_reason']}"
+            }, status=400)
+
         n_queries = int(data.get('n_queries', 10))
 
-        # Run automatic loop
-        results = al_loop.run_automatic_loop(n_queries)
-        final_accuracy = results[-1]['accuracy'] if results else 0
+        # Get batch configuration from stored config
+        config = ACTIVE_LEARNING_STATE.get('config', {})
+        batch_size = int(config.get('batch_size', 1))
+        diversity_method = config.get('diversity_method', 'top_k')
 
-        # Get next query
-        next_query = None
-        if len(al_loop.unlabeled_indices) > 0:
-            query_idx, utility_scores = al_loop.get_next_query()
-            raw_text = get_raw_text_for_sample(query_idx)
-            next_query = {
-                'sample_idx': int(query_idx),
-                'text': raw_text,
-                'utility_score': float(utility_scores.get(query_idx, 0))
-            }
+        # Run automatic loop with batch support
+        results = al_loop.run_automatic_loop(n_queries, batch_size=batch_size, diversity_method=diversity_method)
+
+        if results:
+            final_accuracy = results[-1]['accuracy']
+            actual_queries = len(results)
+
+            if batch_size > 1:
+                total_samples = sum(result.get('batch_size', 1) for result in results)
+                message = f"Completed {actual_queries} batches ({total_samples} total samples)"
+            else:
+                message = f"Completed {actual_queries} automatic queries"
+
+            if actual_queries < n_queries:
+                if al_loop.termination_conditions['is_terminated']:
+                    message += f" (stopped early: {al_loop.termination_conditions['termination_reason']})"
+                else:
+                    message += " (no more unlabeled samples)"
+            message += f". Final accuracy: {final_accuracy:.3f}"
+        else:
+            message = "No queries were performed (already terminated or no samples available)"
 
         # Return complete updated state
         response_data = {
-            'message': f"Completed {len(results)} automatic queries. Final accuracy: {final_accuracy:.3f}",
+            'message': message,
             'success': True
         }
         response_data.update(get_current_al_context())
@@ -256,6 +400,41 @@ def reset_active_learning():
         return JsonResponse({'error': str(e)}, status=500)
 
 
+def get_next_query_for_context(al_loop):
+    """Helper function to get next query based on current batch configuration"""
+    config = ACTIVE_LEARNING_STATE.get('config', {})
+    batch_size = int(config.get('batch_size', 1))
+    diversity_method = config.get('diversity_method', 'top_k')
+
+    if len(al_loop.unlabeled_indices) == 0 or al_loop.termination_conditions['is_terminated']:
+        return None
+
+    try:
+        if batch_size > 1:
+            query_indices, utility_scores = al_loop.get_next_batch_query(batch_size, diversity_method)
+            raw_texts_batch = [get_raw_text_for_sample(idx) for idx in query_indices]
+            utility_scores_batch = [float(utility_scores.get(idx, 0)) for idx in query_indices]
+            return {
+                'sample_indices': [int(idx) for idx in query_indices],
+                'texts': raw_texts_batch,
+                'utility_scores': utility_scores_batch,
+                'batch_size': len(query_indices),
+                'diversity_method': diversity_method
+            }
+        else:
+            query_idx, utility_scores = al_loop.get_next_query()
+            raw_text = get_raw_text_for_sample(query_idx)
+            return {
+                'sample_idx': int(query_idx),
+                'text': raw_text,
+                'utility_score': float(utility_scores.get(query_idx, 0)),
+                'batch_size': 1
+            }
+    except Exception as e:
+        logger.error(f"Error getting next query: {str(e)}")
+        return None
+
+
 def get_current_al_context():
     """Get current AL state for JSON response - like the reference"""
     if not ACTIVE_LEARNING_STATE.get('is_initialized'):
@@ -264,28 +443,10 @@ def get_current_al_context():
     al_loop = ACTIVE_LEARNING_STATE['al_loop']
 
     # Current status
-    al_status = {
-        'is_initialized': True,
-        'n_labeled': len(al_loop.labeled_indices),
-        'n_unlabeled': len(al_loop.unlabeled_indices),
-        'current_accuracy': al_loop.get_current_accuracy(),
-        'model_trained': al_loop.model.is_trained,
-        'n_queries_made': len(al_loop.accuracy_history) - 1 if al_loop.accuracy_history else 0
-    }
+    al_status = al_loop.get_status()
 
     # Next query
-    next_query = None
-    if len(al_loop.unlabeled_indices) > 0:
-        try:
-            query_idx, utility_scores = al_loop.get_next_query()
-            raw_text = get_raw_text_for_sample(query_idx)
-            next_query = {
-                'sample_idx': int(query_idx),
-                'text': raw_text,
-                'utility_score': float(utility_scores.get(query_idx, 0))
-            }
-        except Exception as e:
-            logger.error(f"Error getting next query: {str(e)}")
+    next_query = get_next_query_for_context(al_loop)
 
     # Chart data
     accuracy_history = [float(acc) for acc in al_loop.accuracy_history] if al_loop.accuracy_history else []
@@ -297,7 +458,9 @@ def get_current_al_context():
         'next_query': next_query,
         'accuracy_history': accuracy_history,
         'query_indices': query_indices,
-        'baseline_accuracy': get_baseline_accuracy()
+        'baseline_accuracy': get_baseline_accuracy(),
+        'termination_conditions': al_loop.termination_conditions,
+        'config': ACTIVE_LEARNING_STATE.get('config', {})
     }
 
 

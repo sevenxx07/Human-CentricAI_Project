@@ -142,7 +142,7 @@ def train_model(data):
 
         # Create and train model
         model = classifier_settings.create_model_instance()
-        model = train_model_with_strategy(model, classifier_settings, X_train, y_train)
+        model = model.train(X_train, y_train)
 
         # Evaluate model
         metrics = evaluate_trained_model(model, X_test, y_test)
@@ -335,7 +335,7 @@ def extract_hyperparameters(data, model_type):
     elif model_type == 'naive_bayes':
         params.update({
             'alpha': float(data.get('alpha', 1.0)),
-            'nb_variant': data.get('nb_variant', 'gaussian'),
+            'nb_variant': data.get('nb_variant', 'multinomial'),
             'fit_prior': data.get('fit_prior', True),
         })
 
@@ -389,18 +389,6 @@ def prepare_training_data(classifier_settings):
     )
 
     return X_train, X_test, y_train, y_test, vectorizer
-
-
-def train_model_with_strategy(model, classifier_settings, X_train, y_train):
-    """Train model using appropriate strategy"""
-    if (classifier_settings.model_type == 'naive_bayes' and
-            classifier_settings.nb_variant == 'gaussian' and
-            hasattr(X_train, 'toarray')):
-        _train_naive_bayes_in_batches(model, X_train, y_train)
-    else:
-        model.train(X_train, y_train)
-
-    return model
 
 
 def _train_naive_bayes_in_batches(model, X_train, y_train):

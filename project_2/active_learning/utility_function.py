@@ -21,10 +21,6 @@ class UtilityFunction:
             log_probs = np.log(probs + 1e-10)
             entropy = -np.sum(probs * log_probs, axis=1)
             return entropy
-        elif self.name == "density":
-            sim_matrix = cosine_similarity(X_pool)
-            density = np.mean(sim_matrix, axis=1)
-            return density
         elif self.name == "cluster":
             kmeans = KMeans(n_clusters=10, n_init='auto', random_state=42)
             kmeans.fit(X_pool)
