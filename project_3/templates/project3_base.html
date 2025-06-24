@@ -14,6 +14,38 @@
         <div class="title">Explainability</div>
     </div>
 
+            <!------------- Dataset preview (head) -------------->
+<div class="task-box">
+  <h3 style = "text-align:center">Palmer Penguins Dataset Preview</h3>  
+  <p style="text-align:center;"> A glimpse of the dataset used for this project:</p>
+  
+  <table style="margin: 0 auto; border-collapse: collapse;">
+    <thead>
+      <tr>
+        {% if dataset_head %}
+        <div style="overflow-x: auto; max-width: 60%;">
+          <table style="border-collapse: collapse; width: 60%; min-width: 600px;">
+            <thead>
+              <tr>
+          {% for col, _ in dataset_head.0.items %}
+            <th style="border: 1px solid #ccc; padding: 6px; background-color: #f2f2f2;"> {{ col }}</th>
+          {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in dataset_head %}
+        <tr>
+          {% for key, val in row.items %}
+            <td style="border: 1px solid #ccc; padding: 6px;">{{ val }}</td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+  <p>No dataset loaded</p>
+  {% endif %}
+</div>
 
 <!------------- Interprerability -------------->
     <div class="main-text"></div>
@@ -28,40 +60,53 @@
          <!---Decision Tree -->
         <div class="task-box">
           <h4> a) Decision Tree </h4>
-          <p>Fit a decision tree on the Palmer Penguins dataset.
+          <h4> a.1) Normal Decision Tree </h4>
+          <p>Fit a decision tree on the Palmer Penguins dataset.</p>
+          <p>Default values:</p>
+          <p> - Maximum tree depth = 5</p> 
+          <p> - Minimum number of samples required to split an internal node = 2</p>
+
+            <form method = "POST">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="normal_DT">
+                <button type="submit">Fit Normal Decision Tree</button>
+            </form>
+
+            {% if show_tree %}
+              <h2>Model Metrics</h2>
+              <ul>
+                <li>Test Accuracy: {{ test_accuracy_normal }}</li>
+                <li>Tree Depth: {{ depth_normal }}</li>
+                <li>Number of Nodes: {{ n_nodes_normal }}</li>
+              </ul>
+              <h2>Decision Tree</h2>
+            <img src="data:image/png;base64,{{ tree_image }}" alt="Decision Tree" style="max-width: 100%; height:auto; border: 1px solid #ccc">
+            
+            {% endif %}
+        </div>
+
+        <div class="task-box">
+          <h4> a.2) Sparse Decision Tree </h4>
+          <p>Fit a sparse decision tree on the Palmer Penguins dataset.
             By varying \(\lambda(f)\), the importance of the model's sparsity changes. </p>
 
             <form method = "POST">
                 {% csrf_token %}
-                <input type="hidden" name="action" value="decision_tree_visualization">
+                <input type="hidden" name="action" value="sparse_DT">
                 <label for="lambda-slider">λ: <span id="lambda-value">{{ lambda_value|default:"0.1" }}</span></label><br>
                 <input type="range" id="lambda-slider" name="lambda" min="0" max="1" step="0.01" value="{{ lambda_value|default:"0.1" }}" 
                     oninput="document.getElementById('lambda-value').textContent = this.value">
                 <br><br>
-
-            <button type="submit">Fit Decision Tree</button>
+              <button type="submit">Fit Sparse Decision Tree</button>
             </form>
-            {% if train_accuracy and test_accuracy %}
-            <h2>Model Metrics</h2>
-              <ul>
-                <li>Train Accuracy: {{ train_accuracy }}</li>
-                <li>Test Accuracy: {{ test_accuracy }}</li>
-                <li>Tree Depth: {{ depth }}</li>
-                <li>Number of Nodes: {{ n_nodes }}</li>
-              </ul>
-              {% endif %}
-              
-            {% if show_tree %}
+
+            {% if metrics_sparse %}
               <h2>Model Metrics</h2>
               <ul>
-                <li>Train Accuracy: {{ train_accuracy }}</li>
-                <li>Test Accuracy: {{ test_accuracy }}</li>
-                <li>Tree Depth: {{ depth }}</li>
-                <li>Number of Nodes: {{ n_nodes }}</li>
+                <li>Test Accuracy: {{ test_accuracy_sparse }}</li>
+                <li>Tree Depth: {{ depth_sparse }}</li>
+                <li>Number of Nodes: {{ n_nodes_sparse }}</li>
               </ul>
-              <h2>Decision Tree</h2>
-            <img src="data:image/png;base64,{{ tree_image }}" alt="Decision Tree">
-            
             {% endif %}
         </div>
 

@@ -20,6 +20,8 @@ from IPython.display import Image
 import pydotplus
 from sklearn.metrics import accuracy_score 
 import seaborn as sns
+from palmerpenguins import load_penguins
+import pandas as pd 
 
 from project_3.Interpretability.Decision_tree_complexity import SparseDecisionTree
 from project_3.Interpretability.Decision_tree import PalmerPenguinsDecisionTree
@@ -30,101 +32,92 @@ from project_3.Counterfactuals.counterfactuals_workflow import CounterfactualExp
 def index(request):
     context = {}
 
+    df = load_penguins().dropna()
+    context['dataset'] = df
+    dataset_sample = df.sample(n=5, random_state = np.random.randint(1,10000))
+    context["dataset_head"] = dataset_sample.to_dict(orient="records")
+
     if request.method == 'POST':
         action = request.POST.get('action')
 
-        if action == 'decision_tree_visualization':
+        if action == 'normal_DT':
             DT(request, context)
+        
+        elif action == 'sparse_DT':
+            sparse_DT(request, context)
 
-        elif action == 'log_regression_visualization':
-            logistic_regression_visualization(request, context)
+        elif action == 'log_regression':
+            logistic_regression(request, context)
 
         elif action == 'counterfactual':
             counterfactual(request, context)
 
     return render(request, 'project3_base.html', context)
 
-
 def DT(request, context):
 
-    selected_lambda = float(request.POST.get('lambda', 0.1))
-    print('Selected model:', selected_lambda)
-
-    # penguins = sns.load_dataset('penguins').dropna().reset_index(drop=True)
-    # X = penguins.select_dtypes(include=['number'])
-    # y = penguins['species']
-
-    # model = SparseDecisionTree(alpha=selected_lambda)
-    # model.fit(X, y)
-
-    # # Get metrics
-    # metrics = model.get_metrics(X, y)
-
-    # # Generate visualization and convert to base64
-    # image_path = 'static/tree.png'
-    # model.export_tree_graphviz(X.columns, save_path=image_path)
-
-    # with open(image_path, "rb") as image_file:
-    #     img_base64 = base64.b64encode(image_file.read()).decode('utf-8')
-
-    # context.update({
-    #     'lambda': selected_lambda,
-    #     "test_accuracy": metrics['test_acc'],
-    #     "train_accuracy": metrics['train_acc'],
-    #     "depth": metrics['tree_depth'],
-    #     "n_nodes": metrics['num_leaves'],
-    #     "total_nodes": metrics['total_nodes'],
-    #     "tree_image": img_base64,
-    #     "show_tree": True,
-    #     'message': f"Tree trained with lambda (alpha): {selected_lambda}"
-    # })
-
-# Train DT
-    tree_model = PalmerPenguinsDecisionTree(
-        max_depth = 5, 
-        min_samples_split = 2, 
-        random_state = 42, 
-    )
+    tree_model = PalmerPenguinsDecisionTree()
 
     tree_model.train_model()
-    metrics = tree_model.get_metrics()
+    metrics_normal = tree_model.get_metrics()
     img_path = tree_model.generate_tree_visualization(save_path = 'static/tree.png')
     
     with open(img_path, "rb") as image_file:
         img_base64 = base64.b64encode(image_file.read()).decode('utf-8')
 
     context.update({
-        'lambda': selected_lambda,
-        "test_accuracy": metrics['test_accuracy'], 
-        "depth": metrics['tree_depth'], 
-        "n_nodes": metrics['num_leaves'],
-        "total_nodes": metrics['total_nodes'],
+        "metrics_normal": True,
+        "test_accuracy_normal": metrics_normal['test_accuracy'], 
+        "depth_normal": metrics_normal['tree_depth'], 
+        "n_nodes_normal": metrics_normal['num_leaves'],
+        "total_nodes_normal": metrics_normal['total_nodes'],
         "tree_image": img_base64,
-        "show_tree": True,
-        'message': f"Tree trained with lambda: {selected_lambda}"
+        "show_tree": True
     })
 
     return render(request, 'project3_base.html', context)
 
+# NOT FINISHED 
+def sparse_DT(request, context):
 
-def get_tree_depth(tree):
-    def dfs(node_id, depth=0):
-        node = tree[node_id]
-        if "left" not in node and "right" not in node: 
-            return depth
-        return max(
-            dfs(node['left'], depth +1), 
-            dfs(node['right'], depth +1)
-        )
-    return dfs(0)
+    selected_lambda = float(request.POST.get('lambda', 0.1))
+    print('Selected model:', selected_lambda)
 
-def logistic_regression_visualization(request, context):
+    penguins = sns.load_dataset('penguins').dropna().reset_index(drop=True)
+    X = penguins.select_dtypes(include=['number'])
+    y = penguins['species']
+
+    model = SparseDecisionTree(alpha=selected_lambda)
+    model.fit(X, y)
+
+    # Get metrics
+    metrics_sparse = model.get_metrics(X, y)
+
+    # Generate visualization and convert to base64
+    image_path = 'static/tree.png'
+    model.export_tree_graphviz(X.columns, save_path=image_path)
+
+    with open(image_path, "rb") as image_file:
+        img_base64 = base64.b64encode(image_file.read()).decode('utf-8')
+
+    context.update({
+        "metrics_sparse": True,
+        'lambda': selected_lambda,
+        "test_accuracy_sparse": metrics_sparse['test_acc'],
+        "depth_sparse": metrics_sparse['tree_depth'],
+        "n_nodes_sparse": metrics_sparse['num_leaves'],
+        "total_nodes_sparse": metrics_sparse['total_nodes'],
+        "tree_image_sparse": img_base64,
+        'message': f"Tree trained with lambda (alpha): {selected_lambda}"
+    })
+
+def logistic_regression(request, context):
     pass
-    #return render(request, 'task2.html', context)
+        #return render(request, 'task3.html', context)
 
 def counterfactual(request, context):
     penguins = sns.load_dataset('penguins').dropna().reset_index(drop=True)
-    #print(penguins.head())
+    print(penguins.head())
     features = penguins.select_dtypes(include=['number']).columns.tolist()
     X = penguins[features]
     y = penguins['species']
