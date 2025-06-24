@@ -31,7 +31,8 @@ from project_3.Counterfactuals.counterfactuals_workflow import CounterfactualExp
 
 def index(request):
     context = {}
-
+    #global_trained_DT = None
+    
     df = load_penguins().dropna()
     context['dataset'] = df
     dataset_sample = df.sample(n=5, random_state = np.random.randint(1,10000))
@@ -55,10 +56,13 @@ def index(request):
     return render(request, 'project3_base.html', context)
 
 def DT(request, context):
+    global global_trained_DT
 
     tree_model = PalmerPenguinsDecisionTree()
-
     tree_model.train_model()
+    global_trained_DT = tree_model
+    
+    context['trained_DT'] = tree_model
     metrics_normal = tree_model.get_metrics()
     img_path = tree_model.generate_tree_visualization(save_path = 'static/tree.png')
     
@@ -111,65 +115,105 @@ def sparse_DT(request, context):
         'message': f"Tree trained with lambda (alpha): {selected_lambda}"
     })
 
+
 def logistic_regression(request, context):
     pass
         #return render(request, 'task3.html', context)
 
 def counterfactual(request, context):
-    penguins = sns.load_dataset('penguins').dropna().reset_index(drop=True)
-    print(penguins.head())
-    features = penguins.select_dtypes(include=['number']).columns.tolist()
-    X = penguins[features]
-    y = penguins['species']
+    
+    # Train model and prepare data
+    dt = PalmerPenguinsDecisionTree()
+    dt.train_model()
+    X, y, feature_names, target_names = dt.load_and_prepare_data()
 
-    tree_model = SparseDecisionTree(alpha = 0.1)
-    tree_model.fit(X,y)
+    # Get POST input values 
+    actual_species = request.POST.get("actual_species")
+    sample_id = request.POST.get("sample_id")
+    target_label = request.POST.get("target_species")
+    N = int(request.POST.get("N", 500))
+    k = int(request.POST.get("k", 3))
 
+    if not actual_species or not sample_id:
+        context["error"] = "Missing species or sample ID."
+        return render(request, "project3_base.html", context)
+    
+    # Combine features and labels
+    data = X.copy()
+    data['species'] = y
+
+    # Filter by selected species
+    filtered = data[data["species"] == actual_species]
+
+    print("Filtered indices:", filtered.index.tolist())
+    print("Sample ID from form:", sample_id)
+    print("Sample ID in filtered index?", sample_id in filtered.index)
+
+    # Try getting the selected example by its id
+    # try: 
+    #     sample_id = int(sample_id)
+    #     x = filtered.loc[sample_id]
     try:
-        example_index = int(request.POST.get('example_index', 0))
-        target_label = request.POST.get('target_label', 'Adelie')
-        N = int(request.POST.get('N', 500))
-        k = int(request.POST.get('k', 3))
-    except Exception as e:
-        context['error'] = f"Invalid input: {e}"
-        return
+        sample_id = int(sample_id)
+    except ValueError:
+        context["error"] = f"Sample ID must be an integer. Got: {sample_id}"
+        return render(request, "project3_base.html", context)
+    # Now this will work as expected
+    print("Sample ID in filtered index?", sample_id in filtered.index)
+    try: 
+        x = filtered.loc[sample_id]
 
-    if example_index < 0 or example_index >= len(penguins):
-        context['error'] = "Example index out of range."
-        return
+    except KeyError:
+        context['error'] = f"Sample ID {sample_id} is not a valid index for species {actual_species}."
+        return render(request, 'project3_base.html', context)
 
-    x = penguins.iloc[example_index]
+    # Define columns 
+    numeric_cols = ['bill_length_mm', 'bill_depth_mm', 'flipper_length_mm', 'body_mass_g']
+    categorical_cols = [col for col in X.columns if col not in numeric_cols]
 
-    # Instantiate your counterfactual explainer
+    # Encode features for filtered and for the single input x 
+    filtered_features = filtered.drop(columns=['species']).copy()
+    for col in categorical_cols:
+        filtered_features[col] = pd.Categorical(filtered_features[col]).codes
+
+    # Encode the selected sample features
+    x_features = x.drop(['species']).copy()
+    for col in categorical_cols:
+        x_features[col] = pd.Categorical([x_features[col]]).codes[0]
+
     explainer = CounterfactualExplainer(
-        model=tree_model,
-        data=penguins,
+        model=dt.model,
+        data = filtered_features, 
+        numeric_columns = numeric_cols, 
+        categorical_columns = categorical_cols,
         N=N,
         k=k
     )
 
     # Compute counterfactuals
-    counterfactuals = explainer.compute(x, target_label)
+    counterfactuals = explainer.compute(x_features, target_label)
 
     context.update({
         'counterfactuals': counterfactuals,
-        'selected_example': x.to_dict(),
+        'selected_example': filtered.to_dict(),
         'target_label': target_label,
         'N': N,
         'k': k,
-        'features': features,
-        'species_options': penguins['species'].unique().tolist(),
-        'example_index': example_index,
+        'features': feature_names,
+        'species_options': target_names,
+        'example_index': sample_id,
         'message': f'Found {len(counterfactuals)} counterfactual explanations.'
+
     })
 
     return render(request, 'project3_base.html', context)
 
 
-
-def get_samples(request, context):
+def get_samples(request):
+    print("get_samples() view triggered")
     species = request.GET.get('species', '')
     print(f"get_samples called with species={species}")
+
     penguins = sns.load_dataset('penguins').dropna().reset_index()
     print(penguins.head())
     if species: 
