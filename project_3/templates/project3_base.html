@@ -51,7 +51,7 @@
               </ul>
               {% endif %}
               
-            <!-- {% if show_tree %}
+            {% if show_tree %}
               <h2>Model Metrics</h2>
               <ul>
                 <li>Train Accuracy: {{ train_accuracy }}</li>
@@ -62,7 +62,7 @@
               <h2>Decision Tree</h2>
             <img src="data:image/png;base64,{{ tree_image }}" alt="Decision Tree">
             
-            {% endif %} -->
+            {% endif %}
         </div>
 
         <div class="task-box">
@@ -79,16 +79,50 @@
         {% endif %}
         </div>
 
+ <!------ Counterfactuals -------->
 
-<!------------- Counterfactual Explainations -------------->
-        <div class="task-box">
-          <h3 style = "text-align:center">2. Counterfactual Explainations</h3>
-          <p>Select an example x from the dataset, as well as a target label.</p>
-        </div>
+<div class="task-box">
+  <h3 style="text-align:center">2. Counterfactual Explanations</h3>
+
+  <form id="cf_form">
+
+    <!-- Select actual species -->
+    <label for="actualSpecies">Choose a species:</label>
+    <select id="actualSpecies" name="actual_species" onchange="loadSamples()">
+      <option value="">-- Select --</option>
+      <option value="Adelie">Adelie</option>
+      <option value="Chinstrap">Chinstrap</option>
+      <option value="Gentoo">Gentoo</option>
+    </select>
+
+    <!-- Pick sample from species -->
+    <div id="sampleStep" style="display:none; margin-top:10px;">
+      <label for="penguinSelect">Choose a penguin:</label>
+      <select id="penguinSelect" name="sample_id" onchange="showPenguinDetails()">
+        <option value="">Select species first</option>
+      </select>
     </div>
+
+    <!-- Pick target species -->
+    <div id="targetStep" style="display:none; margin-top:10px;">
+      <label for="targetSelect">Target Species:</label>
+      <select id="targetSelect" name="target_species">
+        <option value="">Select actual species first</option>
+      </select>
+    </div>
+
+    <!-- Show penguin details -->
+    <div id="penguinDetails" class="penguin-details" style="margin-top:10px;"></div>
+
+    <!-- Submit button -->
+    <div id="submitStep" style="display:none; margin-top:10px;">
+      <button type="submit">Generate Counterfactual</button>
+    </div>
+  </form>
+
+  <!-- Result output -->
+  <div id="cfResults" style="margin-top:20px;"></div>
 </div>
-
-
 
 
 
@@ -102,4 +136,125 @@
   src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
 </script>
 
-{% endblock %}
+<script>
+    const speciesOptions = ["Adelie", "Chinstrap", "Gentoo"];
+    let allSamples = {};
+
+    function updateTargetSpecies(actualSpecies) {
+      const targetSelect = document.getElementById("targetSelect");
+      targetSelect.innerHTML = "";
+      speciesOptions.filter(s => s !== actualSpecies).forEach(species => {
+        const opt = document.createElement("option");
+        opt.value = species;
+        opt.text = species;
+        targetSelect.appendChild(opt);
+      });
+    }
+
+    function loadSamples() {
+      const actualSpecies = document.getElementById("actualSpecies").value;
+
+      if (!actualSpecies) {
+        document.getElementById("sampleStep").style.display = "none";
+        document.getElementById("targetStep").style.display = "none";
+        document.getElementById("submitStep").style.display = "none";
+        document.getElementById("penguinSelect").innerHTML = '<option>Select species first</option>';
+        document.getElementById("targetSelect").innerHTML = '<option value="">Select actual species first</option>';
+        document.getElementById("penguinDetails").innerHTML = "";
+        return;
+      }
+
+      document.getElementById("sampleStep").style.display = "block";
+      document.getElementById("targetStep").style.display = "block";
+
+      updateTargetSpecies(actualSpecies);
+
+      fetch(`${getSamplesUrl}?species=${actualSpecies}`)
+        .then(response => response.json())
+        .then(data => {
+          const select = document.getElementById("penguinSelect");
+          select.innerHTML = "";
+          allSamples = {};
+
+          if (data.samples.length === 0) {
+            select.innerHTML = '<option>No samples found</option>';
+            document.getElementById("submitStep").style.display = "none";
+            return;
+          }
+
+          data.samples.forEach((s, i) => {
+            const sampleId = s.index ?? i;
+
+            const opt = document.createElement("option");
+            opt.value = sampleId;
+            opt.text = `#${sampleId} — Bill: ${s.bill_length_mm}, Flipper: ${s.flipper_length_mm}`;
+            select.appendChild(opt);
+
+            allSamples[sampleId] = s;
+          });
+
+          document.getElementById("submitStep").style.display = "block";
+
+          select.value = select.options[0].value;
+          select.dispatchEvent(new Event('change'));
+        })
+        .catch(err => console.error("Failed to load samples:", err));
+    }
+
+    document.getElementById("penguinSelect").addEventListener("change", function () {
+      const selectedId = this.value;
+      const sample = allSamples[selectedId];
+      const detailsDiv = document.getElementById("penguinDetails");
+
+      if (sample) {
+        let html = "<table><thead><tr><th>Feature</th><th>Value</th></tr></thead><tbody>";
+        for (const key in sample) {
+          if (key !== "id") {
+            html += `<tr><td>${key}</td><td>${sample[key]}</td></tr>`;
+          }
+        }
+        html += "</tbody></table>";
+        detailsDiv.innerHTML = html;
+      } else {
+        detailsDiv.innerHTML = "";
+      }
+    });
+
+    document.getElementById("cf_form").addEventListener("submit", function (e) {
+      e.preventDefault();
+
+      const formData = new FormData(this);
+
+      fetch("/generate_counterfactual/", {
+        method: "POST",
+        body: formData,
+      })
+        .then(res => res.json())
+        .then(data => {
+          const div = document.getElementById("cfResults");
+          div.innerHTML = "<h4>Suggested Changes:</h4>";
+
+          if (!data.counterfactuals || data.counterfactuals.length === 0) {
+            div.innerHTML += "<p>No counterfactuals found.</p>";
+            return;
+          }
+
+          data.counterfactuals.forEach((cf, i) => {
+            let changes = "";
+            for (const key in cf.changes) {
+              changes += `<li>${key}: ${cf.original[key]} ➝ <b>${cf.changes[key]}</b></li>`;
+            }
+            div.innerHTML += `<p><strong>Option #${i + 1}</strong><ul>${changes}</ul></p>`;
+          });
+        })
+        .catch(err => console.error("Error generating counterfactual:", err));
+    });
+  </script>
+
+  <script>
+    const getSamplesUrl = "{% url 'project3:get_samples' %}";
+  </script>
+
+  
+
+{% endblock %}  
