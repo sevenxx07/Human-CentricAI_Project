@@ -58,10 +58,6 @@ class PalmerPenguinsDecisionTree:
         # Remove rows with missing values
         penguins_clean = penguins.dropna()
 
-        print(f"Dataset shape after removing missing values: {penguins_clean.shape}")
-        print(f"Features: {list(penguins_clean.columns)}")
-        print(f"Species distribution:\n{penguins_clean['species'].value_counts()}")
-
         # Prepare features (X) - using numerical features
         numerical_features = ['bill_length_mm', 'bill_depth_mm', 'flipper_length_mm', 'body_mass_g']
         X = penguins_clean[numerical_features].copy()
@@ -102,9 +98,6 @@ class PalmerPenguinsDecisionTree:
             X, y, test_size=test_size, random_state=self.random_state, stratify=y
         )
 
-        print(f"Training set size: {len(self.X_train)}")
-        print(f"Test set size: {len(self.X_test)}")
-
         # Initialize and train the model
         self.model = DecisionTreeClassifier(
             max_depth=self.max_depth,
@@ -118,12 +111,7 @@ class PalmerPenguinsDecisionTree:
         # Calculate metrics
         y_pred = self.model.predict(self.X_test)
         self.test_accuracy = accuracy_score(self.y_test, y_pred)
-        self.num_leaves = self.model.get_n_leaves()
-
-        print(f"\nModel Training Complete!")
-        print(f"Test Accuracy: {self.test_accuracy:.4f}")
-        print(f"Number of leaves: {self.num_leaves}")
-        print(f"Tree depth: {self.model.get_depth()}")
+        self.num_leaves = int(self.model.get_n_leaves())
 
     def get_metrics(self):
         """
@@ -172,7 +160,7 @@ class PalmerPenguinsDecisionTree:
             fontsize=17,
             max_depth=5,  # Limit display depth for readability
             impurity = False,  # Don't show gini
-            proportion = True,  # Don't show proportions
+            proportion = False,  # Don't show proportions
             label = 'none'  # Don't show default labels
         )
 
@@ -180,16 +168,10 @@ class PalmerPenguinsDecisionTree:
         plt.tight_layout()
         plt.savefig(save_path, dpi=dpi, bbox_inches='tight', facecolor='white')
 
-        print(f"Tree visualization saved as '{save_path}'")
         return save_path
 
 
 def main():
-    """
-    Main function to demonstrate the Palmer Penguins Decision Tree analysis.
-    """
-    print("Palmer Penguins Decision Tree Analysis")
-    print("=" * 50)
 
     # Initialize the classifier
     dt_classifier = PalmerPenguinsDecisionTree(
@@ -197,16 +179,16 @@ def main():
         min_samples_split=2,
         random_state=42
     )
-
     # Train the model
     dt_classifier.train_model(test_size=0.3)
-
     # Generate tree visualization
     dt_classifier.generate_tree_visualization(
         figsize=(24, 16),
         save_path='palmer_penguins_decision_tree.png',
         dpi=400
     )
+    met = dt_classifier.get_metrics()
+    print(met)
 
 
 if __name__ == "__main__":

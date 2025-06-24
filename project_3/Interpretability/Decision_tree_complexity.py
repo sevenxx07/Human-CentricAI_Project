@@ -23,7 +23,6 @@ class SparseDecisionTree:
         self.ref_labels = None
         self.clf = None
         self.label_encoder = None
-        self.test_accuracy = None
         self.num_leaves = 0
 
     def load_data(self, test_size=0.2, random_state=42):
@@ -77,18 +76,6 @@ class SparseDecisionTree:
         return self.evaluate()
 
     def parse_gosdt_string(self, input_string):
-        """
-        Parse a single string containing GOSDT tree, feature index, and number of classes.
-
-        Args:
-            input_string (str): Combined string with tree, Index, and number of classes
-
-        Returns:
-            tuple: (tree_dict, feature_array, num_classes)
-                - tree_dict: Dictionary representation of the tree structure
-                - feature_array: List of feature conditions
-                - num_classes: Number of classes
-        """
         import re
 
         def parse_tree_node(text):
@@ -308,12 +295,10 @@ class SparseDecisionTree:
         dot.attr('edge', fontname='Arial', fontsize='9')
 
         tree_root = self.clf.trees_[0]
-        print(tree_root)
         a, b, c = self.parse_gosdt_string(str(tree_root))
         predicted_labels = [0, 1, 2]
         class_names = self.label_encoder.inverse_transform(predicted_labels)
         self.swap_numbers_for_text_dictionary(a, class_names, b)
-        print(a)
 
         def build_tree(dict, par, r, counter):
             current_id = counter[0]
@@ -323,22 +308,22 @@ class SparseDecisionTree:
                     dot.node(str(current_id), label=dict[k])
                     if par is not None:
                         if r == 1:
-                            dot.edge(str(par), str(current_id), label="NO")
+                            dot.edge(str(par), str(current_id), label="False")
                         elif r == 0:
-                            dot.edge(str(par), str(current_id), label="YES")
+                            dot.edge(str(par), str(current_id), label="True")
                     counter[0] += 1
                 elif k == 'prediction':
                     color = {
-                        'Adelie': 'lightblue',
-                        'Gentoo': 'lightgreen',
-                        'Chinstrap': 'lightpink'
+                        'Adelie': 'orange',
+                        'Gentoo': 'purple',
+                        'Chinstrap': 'lightgreen'
                     }.get(dict[k], 'white')
                     dot.node(str(current_id), label=f"{dict[k]}\nloss: {dict['loss']}", fillcolor=color, style='filled')
                     if par is not None:
                         if r == 1:
-                            dot.edge(str(par), str(current_id), label="NO")
+                            dot.edge(str(par), str(current_id), label="False")
                         elif r == 0:
-                            dot.edge(str(par), str(current_id), label="YES")
+                            dot.edge(str(par), str(current_id), label="True")
                     counter[0] += 1
                     return
                 elif k == 'left_child':
@@ -346,7 +331,6 @@ class SparseDecisionTree:
                 elif k == 'right_child':
                     build_tree(dict[k], current_id, 1, counter)
         build_tree(a, None, None, [0])
-        print(self.num_leaves)
         # Save the file
         output_path = dot.render(filename, format=format, cleanup=True)
 
@@ -360,4 +344,4 @@ if __name__ == "__main__":
     print(f"Test Accuracy: {test_acc:.3f}")
 
     img_path = tree_model.export_tree_image()
-    print(f"Tree image saved to: {img_path}")
+    print(f"Number of leaves: {tree_model.num_leaves}")
