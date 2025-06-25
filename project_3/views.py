@@ -94,15 +94,14 @@ def sparse_DT(request, context):
     print('Selected model:', selected_lambda)
 
     model = SparseDecisionTree(alpha=selected_lambda)
-    train_acc, test_acc = model.run_pipeline()
-    n_leaves = model.num_leaves
-    print(f"n_leaves: {n_leaves}")
+    test_acc = model.run_pipeline()
 
     global_trained_DT_sparse = model
     context['trained_DT_sparse'] = model
 
     image_path = model.export_tree_image()
-
+    n_leaves = model.num_of_leaves()
+    print(f"n_leaves: {n_leaves}")
     with open(image_path, "rb") as image_file:
         img_base64_sparse = base64.b64encode(image_file.read()).decode('utf-8')
 

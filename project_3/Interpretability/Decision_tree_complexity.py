@@ -6,6 +6,9 @@ from sklearn.ensemble import GradientBoostingClassifier
 from gosdt import ThresholdGuessBinarizer, GOSDTClassifier
 from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import LabelEncoder
+import numpy as np
+from sklearn.metrics import classification_report, confusion_matrix, balanced_accuracy_score
+
 
 class SparseDecisionTree:
     def __init__(self, alpha=0.01, depth_budget=6, time_limit=60, verbose=True):
@@ -20,12 +23,13 @@ class SparseDecisionTree:
         self.y_test = None
         self.X_train_bin = None
         self.X_test_bin = None
+        self.y_pred = None
         self.ref_labels = None
         self.clf = None
         self.label_encoder = None
         self.num_leaves = 0
 
-    def load_data(self, test_size=0.2, random_state=42):
+    def load_data(self, test_size=0.3, random_state=42):
         df = load_penguins()
         df = df.dropna()
         y = df["species"]
@@ -59,13 +63,12 @@ class SparseDecisionTree:
             depth_budget=self.depth_budget,
             verbose=self.verbose
         )
-        self.clf.fit(self.X_train_bin, self.y_train, y_ref=self.ref_labels)
+        self.y_pred = self.clf.fit(self.X_train_bin, self.y_train, y_ref=self.ref_labels)
 
     def evaluate(self):
         """Return accuracy on train and test data."""
-        train_acc = self.clf.score(self.X_train_bin, self.y_train)
         test_acc = self.clf.score(self.X_test_bin, self.y_test)
-        return train_acc, test_acc
+        return test_acc
 
     def run_pipeline(self):
         """Complete training pipeline."""
@@ -74,6 +77,9 @@ class SparseDecisionTree:
         self.get_reference_labels()
         self.train()
         return self.evaluate()
+
+    def num_of_leaves(self):
+        return self.num_leaves
 
     def parse_gosdt_string(self, input_string):
         import re
@@ -268,6 +274,8 @@ class SparseDecisionTree:
         return tree_dict, feature_array, num_classes
 
     def swap_numbers_for_text_dictionary(self, dict, classes, features):
+        if dict is None:
+            return
         for k in dict:
             if k == 'feature':
                 n = dict[k]
@@ -298,11 +306,16 @@ class SparseDecisionTree:
         a, b, c = self.parse_gosdt_string(str(tree_root))
         predicted_labels = [0, 1, 2]
         class_names = self.label_encoder.inverse_transform(predicted_labels)
+        print(a)
+        print(b)
+        print(c)
         self.swap_numbers_for_text_dictionary(a, class_names, b)
+        print(a)
 
         def build_tree(dict, par, r, counter):
             current_id = counter[0]
-
+            if dict is None:
+                return
             for k in dict:
                 if k == 'feature':
                     dot.node(str(current_id), label=dict[k])
@@ -337,11 +350,12 @@ class SparseDecisionTree:
         return output_path
 
 if __name__ == "__main__":
-    tree_model = SparseDecisionTree(alpha=0.05)
-    train_acc, test_acc = tree_model.run_pipeline()
-
-    print(f"Train Accuracy: {train_acc:.3f}")
+    tree_model = SparseDecisionTree(alpha=0.04) #from 0.004-0.4 so it can be optimized
+    test_acc = tree_model.run_pipeline()
     print(f"Test Accuracy: {test_acc:.3f}")
-
     img_path = tree_model.export_tree_image()
-    print(f"Number of leaves: {tree_model.num_leaves}")
+    print(f"Number of leaves: {tree_model.num_of_leaves()}")
+    #for alpha in [0.004, 0.01, 0.1, 0.4]:
+    #    model = SparseDecisionTree(alpha=alpha)
+    #    train_acc, test_acc = model.run_pipeline()
+    #    print(f"λ={alpha:.3f} → Train Acc: {train_acc:.3f}, Test Acc: {test_acc:.3f}")
