@@ -113,7 +113,7 @@ class SparseLogisticRegression:
         return acc, nonzero # Added by S
 
 if __name__ == "__main__":
-    model = SparseLogisticRegression(alpha=30)
+    model = SparseLogisticRegression(alpha=30) #from 1 to 100
     model.run_pipeline()
     #alphas = [0.1, 1, 10, 30, 50, 70, 100]
     #features_used = []
