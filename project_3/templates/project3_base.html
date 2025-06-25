@@ -84,7 +84,6 @@
               <h2>Model Metrics</h2>
               <ul>
                 <li>Test Accuracy: {{ test_accuracy_normal }}</li>
-                <li>Tree Depth: {{ depth_normal }}</li>
                 <li>Number of Nodes: {{ n_nodes_normal }}</li>
               </ul>
               <h2>Decision Tree</h2>
@@ -108,13 +107,14 @@
               <button type="submit">Fit Sparse Decision Tree</button>
             </form>
 
-            {% if metrics_sparse %}
+            {% if show_tree_sparse %}
               <h2>Model Metrics</h2>
               <ul>
                 <li>Test Accuracy: {{ test_accuracy_sparse }}</li>
-                <li>Tree Depth: {{ depth_sparse }}</li>
                 <li>Number of Nodes: {{ n_nodes_sparse }}</li>
               </ul>
+              <h2>Sparse Decision Tree</h2>
+            <img src="data:image/png;base64,{{ tree_image_sparse }}" alt="Sparse Decision Tree" style="max-width: 100%; height:auto; border: 1px solid #ccc">
             {% endif %}
         </div>
 
@@ -178,7 +178,17 @@
     <!-- Show penguin details -->
     <div id="penguinDetails" class="penguin-details" style="margin-top:10px;"></div>
 
-    <!--- Choose N and k -->
+    <!--- Choose model, N & k -->
+
+    <div style="margin-top:10px;">
+      <label for="modelSelect">Choose model:</label>
+      <select id="modelSelect" name="model">
+        <option value="dt">Decision Tree</option>
+        <option value="sparse_dt">Sparse Decision Tree</option>
+        <option value="lr">Logistic Regression</option>
+        <option value="sparse_lr">Sparse Logistic Regression</option>
+      </select>
+    </div>
     
     <div style="margin-top:10px;">
       <label for="numSamples">Number of samples (N):</label>
@@ -200,35 +210,31 @@
   <p style="color:red;"><strong>{{ error }}</strong></p>
 {% endif %}
 
+<p>{{ message }}</p>
+
+<!-- Display the counterfactual explanations as a table -->
 {% if counterfactuals %}
-  <div id="cfResults" style="margin-top:20px;">
-    <h4>{{ message }}</h4>
-    <table border="1">
-      <thead>
+  <table border="1" cellpadding="5" cellspacing="0">
+    <thead>
+      <tr>
+        {% for col in counterfactual_keys %}
+          <th>{{ col }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for cf in counterfactuals %}
         <tr>
-          {% for feature in features %}
-            <th>{{ feature }}</th>
+          {% for value in cf.values %}
+            <td>{{ value }}</td>
           {% endfor %}
         </tr>
-      </thead>
-      <tbody>
-        {% for cf in counterfactuals %}
-          <tr>
-            {% for feature in features %}
-              <td>{{ cf.feature }}</td>
-            {% endfor %}
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <p>No counterfactual explanations found.</p>
 {% endif %}
-</div>
-
-<script>
-  const getSamplesUrl = "{% url 'project3:get_samples' %}";
-</script>
-
 
 
   <!-- Result output -->

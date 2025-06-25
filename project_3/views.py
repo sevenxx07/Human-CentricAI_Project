@@ -28,10 +28,14 @@ from project_3.Interpretability.Decision_tree import PalmerPenguinsDecisionTree
 
 from project_3.Counterfactuals.counterfactuals_workflow import CounterfactualExplainer
 
+# Initialize global variables for models
+global_trained_DT = None
+global_trained_DT_sparse = None
+global_trained_LR = None
+global_trained_LR_sparse = None
 
 def index(request):
     context = {}
-    #global_trained_DT = None
     
     df = load_penguins().dropna()
     context['dataset'] = df
@@ -81,126 +85,130 @@ def DT(request, context):
 
     return render(request, 'project3_base.html', context)
 
-# NOT FINISHED 
 def sparse_DT(request, context):
+    global global_trained_DT_sparse
+    
+    context['trained_DT_sparse'] = model
 
     selected_lambda = float(request.POST.get('lambda', 0.1))
     print('Selected model:', selected_lambda)
 
-    penguins = sns.load_dataset('penguins').dropna().reset_index(drop=True)
-    X = penguins.select_dtypes(include=['number'])
-    y = penguins['species']
-
     model = SparseDecisionTree(alpha=selected_lambda)
-    model.fit(X, y)
+    train_acc, test_acc = model.run_pipeline()
+    n_leaves = model.num_leaves
+    print(f"n_leaves: {n_leaves}")
 
-    # Get metrics
-    metrics_sparse = model.get_metrics(X, y)
+    global_trained_DT_sparse = model
+    context['trained_DT_sparse'] = model
 
-    # Generate visualization and convert to base64
-    image_path = 'static/tree.png'
-    model.export_tree_graphviz(X.columns, save_path=image_path)
+    image_path = model.export_tree_image()
 
     with open(image_path, "rb") as image_file:
-        img_base64 = base64.b64encode(image_file.read()).decode('utf-8')
+        img_base64_sparse = base64.b64encode(image_file.read()).decode('utf-8')
 
     context.update({
-        "metrics_sparse": True,
+        "train_acc": True,
         'lambda': selected_lambda,
-        "test_accuracy_sparse": metrics_sparse['test_acc'],
-        "depth_sparse": metrics_sparse['tree_depth'],
-        "n_nodes_sparse": metrics_sparse['num_leaves'],
-        "total_nodes_sparse": metrics_sparse['total_nodes'],
-        "tree_image_sparse": img_base64,
+        "test_accuracy_sparse": test_acc,
+        "n_nodes_sparse": n_leaves, #Returns 0 nodes in the interface... FIX!
+        "tree_image_sparse": img_base64_sparse,
+        "show_tree_sparse": True,
         'message': f"Tree trained with lambda (alpha): {selected_lambda}"
     })
 
-
 def logistic_regression(request, context):
+    global global_trained_LR
     pass
         #return render(request, 'task3.html', context)
 
+def sparse_logistic_regression(request, context):
+    global global_trained_LR_sparse
+    pass
+
 def counterfactual(request, context):
+    global global_trained_DT, global_trained_DT_sparse, global_trained_LR, global_trained_LR_sparse
     
-    # Train model and prepare data
-    dt = PalmerPenguinsDecisionTree()
-    dt.train_model()
-    X, y, feature_names, target_names = dt.load_and_prepare_data()
+    data = context['dataset']
+    numeric_columns = ["bill_length_mm", "bill_depth_mm", "flipper_length_mm", "body_mass_g"]
+    categorical_columns = ['island', 'sex']
+
+    data_encoded = data.copy()
+    for col in categorical_columns: 
+        data_encoded[col] = pd.Categorical(data_encoded[col]).codes
 
     # Get POST input values 
+    model_type = request.POST.get("model")
     actual_species = request.POST.get("actual_species")
     sample_id = request.POST.get("sample_id")
     target_label = request.POST.get("target_species")
     N = int(request.POST.get("N", 500))
     k = int(request.POST.get("k", 3))
 
-    if not actual_species or not sample_id:
-        context["error"] = "Missing species or sample ID."
+    if not actual_species or not sample_id or not target_label or not model_type:
+        context["error"] = "Please select species, sample, target & model"
         return render(request, "project3_base.html", context)
     
-    # Combine features and labels
-    data = X.copy()
-    data['species'] = y
-
-    # Filter by selected species
-    filtered = data[data["species"] == actual_species]
-
-    print("Filtered indices:", filtered.index.tolist())
-    print("Sample ID from form:", sample_id)
-    print("Sample ID in filtered index?", sample_id in filtered.index)
-
-    # Try getting the selected example by its id
-    # try: 
-    #     sample_id = int(sample_id)
-    #     x = filtered.loc[sample_id]
     try:
         sample_id = int(sample_id)
     except ValueError:
-        context["error"] = f"Sample ID must be an integer. Got: {sample_id}"
+        context['error'] = "Invalid sample ID"
         return render(request, "project3_base.html", context)
-    # Now this will work as expected
-    print("Sample ID in filtered index?", sample_id in filtered.index)
-    try: 
-        x = filtered.loc[sample_id]
+    
+    model_map = {
+        'dt': global_trained_DT,
+        'sparse_DT': global_trained_DT_sparse, 
+        'lr': global_trained_LR, 
+        'sparse_lr': global_trained_LR_sparse
+                }
+    
+    model = model_map.get(model_type)
+    
+    if model is None:
+        context["error"] = f"Model '{model_type}' has not been trained yet."
+        return render(request, "project3_base.html", context)
 
-    except KeyError:
-        context['error'] = f"Sample ID {sample_id} is not a valid index for species {actual_species}."
-        return render(request, 'project3_base.html', context)
+    if sample_id < 0 or sample_id >= len(data):
+        context["error"] = "Sample ID out of range."
+        return render(request, "project3_base.html", context)
 
-    # Define columns 
-    numeric_cols = ['bill_length_mm', 'bill_depth_mm', 'flipper_length_mm', 'body_mass_g']
-    categorical_cols = [col for col in X.columns if col not in numeric_cols]
-
-    # Encode features for filtered and for the single input x 
-    filtered_features = filtered.drop(columns=['species']).copy()
-    for col in categorical_cols:
-        filtered_features[col] = pd.Categorical(filtered_features[col]).codes
-
-    # Encode the selected sample features
-    x_features = x.drop(['species']).copy()
-    for col in categorical_cols:
-        x_features[col] = pd.Categorical([x_features[col]]).codes[0]
-
+    species_to_label = {name: i for i, name in enumerate(data['species'].unique())}
+    if target_label in species_to_label:
+        y_target = species_to_label[target_label]
+    else: 
+        context["error"] = "Invalid target species."
+        return render(request, "project3_base.html", context)
+    
+    data_for_explainer = data_encoded.drop(columns=['species', 'year'], errors='ignore')
+    
     explainer = CounterfactualExplainer(
-        model=dt.model,
-        data = filtered_features, 
-        numeric_columns = numeric_cols, 
-        categorical_columns = categorical_cols,
+        model = model.model,
+        data = data_for_explainer,  
+        numeric_columns = numeric_columns, 
+        categorical_columns = categorical_columns,
         N=N,
         k=k
     )
 
-    # Compute counterfactuals
-    counterfactuals = explainer.compute(x_features, target_label)
+    x = data_for_explainer.iloc[sample_id].astype(float)
+  
+    counterfactuals = explainer.compute(x, y_target)
+    print("Input features (x) for counterfactual computation:")
+    print(x)
+    print("Target label (y_target):", y_target)
+
+
+    if counterfactuals: 
+        counterfactual_keys = list(counterfactuals[0].keys())
+    else:
+        counterfactual_keys= []
 
     context.update({
         'counterfactuals': counterfactuals,
-        'selected_example': filtered.to_dict(),
+        'selected_example': x.to_dict(),
         'target_label': target_label,
         'N': N,
         'k': k,
-        'features': feature_names,
-        'species_options': target_names,
+        'model_type' : model_type,
         'example_index': sample_id,
         'message': f'Found {len(counterfactuals)} counterfactual explanations.'
 
