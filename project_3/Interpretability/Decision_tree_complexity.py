@@ -11,7 +11,7 @@ from sklearn.metrics import classification_report, confusion_matrix, balanced_ac
 
 
 class SparseDecisionTree:
-    def __init__(self, alpha=0.01, depth_budget=6, time_limit=60, verbose=True):
+    def __init__(self, alpha, depth_budget=6, time_limit=60, verbose=True):
         self.alpha = alpha
         self.depth_budget = depth_budget
         self.time_limit = time_limit
@@ -54,6 +54,11 @@ class SparseDecisionTree:
         ref_model.fit(self.X_train_bin, self.y_train)
         self.ref_labels = ref_model.predict(self.X_train_bin)
 
+    def simple_train(self):
+        self.clf = GOSDTClassifier(regularization=self.alpha, depth_budget=self.depth_budget, time_limit=60, similar_support=False)
+        self.guess_thresholds()
+        self.clf.fit(self.X_train_bin, self.y_train)
+
     def train(self):
         """Train the GOSDT sparse decision tree."""
         self.clf = GOSDTClassifier(
@@ -73,22 +78,44 @@ class SparseDecisionTree:
     def run_pipeline(self):
         """Complete training pipeline."""
         self.load_data()
-        self.guess_thresholds()
-        self.get_reference_labels()
-        self.train()
+        self.simple_train()
         return self.evaluate()
 
     def num_of_leaves(self):
         return self.num_leaves
 
     def parse_gosdt_string(self, input_string):
+        """
+        Parse a single string containing GOSDT tree, feature index, and number of classes.
+
+        Args:
+            input_string (str): Combined string with tree, Index, and number of classes
+
+        Returns:
+            tuple: (tree_dict, feature_array, num_classes)
+                - tree_dict: Dictionary representation of the tree structure
+                - feature_array: List of feature conditions
+                - num_classes: Number of classes
+        """
         import re
+
+        def find_matching_bracket(text, start_pos, open_char='[', close_char=']'):
+            """Find the position of the matching closing bracket/brace."""
+            count = 1
+            pos = start_pos + 1
+            while pos < len(text) and count > 0:
+                if text[pos] == open_char:
+                    count += 1
+                elif text[pos] == close_char:
+                    count -= 1
+                pos += 1
+            return pos - 1 if count == 0 else -1
 
         def parse_tree_node(text):
             """Recursively parse tree nodes from string representation."""
             text = text.strip()
 
-            # Check if this is a leaf node (prediction)
+            # Check if this is a leaf node (prediction only)
             if 'prediction:' in text and 'feature:' not in text:
                 prediction_match = re.search(r'prediction:\s*(\d+),\s*loss:\s*([\d.]+)', text)
                 if prediction_match:
@@ -104,66 +131,21 @@ class SparseDecisionTree:
 
             feature_idx = int(feature_match.group(1))
 
-            # Find the bracket that contains the children
-            children_start = text.find('[', text.find('feature:'))
-            if children_start == -1:
+            # Find the opening bracket for children
+            bracket_start = text.find('[', text.find('feature:'))
+            if bracket_start == -1:
                 return None
 
             # Find the matching closing bracket
-            bracket_count = 1
-            children_end = children_start + 1
-            while children_end < len(text) and bracket_count > 0:
-                if text[children_end] == '[':
-                    bracket_count += 1
-                elif text[children_end] == ']':
-                    bracket_count -= 1
-                children_end += 1
-
-            if bracket_count > 0:
+            bracket_end = find_matching_bracket(text, bracket_start, '[', ']')
+            if bracket_end == -1:
                 return None
 
-            children_content = text[children_start + 1:children_end - 1].strip()
+            # Extract the content between brackets
+            children_content = text[bracket_start + 1:bracket_end].strip()
 
-            # Find left child and right child
-            left_start = children_content.find('left child:')
-            right_start = children_content.find('right child:')
-
-            if left_start == -1 or right_start == -1:
-                return None
-
-            # Extract left child - need to find the complete block
-            left_content_start = left_start + len('left child:')
-            left_content = children_content[left_content_start:right_start].strip()
-
-            # Remove trailing comma and whitespace
-            left_content = left_content.rstrip(',').strip()
-
-            # If it starts and ends with braces, remove them
-            if left_content.startswith('{') and left_content.endswith('}'):
-                left_content = left_content[1:-1].strip()
-
-            # Extract right child - from right_start to end
-            right_content_start = right_start + len('right child:')
-            right_content = children_content[right_content_start:].strip()
-
-            # Handle the right child which might have nested brackets
-            if right_content.startswith('{'):
-                # Find the matching closing brace
-                brace_count = 1
-                end_pos = 1
-                while end_pos < len(right_content) and brace_count > 0:
-                    if right_content[end_pos] == '{':
-                        brace_count += 1
-                    elif right_content[end_pos] == '}':
-                        brace_count -= 1
-                    end_pos += 1
-
-                if brace_count == 0:
-                    right_content = right_content[1:end_pos - 1].strip()
-
-            # Recursively parse children
-            left_child = parse_tree_node(left_content)
-            right_child = parse_tree_node(right_content)
+            # Parse children using a more robust method
+            left_child, right_child = parse_children(children_content)
 
             return {
                 'feature': feature_idx,
@@ -171,35 +153,107 @@ class SparseDecisionTree:
                 'right_child': right_child
             }
 
+        def parse_children(content):
+            """Parse left and right children from content string."""
+            content = content.strip()
+
+            # Find 'left child:' and 'right child:' positions
+            left_pos = content.find('left child:')
+            right_pos = content.find('right child:')
+
+            if left_pos == -1 or right_pos == -1:
+                return None, None
+
+            # Extract left child
+            left_start = left_pos + len('left child:')
+            left_content = content[left_start:right_pos].strip().rstrip(',').strip()
+
+            # Remove outer braces if present
+            if left_content.startswith('{') and left_content.endswith('}'):
+                left_content = left_content[1:-1].strip()
+
+            # Extract right child - everything after 'right child:'
+            right_start = right_pos + len('right child:')
+            right_content = content[right_start:].strip()
+
+            # For right child, we need to be more careful about nested structures
+            if right_content.startswith('{'):
+                # Find the complete right child block
+                brace_count = 0
+                bracket_count = 0
+                end_pos = 0
+
+                for i, char in enumerate(right_content):
+                    if char == '{':
+                        brace_count += 1
+                    elif char == '}':
+                        brace_count -= 1
+                    elif char == '[':
+                        bracket_count += 1
+                    elif char == ']':
+                        bracket_count -= 1
+
+                    # When all braces and brackets are balanced, we found the end
+                    if brace_count == 0 and bracket_count == 0 and i > 0:
+                        end_pos = i + 1
+                        break
+
+                if end_pos > 0:
+                    right_content = right_content[1:end_pos - 1].strip()
+                else:
+                    # Fallback - remove first and last brace
+                    right_content = right_content[1:-1].strip() if right_content.endswith('}') else right_content[
+                                                                                                    1:].strip()
+
+            # Recursively parse both children
+            left_child = parse_tree_node(left_content) if left_content else None
+            right_child = parse_tree_node(right_content) if right_content else None
+
+            return left_child, right_child
+
         # Step 1: Separate the three components from the input string
 
-        # Find the end of the tree structure (look for the closing brace followed by }, Index)
-        # The tree starts after the first { and we need to find its matching }
-        tree_start = input_string.find('{ feature:')
+        # Find the tree part - starts after the colon and ends before }, Index
+        tree_start = input_string.find(': {')
         if tree_start == -1:
             tree_start = input_string.find('{')
+        else:
+            tree_start += 2  # Skip ': '
 
-        # Find the matching closing brace for the tree
-        brace_count = 0
-        tree_end = tree_start
-        for i in range(tree_start, len(input_string)):
-            if input_string[i] == '{':
-                brace_count += 1
-            elif input_string[i] == '}':
-                brace_count -= 1
-                if brace_count == 0:
-                    tree_end = i + 1
-                    break
+        # Find the end of tree - look for }, Index or }, followed by newline and Index
+        tree_end_pattern = r'},\s*Index\('
+        tree_end_match = re.search(tree_end_pattern, input_string[tree_start:])
+
+        if tree_end_match:
+            tree_end = tree_start + tree_end_match.start() + 1  # Include the closing brace
+        else:
+            # Fallback - find the first }, that's followed by something that looks like Index
+            pos = tree_start
+            brace_count = 0
+            while pos < len(input_string):
+                if input_string[pos] == '{':
+                    brace_count += 1
+                elif input_string[pos] == '}':
+                    brace_count -= 1
+                    if brace_count == 0:
+                        # Check if this is followed by something that looks like Index
+                        remaining = input_string[pos:pos + 20]
+                        if ', Index(' in remaining or ',\nIndex(' in remaining or ', \nIndex(' in remaining:
+                            tree_end = pos + 1
+                            break
+                pos += 1
+            else:
+                tree_end = len(input_string)
 
         # Extract tree string
-        tree_part = input_string[tree_start:tree_end]
+        tree_part = input_string[tree_start:tree_end].strip()
 
         # Find the Index part
         index_start = input_string.find("Index([", tree_end)
         if index_start == -1:
             raise ValueError("Could not find Index in the input string")
 
-        # Find the end of the Index (look for the closing bracket and parenthesis)
+        # Find the end of the Index
         paren_count = 0
         bracket_count = 0
         index_end = index_start
@@ -221,7 +275,7 @@ class SparseDecisionTree:
         # Extract index string
         index_part = input_string[index_start:index_end]
 
-        # Extract number of classes (should be the remaining part)
+        # Extract number of classes
         remaining = input_string[index_end:].strip().strip(',').strip()
         num_classes = int(remaining)
 
@@ -229,7 +283,6 @@ class SparseDecisionTree:
         tree_dict = parse_tree_node(tree_part)
 
         # Step 3: Parse the Index to extract feature names
-        # Extract content between the square brackets
         features_match = re.search(r"Index\(\[(.*?)\],", index_part, re.DOTALL)
         if not features_match:
             raise ValueError("Could not parse feature index")
@@ -250,12 +303,10 @@ class SparseDecisionTree:
                 in_quotes = True
                 quote_char = char
             elif in_quotes and char == quote_char:
-                # Check if it's escaped
                 if i > 0 and features_content[i - 1] != '\\':
                     in_quotes = False
                     quote_char = None
             elif not in_quotes and char == ',':
-                # End of current feature
                 feature = current_feature.strip().strip("'\"")
                 if feature:
                     feature_array.append(feature)
@@ -303,6 +354,7 @@ class SparseDecisionTree:
         dot.attr('edge', fontname='Arial', fontsize='9')
 
         tree_root = self.clf.trees_[0]
+        print(tree_root)
         a, b, c = self.parse_gosdt_string(str(tree_root))
         predicted_labels = [0, 1, 2]
         class_names = self.label_encoder.inverse_transform(predicted_labels)
@@ -350,7 +402,7 @@ class SparseDecisionTree:
         return output_path
 
 if __name__ == "__main__":
-    tree_model = SparseDecisionTree(alpha=0.04) #from 0.004-0.4 so it can be optimized
+    tree_model = SparseDecisionTree(alpha=0.04) #from 0.04-0.4 so it can be optimized
     test_acc = tree_model.run_pipeline()
     print(f"Test Accuracy: {test_acc:.3f}")
     img_path = tree_model.export_tree_image()
