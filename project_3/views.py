@@ -25,7 +25,7 @@ import pandas as pd
 
 from project_3.Interpretability.Decision_tree_complexity import SparseDecisionTree
 from project_3.Interpretability.Decision_tree import PalmerPenguinsDecisionTree
-
+from project_3.Interpretability.Logistic_regression_complexity import SparseLogisticRegression
 from project_3.Counterfactuals.counterfactuals_workflow import CounterfactualExplainer
 
 # Initialize global variables for models
@@ -51,8 +51,11 @@ def index(request):
         elif action == 'sparse_DT':
             sparse_DT(request, context)
 
-        elif action == 'log_regression':
+        elif action == 'logistic_regression':
             logistic_regression(request, context)
+
+        elif action == 'sparse_logistic_regression':
+            sparse_logistic_regression(request, context)
 
         elif action == 'counterfactual':
             counterfactual(request, context)
@@ -88,10 +91,8 @@ def DT(request, context):
 def sparse_DT(request, context):
     global global_trained_DT_sparse
     
-    context['trained_DT_sparse'] = model
-
     selected_lambda = float(request.POST.get('lambda', 0.1))
-    print('Selected model:', selected_lambda)
+    print('Selected lambda:', selected_lambda)
 
     model = SparseDecisionTree(alpha=selected_lambda)
     test_acc = model.run_pipeline()
@@ -122,7 +123,38 @@ def logistic_regression(request, context):
 
 def sparse_logistic_regression(request, context):
     global global_trained_LR_sparse
-    pass
+
+    selected_alpha = float(request.POST.get('alpha', 10))
+    print('Selected alpha:', selected_alpha)
+
+    lr_sparse_model = SparseLogisticRegression(alpha = selected_alpha)
+
+    test_acc_sparse_lr, nr_of_used_features = lr_sparse_model.run_pipeline()
+    used_features, unused_features = lr_sparse_model.get_used_and_unused_features()
+    #class_coeffs = lr_sparse_model.get_nonzero_coefficients()
+    total_nr_of_coeffs = len(lr_sparse_model.feature_names)
+
+    show_detailed = 'show_detailed' in request.POST
+    if show_detailed:
+        context['nonzero_coefficients'] = lr_sparse_model.get_nonzero_coefficients()
+
+    print(test_acc_sparse_lr, nr_of_used_features)
+    global_trained_LR_sparse = lr_sparse_model
+    
+    global_trained_LR_sparse = lr_sparse_model
+
+    context.update({
+        "trained_LR_sparse": True,
+        #"class_coeffs": class_coeffs,
+        "used_features": used_features,
+        "unused_features": unused_features, 
+        "show_detailed_coeff": show_detailed,
+        "alpha" : selected_alpha, 
+        "test_accuracy_sparse_lr": test_acc_sparse_lr, 
+        "nr_of_used_features": f"{len(used_features)} / {len(used_features) + len(unused_features)}",
+        'message': f"Tree trained with alpha: {selected_alpha}"
+    })
+    return render(request, 'project3_base.html', context)
 
 def counterfactual(request, context):
     global global_trained_DT, global_trained_DT_sparse, global_trained_LR, global_trained_LR_sparse

@@ -77,6 +77,31 @@ class SparseLogisticRegression:
             for coef, fname in zip(self.model.coef_[i], self.feature_names):
                 if coef != 0:
                     print(f"  {fname}: {coef:.4f}")
+    
+#----------- Added by S for GUI purposes ----
+    def get_nonzero_coefficients(self):
+        if self.model is None:
+            raise RuntimeError("Train the model first.")
+        
+        class_names = self.label_encoder.inverse_transform(np.arange(len(self.model.classes_)))
+        class_coeffs = {}
+        for i, class_name in enumerate(class_names):
+            feature_dict = {}
+            for coef, fname in zip(self.model.coef_[i], self.feature_names):
+                if coef != 0:
+                    feature_dict[fname] = round(coef,4)
+            class_coeffs[class_name] = feature_dict
+        return class_coeffs
+    
+    def get_used_and_unused_features(self):
+        if self.model is None:
+            raise RuntimeError("Train the model first.")
+        
+        used_mask = np.any(self.model.coef_ != 0, axis=0)
+        used = [fname for fname, used_flag in zip(self.feature_names, used_mask) if used_flag]
+        unused = [fname for fname, used_flag in zip(self.feature_names, used_mask) if not used_flag]
+        return used, unused
+#----------------------------------------
 
     def run_pipeline(self):
         self.load_data()
@@ -85,6 +110,7 @@ class SparseLogisticRegression:
         print(f"Test Accuracy: {acc:.3f}")
         print(f"Used Features: {nonzero} / {len(self.feature_names)}")
         self.print_coefficients()
+        return acc, nonzero # Added by S
 
 if __name__ == "__main__":
     model = SparseLogisticRegression(alpha=30) #from 1 to 100

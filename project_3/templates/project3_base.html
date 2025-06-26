@@ -119,17 +119,65 @@
         </div>
 
         <div class="task-box">
-          <h4> b) Logistic Regression </h4>
-          <p>Fit a logistic regression model on teh Palmer Penguins dataset.</p>
-          <form method="post">
+          <h4> b.2) Sparse Logistic Regression </h4>
+          <p>Fit a sparse logistic regression model on the Palmer Penguins dataset.</p>
+          
+          <form method="POST">
             {% csrf_token %}
-            <input type="hidden" name="action" value="log_regression_visualization">
-            <button type="submit">Fit Logistic Regression</button>
-        </form>
+            <input type="hidden" name="action" value="sparse_logistic_regression">
+            
+            <label for="alpha-slider">α: <span id="alpha-value">{{ alpha|default:"0" }}</span></label><br>
+            <input type="range" id="alpha-slider" name="alpha" min="0" max="50" step="0.1" value="{{ alpha|default:"1" }}" 
+                    oninput="document.getElementById('alpha-value').textContent = this.value">
+                <br><br>
+                
+                <label>
+                  <input type="checkbox" name="show_detailed" {% if show_detailed_coeffs %}checked{% endif %}>
+                  Show per-class feature coefficients
+                </label>
+                <br><br>
+            
+                <button type="submit">Fit Logistic Regression</button>
+          </form>
       
-        {% if num_features %}
-          <p>Number of Features Used: {{ num_features }}</p>
-        {% endif %}
+          {% if trained_LR_sparse %}
+          <h2>Model Metrics</h2>
+              <ul>
+                <li>Test Accuracy: {{ test_accuracy_sparse_lr }}</li>
+                <li>Number of Features Used: {{ nr_of_used_features }}</li>
+              </ul>
+          
+            {% if used_features %}
+            <h3>Used Features ({{ used_features|length }}):</h3>
+            <ul>
+              {% for feature in used_features %}
+                <li>{{ feature }}</li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+
+          {% if unused_features %}
+            <h3>Unused Features ({{ unused_features|length }}):</h3>
+            <ul>
+              {% for feature in unused_features %}
+                <li>{{ feature }}</li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+
+          {% if show_detailed_coeff and nonzero_coefficients %}
+            <h3>Per-Class Non-Zero Coefficients</h3>
+            {% for class_name, features in nonzero_coefficients.items %}
+              <h4>{{ class_name }}</h4>
+              <ul>
+                {% for feature, value in features.items %}
+                  <li>{{ feature }}: {{ value }}</li>
+                {% endfor %}
+              </ul>
+            {% endfor %}
+          {% endif %}
+          {% endif %}
+
         </div>
 
  <!------ Counterfactuals -------->
@@ -372,4 +420,4 @@
 
   
 
-{% endblock %}   -->
+{% endblock %}
