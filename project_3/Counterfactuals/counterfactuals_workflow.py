@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 from palmerpenguins import load_penguins
 from sklearn.preprocessing import LabelEncoder
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
 
 df = load_penguins()
 
@@ -104,3 +106,60 @@ class CounterfactualExplainer:
         # Sort by distance and take top k
         neighbors = sorted(neighbors, key=lambda c: c["distance"])[:self.k]
         return neighbors
+
+def main():
+    # Load and preprocess data
+    df = load_penguins().dropna()
+    numeric_columns = ["bill_length_mm", "bill_depth_mm", "flipper_length_mm", "body_mass_g"]
+    categorical_columns = ['island', 'sex']
+    label_column = 'species'
+
+    # Encode categorical variables
+    df_encoded = df.copy()
+    for col in categorical_columns:
+        df_encoded[col] = pd.Categorical(df_encoded[col]).codes
+
+    # Encode labels
+    le = LabelEncoder()
+    df_encoded['species'] = le.fit_transform(df_encoded['species'])
+
+    # Train/test split
+    X = df_encoded.drop(columns=['species', 'year'], errors='ignore')
+    y = df_encoded['species']
+    X_train, X_test, y_train, y_test = train_test_split(X, y, stratify=y, random_state=42)
+
+    # Fit a simple model for testing
+    clf = LogisticRegression(multi_class="multinomial", solver="lbfgs", max_iter=200)
+    clf.fit(X_train, y_train)
+
+    # Choose a random test sample
+    sample_id = np.random.choice(X_test.index)
+    x = X_test.loc[sample_id]
+    actual = y_test.loc[sample_id]
+    target_label = int((actual + 1) % 3)  # choose a different class (cycle)
+
+    print(f"Sample ID: {sample_id}")
+    print(f"Actual label: {actual}, Target label: {target_label} ({le.inverse_transform([target_label])[0]})")
+
+    # Create explainer
+    explainer = CounterfactualExplainer(
+        model=clf,
+        data=df_encoded,
+        numeric_columns=numeric_columns,
+        categorical_columns=categorical_columns,
+        N=500,
+        k=3
+    )
+
+    # Run explainer
+    counterfactuals = explainer.compute(x, target_label)
+
+    # Print counterfactuals
+    print("\n=== Counterfactual Explanations ===")
+    for i, c in enumerate(counterfactuals, 1):
+        print(f"\nCounterfactual #{i}")
+        print(f"  Distance: {c['distance']:.3f}")
+        print(f"  Changes: {c['changes']}")
+
+if __name__ == "__main__":
+    main()
