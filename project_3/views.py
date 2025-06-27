@@ -27,6 +27,7 @@ from project_3.Interpretability.Decision_tree_complexity import SparseDecisionTr
 from project_3.Interpretability.Decision_tree import PalmerPenguinsDecisionTree
 from project_3.Interpretability.Logistic_regression_complexity import SparseLogisticRegression
 from project_3.Counterfactuals.counterfactuals_workflow import CounterfactualExplainer
+from project_3.Interpretability.Logistic_regression import PlainLogisticRegressionModel
 
 # Initialize global variables for models
 global_trained_DT = None
@@ -94,8 +95,15 @@ def sparse_DT(request, context):
     selected_lambda = float(request.POST.get('lambda', 0.1))
     print('Selected lambda:', selected_lambda)
 
-    model = SparseDecisionTree(alpha=selected_lambda)
-    test_acc = model.run_pipeline()
+    try: 
+        model = SparseDecisionTree(alpha=selected_lambda)
+        test_acc = model.run_pipeline()
+    except RuntimeError:
+        context['error'] = (
+        f"The selected sparsity value (lambda = {selected_lambda}) is too high, "
+        "and the model failed to converge. Please try a lower lambda."
+    )
+        return render(request, "project3_base.html", context)
 
     global_trained_DT_sparse = model
     context['trained_DT_sparse'] = model
@@ -118,16 +126,28 @@ def sparse_DT(request, context):
 
 def logistic_regression(request, context):
     global global_trained_LR
-    pass
-        #return render(request, 'task3.html', context)
+
+    lr_model = PlainLogisticRegressionModel()
+    
+    train_acc_lr, test_acc_lr = lr_model.run_pipeline()
+    print("test accuracy LR:", test_acc_lr)
+
+    global_trained_LR = lr_model
+    
+    context.update({
+        "trained_LR": True,
+        "test_acc_lr": test_acc_lr, 
+    })
+    return render(request, 'project3_base.html', context)
+ 
 
 def sparse_logistic_regression(request, context):
     global global_trained_LR_sparse
 
     selected_alpha = float(request.POST.get('alpha', 10))
-    print('Selected alpha:', selected_alpha)
+    alpha = selected_alpha * 100
 
-    lr_sparse_model = SparseLogisticRegression(alpha = selected_alpha)
+    lr_sparse_model = SparseLogisticRegression(alpha = alpha)
 
     test_acc_sparse_lr, nr_of_used_features = lr_sparse_model.run_pipeline()
     used_features, unused_features = lr_sparse_model.get_used_and_unused_features()
@@ -149,7 +169,7 @@ def sparse_logistic_regression(request, context):
         "used_features": used_features,
         "unused_features": unused_features, 
         "show_detailed_coeff": show_detailed,
-        "alpha" : selected_alpha, 
+        "alpha" : alpha, 
         "test_accuracy_sparse_lr": test_acc_sparse_lr, 
         "nr_of_used_features": f"{len(used_features)} / {len(used_features) + len(unused_features)}",
         'message': f"Tree trained with alpha: {selected_alpha}"
@@ -185,14 +205,21 @@ def counterfactual(request, context):
         context['error'] = "Invalid sample ID"
         return render(request, "project3_base.html", context)
     
+    print(f"global_trained_DT: {global_trained_DT}")
+    print(f"global_trained_DT_sparse: {global_trained_DT_sparse}")
+    print(f"global_trained_LR: {global_trained_LR}")
+    print(f"global_trained_LR_sparse: {global_trained_LR_sparse}")
+
     model_map = {
         'dt': global_trained_DT,
-        'sparse_DT': global_trained_DT_sparse, 
+        'sparse_dt': global_trained_DT_sparse, 
         'lr': global_trained_LR, 
         'sparse_lr': global_trained_LR_sparse
                 }
     
     model = model_map.get(model_type)
+    print(f"model_type: {model_type}, model: {model}")
+
     
     if model is None:
         context["error"] = f"Model '{model_type}' has not been trained yet."
@@ -211,9 +238,13 @@ def counterfactual(request, context):
     
     data_for_explainer = data_encoded.drop(columns=['species', 'year'], errors='ignore')
     
+    print(f"Model type: {type(model)}")
+    print(f"Has predict attribute: {hasattr(model, 'predict')}")
+    print(f"Model predict callable? {callable(getattr(model, 'predict', None))}")
+
     explainer = CounterfactualExplainer(
-        model = model.model,
-        data = data_for_explainer,  
+        model = model,
+        data = data_encoded,  
         numeric_columns = numeric_columns, 
         categorical_columns = categorical_columns,
         N=N,

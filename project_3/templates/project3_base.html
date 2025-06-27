@@ -65,7 +65,7 @@
             \] Where \(\Omega(f)\) is a complexity measure</p>
         </p>
 
-         <!---Decision Tree -->
+<!-----------Decision Tree ---------->
         <div class="task-box">
           <h4> a) Decision Tree </h4>
           <h4> a.1) Normal Decision Tree </h4>
@@ -91,6 +91,8 @@
             
             {% endif %}
         </div>
+
+<!--------- Sparse Decision Tree -------->
 
         <div class="task-box">
           <h4> a.2) Sparse Decision Tree </h4>
@@ -118,6 +120,25 @@
             {% endif %}
         </div>
 
+<!--------- Logistic Regression -------->
+
+        <div class="task-box">
+          <h4> b.1) Logistic Regression </h4>
+          <p>Fit a logistic regression model on the Palmer Penguins dataset.</p>
+          
+          <form method="POST">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="logistic_regression">
+
+                <button type="submit">Fit Logistic Regression</button>
+          </form>
+          {% if trained_LR %}
+          <h2>Model Metrics</h2>
+              <ul>
+                <li>Test Accuracy: {{ test_acc_lr }}</li>
+              </ul>
+            {% endif %}
+
         <div class="task-box">
           <h4> b.2) Sparse Logistic Regression </h4>
           <p>Fit a sparse logistic regression model on the Palmer Penguins dataset.</p>
@@ -126,8 +147,8 @@
             {% csrf_token %}
             <input type="hidden" name="action" value="sparse_logistic_regression">
             
-            <label for="alpha-slider">α: <span id="alpha-value">{{ alpha|default:"0" }}</span></label><br>
-            <input type="range" id="alpha-slider" name="alpha" min="0" max="50" step="0.1" value="{{ alpha|default:"1" }}" 
+            <label for="alpha-slider">α: <span id="alpha-value">{{ alpha|default:"0.1" }}</span></label><br>
+            <input type="range" id="alpha-slider" name="alpha" min="0" max="1" step="0.01" value="{{ alpha|default:"0.1" }}" 
                     oninput="document.getElementById('alpha-value').textContent = this.value">
                 <br><br>
                 

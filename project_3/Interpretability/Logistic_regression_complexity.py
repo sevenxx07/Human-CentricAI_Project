@@ -55,6 +55,7 @@ class SparseLogisticRegression:
             max_iter=2000
         )
         self.model.fit(self.X_train, self.y_train)
+        return self.model
 
     def evaluate(self):
         """Return test accuracy and number of non-zero features used."""

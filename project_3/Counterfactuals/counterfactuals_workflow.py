@@ -14,6 +14,7 @@ class CounterfactualExplainer:
                 def __init__(self, wrapped_model):
                     self.wrapped_model = wrapped_model
                 def predict(self, X):
+                    print(f"ModelWrapper received input shape: {X.shape}")
                     import numpy as np
                     if isinstance(X, pd.Series):
                         X = X.values.reshape(1, -1)
@@ -88,16 +89,13 @@ class CounterfactualExplainer:
                 
                 prediction = self.model.predict(x_prime.values.reshape(1, -1))
 
-            # Convert model prediction to label if needed
-                if hasattr(self.species_encoder, 'inverse_transform'):
-                # model predicts encoded labels? decode for comparison
-                    try:
-                        pred_label_decoded = self.species_encoder.inverse_transform(prediction)[0]
-                    except Exception:
-                        pred_label_decoded = prediction[0]
+                if isinstance(prediction[0], str):
+                    prediction = self.species_encoder.transform(prediction)[0]
                 else:
-                    pred_label_decoded = prediction[0]
-                
+                    prediction = prediction[0]
+
+            print(f"Prediction: {prediction}, Target: {target_label}")
+    
             if prediction == target_label:
                 dist = sum(abs(x[column] - x_prime[column]) / self.mad_values[column] for column in self.numeric_columns)
                 changes = {column: round(x_prime[column],2) for column in self.numeric_columns if abs(x[column] - x_prime[column]) > 0.05}
