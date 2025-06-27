@@ -36,6 +36,11 @@ class PlainLogisticRegressionModel:
         )
         self.model.fit(self.X_train, self.y_train)
 
+    def predict(self, X):
+        if isinstance(X, pd.Series):
+            X = X.values.reshape(1, -1)
+        return self.model.predict(X)
+
     def evaluate(self):
         train_pred = self.model.predict(self.X_train)
         test_pred = self.model.predict(self.X_test)

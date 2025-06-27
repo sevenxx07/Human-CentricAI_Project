@@ -81,7 +81,7 @@ class PalmerPenguinsDecisionTree:
 
         return X, y, self.feature_names, self.target_names
 
-    def train_model(self, test_size=0.3):
+    def train(self, test_size=0.3):
         """
         Train the decision tree model.
 
@@ -112,6 +112,11 @@ class PalmerPenguinsDecisionTree:
         y_pred = self.model.predict(self.X_test)
         self.test_accuracy = accuracy_score(self.y_test, y_pred)
         self.num_leaves = int(self.model.get_n_leaves())
+
+    def predict(self, X):
+        if isinstance(X, pd.Series):
+            X = X.values.reshape(1, -1)
+        return self.model.predict(X)
 
     def get_metrics(self):
         """
@@ -180,7 +185,7 @@ def main():
         random_state=42
     )
     # Train the model
-    dt_classifier.train_model(test_size=0.3)
+    dt_classifier.train(test_size=0.3)
     # Generate tree visualization
     dt_classifier.generate_tree_visualization(
         figsize=(24, 16),

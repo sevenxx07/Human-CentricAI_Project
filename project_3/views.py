@@ -67,7 +67,7 @@ def DT(request, context):
     global global_trained_DT
 
     tree_model = PalmerPenguinsDecisionTree()
-    tree_model.train_model()
+    tree_model.train()
     global_trained_DT = tree_model
     
     context['trained_DT'] = tree_model

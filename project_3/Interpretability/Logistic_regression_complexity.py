@@ -57,6 +57,19 @@ class SparseLogisticRegression:
         self.model.fit(self.X_train, self.y_train)
         return self.model
 
+    def predict(self, X):
+        """
+        Predict class labels for given data.
+        """
+        if self.model is None:
+            raise RuntimeError("Model is not trained yet.")
+
+        if isinstance(X, pd.DataFrame):
+            X = X[self.feature_names]  # reorder/align columns if needed
+            X = self.scaler.transform(X)
+
+        return self.model.predict(X)
+
     def evaluate(self):
         """Return test accuracy and number of non-zero features used."""
         if self.model is None:

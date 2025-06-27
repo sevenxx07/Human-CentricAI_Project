@@ -54,12 +54,12 @@ class SparseDecisionTree:
         ref_model.fit(self.X_train_bin, self.y_train)
         self.ref_labels = ref_model.predict(self.X_train_bin)
 
-    def simple_train(self):
+    def train(self):
         self.clf = GOSDTClassifier(regularization=self.alpha, depth_budget=self.depth_budget, time_limit=60, similar_support=False)
         self.guess_thresholds()
         self.clf.fit(self.X_train_bin, self.y_train)
 
-    def train(self):
+    def hard_train(self):
         """Train the GOSDT sparse decision tree."""
         self.clf = GOSDTClassifier(
             regularization=self.alpha,
@@ -78,11 +78,45 @@ class SparseDecisionTree:
     def run_pipeline(self):
         """Complete training pipeline."""
         self.load_data()
-        self.simple_train()
+        self.train()
         return self.evaluate()
 
     def num_of_leaves(self):
         return self.num_leaves
+
+    def predict(self, X):
+        """
+        Predict labels for new input data.
+
+        Parameters:
+        -----------
+        X : pd.DataFrame or np.ndarray
+            New samples to classify. Must match original training structure.
+
+        Returns:
+        --------
+        np.ndarray of predicted class labels
+        """
+        if self.clf is None:
+            raise RuntimeError("Model has not been trained yet.")
+
+        if isinstance(X, pd.Series):
+            X = X.to_frame().T  # Convert to single-row DataFrame
+
+        # Ensure same dummy encoding
+        X_encoded = pd.get_dummies(X)
+        missing_cols = set(self.X_train.columns) - set(X_encoded.columns)
+        for col in missing_cols:
+            X_encoded[col] = 0
+        X_encoded = X_encoded[self.X_train.columns]  # Align column order
+
+        # Binarize using the same encoder
+        enc = ThresholdGuessBinarizer(n_estimators=40, max_depth=1, random_state=42)
+        enc.set_output(transform="pandas")
+        enc.fit(self.X_train, self.y_train)  # Use training fit to maintain same thresholds
+        X_bin = enc.transform(X_encoded)
+
+        return self.clf.predict(X_bin)
 
     def parse_gosdt_string(self, input_string):
         """
@@ -402,12 +436,30 @@ class SparseDecisionTree:
         return output_path
 
 if __name__ == "__main__":
+    # Initialize and train the model
     tree_model = SparseDecisionTree(alpha=0.04) #from 0.04-0.4 so it can be optimized
     test_acc = tree_model.run_pipeline()
     print(f"Test Accuracy: {test_acc:.3f}")
+
+    # Export the visualization
     img_path = tree_model.export_tree_image()
+    print(f"Tree image saved to: {img_path}")
     print(f"Number of leaves: {tree_model.num_of_leaves()}")
-    #for alpha in [0.004, 0.01, 0.1, 0.4]:
+
+    # --- Test predict() ---
+    print("\n--- Testing predict() method ---")
+    sample = tree_model.X_test.iloc[0]
+    true_label = tree_model.y_test[0]
+    predicted_label = tree_model.predict(sample)[0]
+    true_name = tree_model.label_encoder.inverse_transform([true_label])[0]
+    predicted_name = tree_model.label_encoder.inverse_transform([predicted_label])[0]
+
+    print("Sample input:")
+    print(sample)
+    print(f"\nTrue Label: {true_name} ({true_label})")
+    print(f"Predicted Label: {predicted_name} ({predicted_label})")
+
+#for alpha in [0.004, 0.01, 0.1, 0.4]:
     #    model = SparseDecisionTree(alpha=alpha)
     #    train_acc, test_acc = model.run_pipeline()
     #    print(f"λ={alpha:.3f} → Train Acc: {train_acc:.3f}, Test Acc: {test_acc:.3f}")
