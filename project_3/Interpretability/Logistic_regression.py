@@ -74,8 +74,9 @@ class PlainLogisticRegressionModel:
     def run_pipeline(self):
         self.load_data()
         self.train()
-        self.evaluate()
+        train_acc, test_acc = self.evaluate()
         self.print_coefficients()
+        return train_acc, test_acc
 
 if __name__ == "__main__":
     logreg = PlainLogisticRegressionModel()
