@@ -30,6 +30,7 @@ class PlainLogisticRegressionModel:
         )
 
     def train(self):
+        self.load_data()
         self.model = LogisticRegression(
             multi_class="multinomial",
             max_iter=1000
@@ -72,7 +73,6 @@ class PlainLogisticRegressionModel:
                 print(f"  {fname}: {weight:.4f}")
 
     def run_pipeline(self):
-        self.load_data()
         self.train()
         train_acc, test_acc = self.evaluate()
         self.print_coefficients()

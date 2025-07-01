@@ -46,6 +46,7 @@ class SparseLogisticRegression:
 
     def train(self):
         """Train a logistic regression model with L1 regularization."""
+        self.load_data()
         C = 1.0 / self.alpha if self.alpha != 0 else 1e12  # prevent division by zero
         self.model = LogisticRegression(
             penalty="l1",
@@ -118,7 +119,6 @@ class SparseLogisticRegression:
 #----------------------------------------
 
     def run_pipeline(self):
-        self.load_data()
         self.train()
         acc, nonzero = self.evaluate()
         print(f"Test Accuracy: {acc:.3f}")

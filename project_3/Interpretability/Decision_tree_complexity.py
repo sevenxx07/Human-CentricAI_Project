@@ -28,6 +28,7 @@ class SparseDecisionTree:
         self.clf = None
         self.label_encoder = None
         self.num_leaves = 0
+        self.feature_names = None
 
     def load_data(self, test_size=0.3, random_state=42):
         df = load_penguins()
@@ -47,6 +48,7 @@ class SparseDecisionTree:
         enc.set_output(transform="pandas")
         self.X_train_bin = enc.fit_transform(self.X_train, self.y_train)
         self.X_test_bin = enc.transform(self.X_test)
+        self.feature_names = self.X_train_bin.columns.tolist()
 
     def get_reference_labels(self):
         """Generate reference predictions from a black-box model."""
@@ -55,6 +57,7 @@ class SparseDecisionTree:
         self.ref_labels = ref_model.predict(self.X_train_bin)
 
     def train(self):
+        self.load_data()
         self.clf = GOSDTClassifier(regularization=self.alpha, depth_budget=self.depth_budget, time_limit=60, similar_support=False)
         self.guess_thresholds()
         self.clf.fit(self.X_train_bin, self.y_train)
@@ -77,7 +80,6 @@ class SparseDecisionTree:
 
     def run_pipeline(self):
         """Complete training pipeline."""
-        self.load_data()
         self.train()
         return self.evaluate()
 
