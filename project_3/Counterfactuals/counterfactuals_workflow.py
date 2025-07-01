@@ -5,161 +5,158 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 
+# Import your models here
+from project_3.Interpretability.Decision_tree_complexity import SparseDecisionTree
+from project_3.Interpretability.Decision_tree import PalmerPenguinsDecisionTree
+from project_3.Interpretability.Logistic_regression_complexity import SparseLogisticRegression
+from project_3.Interpretability.Logistic_regression import PlainLogisticRegressionModel
+
+
 df = load_penguins()
 
 class CounterfactualExplainer:
     def __init__(self, model, data, numeric_columns, categorical_columns, mad_values=None, N=500, k=3):
-        
-        # Model compatibility wrapper (used if the model is missing predict)
-        if not hasattr(model, 'predict'):
-            class ModelWrapper: 
-                def __init__(self, wrapped_model):
-                    self.wrapped_model = wrapped_model
-                def predict(self, X):
-                    print(f"ModelWrapper received input shape: {X.shape}")
-                    import numpy as np
-                    if isinstance(X, pd.Series):
-                        X = X.values.reshape(1, -1)
-                    elif isinstance(X, list):
-                        X = np.array(X)
-                        if X.ndim == 1:
-                            X = X.reshape(1, -1)
-                    return self.wrapped_model.predict(X)
-            self.model = ModelWrapper(model)
-        else: 
-            self.model = model
-        
-        
+        self.model = model
         self.data = data
+        self.N = N
+        self.k = k
+        self.numeric_columns = numeric_columns
+        self.categorical_columns = categorical_columns
 
-        if numeric_columns is None: 
-            self.numeric_columns = data.select_dtypes(include=['number']).columns.tolist()
-        else:
-            self.numeric_columns = numeric_columns
-        
-        self.categorical_columns = categorical_columns or []
         self.encoders = {}
-
-        # Fit label encoders for categorical columns
         for cat_col in self.categorical_columns:
             le = LabelEncoder()
             le.fit(data[cat_col])
             self.encoders[cat_col] = le
-#_____added
+
         self.species_encoder = LabelEncoder()
-        self.species_encoder.fit(data['species'])
-            
-        self.N = N
-        self.k = k
+        self.species_encoder.fit(data["species"])
 
-        # Computing mean absolute deviation 
-        if mad_values is not None: 
-            self.mad_values = mad_values
-        else: 
-            self.mad_values = data[self.numeric_columns].apply(lambda x: (x - x.mean()).abs().mean())
+        self.mad_values = data[self.numeric_columns].apply(
+            lambda x: (x - x.mean()).abs().mean()
+        )
 
-
-    def compute(self, x : pd.Series, target_label):
+    def compute(self, x: pd.Series, target_label):
         neighbors = []
-
-        print("Original input x:")
-        print(x)
-        print("Target label:", target_label)
-        print("MAD values:")
-        print(self.mad_values)
 
         for i in range(self.N):
             x_prime = x.copy()
-            print(f"\nIteration {i+1}:")
 
-            print("Perturbing numeric columns:")
+            # Perturb numeric columns
             for column in self.numeric_columns:
+                if column not in x_prime:
+                    continue
                 noise = np.random.normal(0, 0.5 * max(self.mad_values[column], 1e-3))
                 x_prime[column] += noise
-                print(f"  {column}: noise={noise:.4f}, new_value={x_prime[column]:.4f}")
-            
-            print("Perturbing categorical columns:")
+
+            # Perturb categorical columns
             for column in self.categorical_columns:
+                if column not in x_prime:
+                    continue
                 current_code = x_prime[column]
                 possible_codes = list(set(self.encoders[column].transform(self.data[column].unique())) - {current_code})
                 if possible_codes:
                     new_code = np.random.choice(possible_codes)
                     x_prime[column] = new_code
-                    print(f"  {column}: changed from {current_code} to {new_code}")
-                else:
-                    print(f"  {column}: no alternative category found, stays {current_code}")
-                
-                prediction = self.model.predict(x_prime.values.reshape(1, -1))
 
-                if isinstance(prediction[0], str):
-                    prediction = self.species_encoder.transform(prediction)[0]
-                else:
-                    prediction = prediction[0]
+            # Convert to model format (dummy encoding)
+            x_input = pd.get_dummies(pd.DataFrame([x_prime]))
 
-            print(f"Prediction: {prediction}, Target: {target_label}")
-    
-            if prediction == target_label:
-                dist = sum(abs(x[column] - x_prime[column]) / self.mad_values[column] for column in self.numeric_columns)
-                changes = {column: round(x_prime[column],2) for column in self.numeric_columns if abs(x[column] - x_prime[column]) > 0.05}
-                neighbors.append({"distance": dist, "changes": changes, "original": x.to_dict()})
+            # Align columns with model’s training data
+            x_input = x_input.reindex(columns=self.model.feature_names, fill_value=0)
 
-        # Sort by distance and take top k
-        neighbors = sorted(neighbors, key=lambda c: c["distance"])[:self.k]
-        return neighbors
+            # Predict
+            try:
+                pred = self.model.predict(x_input.values)
+                pred_label = pred[0] if isinstance(pred, (list, np.ndarray)) else pred
+            except Exception as e:
+                print(f"Prediction error at iteration {i}: {e}")
+                continue
 
-def main():
-    # Load and preprocess data
+            if pred_label == target_label:
+                dist = sum(abs(x[column] - x_prime[column]) / self.mad_values[column]
+                           for column in self.numeric_columns if column in x)
+                changes = {
+                    column: round(x_prime[column], 2)
+                    for column in self.numeric_columns
+                    if column in x and abs(x[column] - x_prime[column]) > 0.05
+                }
+                neighbors.append({
+                    "distance": dist,
+                    "changes": changes,
+                    "original": x.to_dict()
+                })
+
+        return sorted(neighbors, key=lambda c: c["distance"])[:self.k]
+
+def run_counterfactual_for_model(model_class, model_name, is_sparse=False):
+    print(f"\n=== Running Counterfactuals for: {model_name} ===")
     df = load_penguins().dropna()
-    numeric_columns = ["bill_length_mm", "bill_depth_mm", "flipper_length_mm", "body_mass_g"]
-    categorical_columns = ['island', 'sex']
-    label_column = 'species'
+    numeric_cols = ["bill_length_mm", "bill_depth_mm", "flipper_length_mm", "body_mass_g"]
+    categorical_cols = ['island', 'sex']
 
-    # Encode categorical variables
+    # Encode categorical columns
     df_encoded = df.copy()
-    for col in categorical_columns:
+    for col in categorical_cols:
         df_encoded[col] = pd.Categorical(df_encoded[col]).codes
 
-    # Encode labels
-    le = LabelEncoder()
-    df_encoded['species'] = le.fit_transform(df_encoded['species'])
+    # Encode species labels
+    species_encoder = LabelEncoder()
+    df_encoded["species"] = species_encoder.fit_transform(df_encoded["species"])
 
-    # Train/test split
     X = df_encoded.drop(columns=['species', 'year'], errors='ignore')
     y = df_encoded['species']
     X_train, X_test, y_train, y_test = train_test_split(X, y, stratify=y, random_state=42)
 
-    # Fit a simple model for testing
-    clf = LogisticRegression(multi_class="multinomial", solver="lbfgs", max_iter=200)
-    clf.fit(X_train, y_train)
+    # Instantiate model
+    if is_sparse:
+        alpha = 0.06 if "Tree" in model_name else 30.0
+        model = model_class(alpha=alpha)
+    else:
+        model = model_class()
 
-    # Choose a random test sample
+    # Train the model
+    if hasattr(model, "train"):
+        model.train()
+    else:
+        raise RuntimeError(f"Model {model_name} has no train method.")
+
+    # Pick a random sample
     sample_id = np.random.choice(X_test.index)
     x = X_test.loc[sample_id]
     actual = y_test.loc[sample_id]
-    target_label = int((actual + 1) % 3)  # choose a different class (cycle)
+    target = int((actual + 1) % len(species_encoder.classes_))
+    target_name = species_encoder.inverse_transform([target])[0]
 
     print(f"Sample ID: {sample_id}")
-    print(f"Actual label: {actual}, Target label: {target_label} ({le.inverse_transform([target_label])[0]})")
+    print(f"Actual: {actual} → Target: {target} ({target_name})")
 
-    # Create explainer
+    # Run counterfactual explanation
     explainer = CounterfactualExplainer(
-        model=clf,
+        model=model,
         data=df_encoded,
-        numeric_columns=numeric_columns,
-        categorical_columns=categorical_columns,
+        numeric_columns=numeric_cols,
+        categorical_columns=categorical_cols,
         N=500,
         k=3
     )
 
-    # Run explainer
-    counterfactuals = explainer.compute(x, target_label)
+    results = explainer.compute(x, target)
 
-    # Print counterfactuals
-    print("\n=== Counterfactual Explanations ===")
-    for i, c in enumerate(counterfactuals, 1):
-        print(f"\nCounterfactual #{i}")
-        print(f"  Distance: {c['distance']:.3f}")
-        print(f"  Changes: {c['changes']}")
+    if not results:
+        print("❌ No counterfactuals found.")
+    else:
+        for i, r in enumerate(results, 1):
+            print(f"\n✅ Counterfactual #{i}")
+            print(f"  Distance: {r['distance']}")
+            print(f"  Changes: {r['changes']}")
+
+def main():
+    run_counterfactual_for_model(PlainLogisticRegressionModel, "Logistic Regression")
+    run_counterfactual_for_model(SparseLogisticRegression, "Sparse Logistic Regression", is_sparse=True)
+    run_counterfactual_for_model(PalmerPenguinsDecisionTree, "Decision Tree")
+    run_counterfactual_for_model(SparseDecisionTree, "Sparse Decision Tree", is_sparse=True)
+
 
 if __name__ == "__main__":
     main()
