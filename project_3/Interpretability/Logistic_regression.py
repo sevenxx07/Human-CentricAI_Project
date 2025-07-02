@@ -17,17 +17,44 @@ class PlainLogisticRegressionModel:
         self.feature_names = None
 
     def load_data(self, test_size=0.3, random_state=42):
-        df = load_penguins().dropna()
-        y = df["species"]
+
+        # Load the dataset
+        penguins = load_penguins()
+        penguins_clean = penguins.dropna()
+        y = penguins_clean['species']
         self.label_encoder = LabelEncoder()
         y_encoded = self.label_encoder.fit_transform(y)
 
-        X = pd.get_dummies(df.drop(columns=["species"]))
-        self.feature_names = X.columns.tolist()
+
+        # Prepare features (X) - using numerical features
+        numerical_features = ['bill_length_mm', 'bill_depth_mm', 'flipper_length_mm', 'body_mass_g']
+        categorical_features = ['island', 'sex']
+       
+        X = penguins_clean[numerical_features].copy()
+
+        for cat_feature in categorical_features:
+            if cat_feature in penguins_clean.columns:
+                le = LabelEncoder()
+                X[cat_feature] = le.fit_transform(penguins_clean[cat_feature])
+
+        # Store feature and target names
+        self.feature_names = list(X.columns)
+        self.target_names = sorted(y.unique())
 
         self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(
-            X, y_encoded, test_size=test_size, random_state=random_state
-        )
+        X, y_encoded, test_size=test_size, random_state=random_state
+    )
+        #df = load_penguins().dropna()
+        #y = df["species"]
+        # self.label_encoder = LabelEncoder()
+        # y_encoded = self.label_encoder.fit_transform(y)
+
+        # X = pd.get_dummies(df.drop(columns=["species"]))
+        # self.feature_names = X.columns.tolist()
+
+        # self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(
+        #     X, y_encoded, test_size=test_size, random_state=random_state
+        # )
 
     def train(self):
         self.load_data()
@@ -40,7 +67,14 @@ class PlainLogisticRegressionModel:
     def predict(self, X):
         if isinstance(X, pd.Series):
             X = X.values.reshape(1, -1)
-        return self.model.predict(X)
+        y_pred_numeric = self.model.predict(X)
+        if self.label_encoder is not None and len(y_pred_numeric)>0:
+            y_pred_label = self.label_encoder.inverse_transform(y_pred_numeric)
+            return y_pred_label
+        else:
+            return y_pred_numeric
+ 
+        #return self.model.predict(X)
 
     def evaluate(self):
         train_pred = self.model.predict(self.X_train)
@@ -81,3 +115,4 @@ class PlainLogisticRegressionModel:
 if __name__ == "__main__":
     logreg = PlainLogisticRegressionModel()
     logreg.run_pipeline()
+    logreg.predict()

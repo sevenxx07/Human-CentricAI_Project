@@ -186,7 +186,8 @@ def counterfactual(request, context):
     data_encoded = data.copy()
     for col in categorical_columns: 
         data_encoded[col] = pd.Categorical(data_encoded[col]).codes
-
+    print(f"Encoded data:", data_encoded)
+    
     # Get POST input values 
     model_type = request.POST.get("model")
     actual_species = request.POST.get("actual_species")
@@ -218,9 +219,8 @@ def counterfactual(request, context):
                 }
     
     model = model_map.get(model_type)
-    print(f"model_type: {model_type}, model: {model}")
+    print(f"Model_type: {model_type}, Model: {model}")
 
-    
     if model is None:
         context["error"] = f"Model '{model_type}' has not been trained yet."
         return render(request, "project3_base.html", context)
@@ -229,14 +229,11 @@ def counterfactual(request, context):
         context["error"] = "Sample ID out of range."
         return render(request, "project3_base.html", context)
 
-    species_to_label = {name: i for i, name in enumerate(data['species'].unique())}
-    if target_label in species_to_label:
-        y_target = species_to_label[target_label]
-    else: 
-        context["error"] = "Invalid target species."
-        return render(request, "project3_base.html", context)
-    
+    y_target = target_label
+    print("y_target", y_target)
+
     data_for_explainer = data_encoded.drop(columns=['species', 'year'], errors='ignore')
+    print("Data for explainer:", data_for_explainer)
     
     print(f"Model type: {type(model)}")
     print(f"Has predict attribute: {hasattr(model, 'predict')}")
@@ -252,6 +249,7 @@ def counterfactual(request, context):
     )
 
     x = data_for_explainer.iloc[sample_id].astype(float)
+    print("Model prediction on x:", model.predict([x]))
   
     counterfactuals = explainer.compute(x, y_target)
     print("Input features (x) for counterfactual computation:")

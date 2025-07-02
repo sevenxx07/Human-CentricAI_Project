@@ -31,16 +31,41 @@ class SparseDecisionTree:
         self.feature_names = None
 
     def load_data(self, test_size=0.3, random_state=42):
-        df = load_penguins()
-        df = df.dropna()
-        y = df["species"]
+        # df = load_penguins()
+        # df = df.dropna()
+        # y = df["species"]
+        # self.label_encoder = LabelEncoder()
+        # y = self.label_encoder.fit_transform(y)  # Store encoded values
+        # X = df.drop(columns=["species"])
+        # X = pd.get_dummies(X)
+        # self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(
+        #     X, y, test_size=test_size, random_state=random_state
+        # )
+
+        penguins_clean = load_penguins().dropna()
+        y = penguins_clean['species']
         self.label_encoder = LabelEncoder()
-        y = self.label_encoder.fit_transform(y)  # Store encoded values
-        X = df.drop(columns=["species"])
-        X = pd.get_dummies(X)
+        y_encoded = self.label_encoder.fit_transform(y)
+
+        # Prepare features (X) - using numerical features
+        numerical_features = ['bill_length_mm', 'bill_depth_mm', 'flipper_length_mm', 'body_mass_g']
+        categorical_features = ['island', 'sex']
+       
+        X = penguins_clean[numerical_features].copy()
+
+        for cat_feature in categorical_features:
+            if cat_feature in penguins_clean.columns:
+                le = LabelEncoder()
+                X[cat_feature] = le.fit_transform(penguins_clean[cat_feature])
+
+        # Store feature and target names
+        self.feature_names = list(X.columns)
+        self.target_names = sorted(y.unique())
+
         self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(
-            X, y, test_size=test_size, random_state=random_state
-        )
+        X, y_encoded, test_size=test_size, random_state=random_state
+    )
+
 
     def guess_thresholds(self):
         """Binarize continuous features using gradient boosting thresholds."""
@@ -98,6 +123,8 @@ class SparseDecisionTree:
         Returns:
         --------
         np.ndarray of predicted class labels
+
+        
         """
         if self.clf is None:
             raise RuntimeError("Model has not been trained yet.")
@@ -105,8 +132,14 @@ class SparseDecisionTree:
         if isinstance(X, pd.Series):
             X = X.to_frame().T  # Convert to single-row DataFrame
 
+        elif isinstance(X, list) or isinstance(X, np.ndarray):
+            if np.array(X).ndim == 1: 
+                X = pd.DataFrame([X])
+            else:
+                X = pd.DataFrame(X)
         # Ensure same dummy encoding
         X_encoded = pd.get_dummies(X)
+        print("Encoded input X_encoded:\n", X_encoded)
         missing_cols = set(self.X_train.columns) - set(X_encoded.columns)
         for col in missing_cols:
             X_encoded[col] = 0
@@ -118,7 +151,16 @@ class SparseDecisionTree:
         enc.fit(self.X_train, self.y_train)  # Use training fit to maintain same thresholds
         X_bin = enc.transform(X_encoded)
 
-        return self.clf.predict(X_bin)
+        y_pred_numeric = self.clf.predict(X_bin)
+
+    # Decode numeric predictions to original labels if label_encoder exists
+        if self.label_encoder is not None and len(y_pred_numeric) > 0:
+            y_pred_label = self.label_encoder.inverse_transform(y_pred_numeric)
+            return y_pred_label
+        else:
+            return y_pred_numeric
+
+        # return self.clf.predict(X_bin)
 
     def parse_gosdt_string(self, input_string):
         """

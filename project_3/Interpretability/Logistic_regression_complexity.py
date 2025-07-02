@@ -28,21 +28,43 @@ class SparseLogisticRegression:
         self.y_test = None
         self.feature_names = None
 
-    def load_data(self):
-        """Load and preprocess the penguins dataset."""
-        df = load_penguins().dropna()
-        y = self.label_encoder.fit_transform(df["species"])
-        X = pd.get_dummies(df.drop(columns=["species"]))
-        self.feature_names = X.columns.tolist()
+    # def load_data(self):
+    #     """Load and preprocess the penguins dataset."""
+    #     df = load_penguins().dropna()
+    #     y = self.label_encoder.fit_transform(df["species"])
+    #     X = pd.get_dummies(df.drop(columns=["species"]))
+    #     self.feature_names = X.columns.tolist()
 
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=self.test_size, random_state=self.random_state
-        )
+    #     X_train, X_test, y_train, y_test = train_test_split(
+    #         X, y, test_size=self.test_size, random_state=self.random_state
+    #     )
 
-        self.X_train = self.scaler.fit_transform(X_train)
-        self.X_test = self.scaler.transform(X_test)
-        self.y_train = y_train
-        self.y_test = y_test
+    #     self.X_train = self.scaler.fit_transform(X_train)
+    #     self.X_test = self.scaler.transform(X_test)
+    #     self.y_train = y_train
+    #     self.y_test = y_test
+
+    def load_data(self, test_size=0.3, random_state=42):
+        penguins_clean = load_penguins().dropna()
+        y = penguins_clean['species']
+        y_encoded = self.label_encoder.fit_transform(y)
+
+        numerical_features = ['bill_length_mm', 'bill_depth_mm', 'flipper_length_mm', 'body_mass_g']
+        categorical_features = ['island', 'sex']
+       
+        X = penguins_clean[numerical_features].copy()
+
+        for cat_feature in categorical_features:
+            if cat_feature in penguins_clean.columns:
+                le = LabelEncoder()
+                X[cat_feature] = le.fit_transform(penguins_clean[cat_feature])
+
+        # Store feature and target names
+        self.feature_names = list(X.columns)
+        self.target_names = sorted(y.unique())
+
+        self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(
+        X, y_encoded, test_size=test_size, random_state=random_state)
 
     def train(self):
         """Train a logistic regression model with L1 regularization."""
@@ -59,17 +81,25 @@ class SparseLogisticRegression:
         return self.model
 
     def predict(self, X):
-        """
-        Predict class labels for given data.
-        """
-        if self.model is None:
-            raise RuntimeError("Model is not trained yet.")
+        if isinstance(X, pd.Series):
+            X = X.values.reshape(1, -1)
+        y_pred_numeric = self.model.predict(X)
+        if self.label_encoder is not None and len(y_pred_numeric)>0:
+            y_pred_label = self.label_encoder.inverse_transform(y_pred_numeric)
+            return y_pred_label
+        else:
+            return y_pred_numeric
+        # """
+        # Predict class labels for given data.
+        # """
+        # if self.model is None:
+        #     raise RuntimeError("Model is not trained yet.")
 
-        if isinstance(X, pd.DataFrame):
-            X = X[self.feature_names]  # reorder/align columns if needed
-            X = self.scaler.transform(X)
+        # if isinstance(X, pd.DataFrame):
+        #     X = X[self.feature_names]  # reorder/align columns if needed
+        #     X = self.scaler.transform(X)
 
-        return self.model.predict(X)
+        # return self.model.predict(X)
 
     def evaluate(self):
         """Return test accuracy and number of non-zero features used."""
