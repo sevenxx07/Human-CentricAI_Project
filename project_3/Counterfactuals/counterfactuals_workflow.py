@@ -56,19 +56,27 @@ class CounterfactualExplainer:
                 current_code = x_prime[column]
                 possible_codes = list(set(self.encoders[column].transform(self.data[column].unique())) - {current_code})
                 if possible_codes:
-                    new_code = np.random.choice(possible_codes)
-                    x_prime[column] = new_code
+                    x_prime[column] = np.random.choice(possible_codes)
 
-            # Convert to model format (dummy encoding)
-            x_input = pd.get_dummies(pd.DataFrame([x_prime]))
-
-            # Align columns with model’s training data
-            x_input = x_input.reindex(columns=self.model.feature_names, fill_value=0)
-
-            # Predict
+            # Format for prediction based on model
             try:
-                pred = self.model.predict(x_input.values)
+                if hasattr(self.model, 'feature_names'):  # You store them in .load_data()
+                    input_df = pd.DataFrame([x_prime])
+                    if hasattr(self.model, "X_train"):  # Sparse DT or models with .X_train
+                        # Ensure column order and add missing columns
+                        input_df = input_df.reindex(columns=self.model.feature_names, fill_value=0)
+                    else:
+                        # For sklearn-based models, do dummy encoding and align
+                        input_df = pd.get_dummies(input_df)
+                        input_df = input_df.reindex(columns=self.model.feature_names, fill_value=0)
+
+                    pred = self.model.predict(input_df.values)
+                else:
+                    # fallback
+                    pred = self.model.predict(pd.DataFrame([x_prime]))
+
                 pred_label = pred[0] if isinstance(pred, (list, np.ndarray)) else pred
+
             except Exception as e:
                 print(f"Prediction error at iteration {i}: {e}")
                 continue

@@ -59,7 +59,7 @@ class SparseDecisionTree:
                 X[cat_feature] = le.fit_transform(penguins_clean[cat_feature])
 
         # Store feature and target names
-        self.feature_names = list(X.columns)
+        self.feature_names = X.columns.tolist()
         self.target_names = sorted(y.unique())
 
         self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(
@@ -73,7 +73,6 @@ class SparseDecisionTree:
         enc.set_output(transform="pandas")
         self.X_train_bin = enc.fit_transform(self.X_train, self.y_train)
         self.X_test_bin = enc.transform(self.X_test)
-        self.feature_names = self.X_train_bin.columns.tolist()
 
     def get_reference_labels(self):
         """Generate reference predictions from a black-box model."""
@@ -114,53 +113,50 @@ class SparseDecisionTree:
     def predict(self, X):
         """
         Predict labels for new input data.
-
         Parameters:
         -----------
         X : pd.DataFrame or np.ndarray
             New samples to classify. Must match original training structure.
-
         Returns:
         --------
         np.ndarray of predicted class labels
-
-        
         """
         if self.clf is None:
             raise RuntimeError("Model has not been trained yet.")
 
+        # Ensure X is a DataFrame
         if isinstance(X, pd.Series):
-            X = X.to_frame().T  # Convert to single-row DataFrame
+            X = X.to_frame().T
+        elif isinstance(X, (list, np.ndarray)):
+            X = pd.DataFrame(X, columns=self.feature_names)
 
-        elif isinstance(X, list) or isinstance(X, np.ndarray):
-            if np.array(X).ndim == 1: 
-                X = pd.DataFrame([X])
-            else:
-                X = pd.DataFrame(X)
-        # Ensure same dummy encoding
+        elif isinstance(X, pd.DataFrame):
+            if list(X.columns) != self.feature_names:
+                X.columns = self.feature_names  # Force columns to match
+
+        # One-hot encode (safe even if only numeric)
         X_encoded = pd.get_dummies(X)
-        print("Encoded input X_encoded:\n", X_encoded)
+        #print("Encoded input X_encoded:\n", X_encoded)
+
+        # Align with training columns
         missing_cols = set(self.X_train.columns) - set(X_encoded.columns)
         for col in missing_cols:
             X_encoded[col] = 0
-        X_encoded = X_encoded[self.X_train.columns]  # Align column order
+        X_encoded = X_encoded[self.X_train.columns]
 
-        # Binarize using the same encoder
+        # Binarize using the same encoder logic
         enc = ThresholdGuessBinarizer(n_estimators=40, max_depth=1, random_state=42)
         enc.set_output(transform="pandas")
-        enc.fit(self.X_train, self.y_train)  # Use training fit to maintain same thresholds
+        enc.fit(self.X_train, self.y_train)  # Use same thresholds
         X_bin = enc.transform(X_encoded)
 
         y_pred_numeric = self.clf.predict(X_bin)
 
-    # Decode numeric predictions to original labels if label_encoder exists
+        # Optional: decode back to class names
         if self.label_encoder is not None and len(y_pred_numeric) > 0:
-            y_pred_label = self.label_encoder.inverse_transform(y_pred_numeric)
-            return y_pred_label
+            return self.label_encoder.inverse_transform(y_pred_numeric)
         else:
             return y_pred_numeric
-
-        # return self.clf.predict(X_bin)
 
     def parse_gosdt_string(self, input_string):
         """
@@ -495,13 +491,6 @@ if __name__ == "__main__":
     sample = tree_model.X_test.iloc[0]
     true_label = tree_model.y_test[0]
     predicted_label = tree_model.predict(sample)[0]
-    true_name = tree_model.label_encoder.inverse_transform([true_label])[0]
-    predicted_name = tree_model.label_encoder.inverse_transform([predicted_label])[0]
-
-    print("Sample input:")
-    print(sample)
-    print(f"\nTrue Label: {true_name} ({true_label})")
-    print(f"Predicted Label: {predicted_name} ({predicted_label})")
 
 #for alpha in [0.004, 0.01, 0.1, 0.4]:
     #    model = SparseDecisionTree(alpha=alpha)
