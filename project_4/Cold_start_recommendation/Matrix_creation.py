@@ -19,9 +19,11 @@ print(f"reading data")
 
 df_movies = pd.read_csv(csv_path_movies)
 df_ratings = pd.read_csv(csv_path_ratings)
+#df_ratings['rating']=(df_ratings['rating']-df_ratings['rating'].mean())/df_ratings['rating'].std()
+df_ratings['rating']=(df_ratings['rating']-df_ratings['rating'].min())/(df_ratings['rating'].max() - df_ratings['rating'].min())
 
 print(df_movies.head())
-print(df_ratings.head())
+print(df_ratings[:20])
 
 userId = df_ratings.iloc[:,0]
 R = df_ratings.pivot(index = 'userId', columns = 'movieId', values = 'rating')

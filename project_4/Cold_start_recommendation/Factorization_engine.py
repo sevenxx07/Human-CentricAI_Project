@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 import numpy as np
+import math
 
 class Matrix_Factorization():
 
@@ -35,18 +36,24 @@ class Matrix_Factorization():
 
         return self.U, self.V
     
+
     def evaluate_loss(self, validation_matrix):
         total_loss = 0
         validation_pairs = list(zip(*np.where(~np.isnan(validation_matrix.values))))
         for i,j in validation_pairs: 
             prediction = np.dot(self.U[i,:], self.V[j,:])
-            error = validation_matrix.iloc[i,j] - prediction
-            total_loss += error**2
-        total_loss += self.lambd * (np.linalg.norm(self.U)**2 + np.linalg.norm(self.V)**2)
+            if prediction > 1: 
+                print("Prediction value exceeeds 1") 
+            if math.isnan(validation_matrix.iloc[i,j]) == False: 
+                error = validation_matrix.iloc[i,j] - prediction
+                if error > 1: 
+                    print("ERROR TO BIG")
+            total_loss += np.sqrt(error**2)
+        total_loss_norm = total_loss / len(validation_pairs)
         if self.steps % 10 == 0: 
-            print(f"Step: {self.steps}, Loss: {total_loss:.4f}")
-        return total_loss
-    
+            print(f"Step: {self.steps}, Loss: {total_loss_norm:.4f}")
+        return total_loss_norm
+
     def cross_val(self, alpha_list: list, lambd_list: list, K_list: list, ratio=0.8):
         nr_users = self.matrix.shape[0]
         split_index = int(nr_users * ratio)
@@ -69,7 +76,6 @@ class Matrix_Factorization():
         return best_parameters
 
 
-
 # Getting the R matrix 
 current_dir = os.path.dirname(__file__)
 data_path = os.path.join(current_dir, 'R_matrix.csv')
@@ -80,7 +86,10 @@ alphas = [0.001, 0.005, 0.01]
 lambdas = [0.01, 0.1, 1.0]
 Ks = [11, 21, 51]
 
-
 mat_fac_model = Matrix_Factorization(R_matrix)
-best_params = mat_fac_model.cross_val(alphas, lambdas, Ks, ratio=0.8)
+U, V = mat_fac_model.factorize(11)
+print(U)
+
+#best_params = mat_fac_model.cross_val(alphas, lambdas, Ks, ratio=0.8)
+ # Best Parameters: {'alpha': 0.005, 'lambda': 0.01, 'K': 11}
 
