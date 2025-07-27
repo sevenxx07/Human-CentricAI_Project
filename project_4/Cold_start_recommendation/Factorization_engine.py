@@ -8,7 +8,7 @@ class Matrix_Factorization():
     def __init__(self, matrix):
         self.matrix = matrix
 
-    def factorize(self, K, steps=10, alpha=0.01, lambd=0.1): 
+    def factorize(self, K, steps=10, alpha=0.005, lambd=0.01):
         self.alpha = alpha
         self.K = K
         self.lambd = lambd
@@ -75,21 +75,24 @@ class Matrix_Factorization():
         print("\n Best Parameters:", best_parameters)
         return best_parameters
 
+def get_R():
+    # Getting the R matrix
+    current_dir = os.path.dirname(__file__)
+    data_path = os.path.join(current_dir, 'R_matrix.csv')
 
-# Getting the R matrix 
-current_dir = os.path.dirname(__file__)
-data_path = os.path.join(current_dir, 'R_matrix.csv')
+    R_matrix = pd.read_csv(data_path, index_col=0)
 
-R_matrix = pd.read_csv(data_path, index_col=0)
+    mat_fac_model = Matrix_Factorization(R_matrix)
+    U, V = mat_fac_model.factorize(11)
+    print(U)
+    return mat_fac_model
 
-alphas = [0.001, 0.005, 0.01]
-lambdas = [0.01, 0.1, 1.0]
-Ks = [11, 21, 51]
+def find_best_params(mat_fac_model):
+    alphas = [0.001, 0.005, 0.01]
+    lambdas = [0.01, 0.1, 1.0]
+    Ks = [11, 21, 51]
+    best_params = mat_fac_model.cross_val(alphas, lambdas, Ks, ratio=0.8)
+    #Best Parameters: {'alpha': 0.005, 'lambda': 0.01, 'K': 11}
 
-mat_fac_model = Matrix_Factorization(R_matrix)
-U, V = mat_fac_model.factorize(11)
-print(U)
-
-#best_params = mat_fac_model.cross_val(alphas, lambdas, Ks, ratio=0.8)
- # Best Parameters: {'alpha': 0.005, 'lambda': 0.01, 'K': 11}
-
+if __name__ == "__main__":
+    model = get_R()
