@@ -1,0 +1,399 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'custom_style4.css'%}">
+{% endblock %}
+
+{% block content %}
+<div class="box">
+  <div class="title-container">
+    <div class="title">Cold Start Movie Recommendations</div>
+  </div>
+
+  <div class="main-text">
+    <!-- Session Status -->
+    <div class="step-box" id="session-status">
+      <h3>Session Status</h3>
+      <div class="metrics-grid" id="status-display">
+        <div class="metric">
+          <span class="metric-value" id="ratings-count">0</span>
+          <span class="metric-label">Ratings Given</span>
+        </div>
+        <div class="metric">
+          <span class="metric-value" id="current-phase">Not Started</span>
+          <span class="metric-label">Current Phase</span>
+        </div>
+        <div class="metric">
+          <span class="metric-value" id="skipped-count">0</span>
+          <span class="metric-label">Movies Skipped</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Initialize Session -->
+    <div class="step-box" id="init-section">
+      <h3>Start Your Movie Journey</h3>
+      <p>We'll show you 10 diverse movies to understand your preferences, then provide personalized recommendations.</p>
+
+      <button type="button" class="btn btn-primary" id="init-btn" onclick="initializeSession()">
+        <span id="init-btn-text">Start Rating Movies</span>
+        <span id="init-btn-spinner" class="spinner" style="display:none;"></span>
+      </button>
+    </div>
+
+    <!-- Initial Rating Phase -->
+    <div class="step-box" id="initial-rating-section" style="display: none;">
+      <h3>Initial Movie Rating</h3>
+      <div id="progress-bar" class="progress-container">
+        <div class="progress-bar">
+          <div class="progress-fill" id="progress-fill" style="width: 0%;"></div>
+        </div>
+        <span id="progress-text">0 / 10 movies rated</span>
+      </div>
+
+      <div id="movie-grid" class="movie-grid">
+        <!-- Movies will be populated here -->
+      </div>
+    </div>
+
+    <!-- Active Learning Phase -->
+    <div class="step-box" id="active-learning-section" style="display: none;">
+      <h3>Personalized Recommendations</h3>
+      <p>Based on your ratings, here's a movie we think you'll enjoy:</p>
+
+      <div id="recommendation-display" class="recommendation-container">
+        <!-- Single movie recommendation will be displayed here -->
+      </div>
+    </div>
+
+    <!-- Rating Interface -->
+    <div class="step-box" id="rating-interface" style="display: none;">
+      <div class="rating-container">
+        <div class="movie-card" id="current-movie-card">
+          <!-- Current movie details -->
+        </div>
+
+        <div class="rating-form">
+          <h4>Rate this movie:</h4>
+
+          {% include 'partials/star_rating.html' %}
+
+          <input type="hidden" id="selected-rating" value="">
+
+          <div class="action-buttons">
+            <button type="button" class="btn btn-success" id="submit-rating-btn" onclick="submitRating()" disabled>
+              Submit Rating
+            </button>
+            <button type="button" class="btn btn-secondary" id="skip-btn" onclick="skipMovie()">
+              Skip (Don't Know)
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Session Controls -->
+    <div class="step-box" id="session-controls" style="display: none;">
+      <h3>Session Controls</h3>
+      <button type="button" class="btn btn-warning" onclick="resetSession()">Reset Session</button>
+    </div>
+  </div>
+</div>
+
+<!-- Messages Container -->
+<div id="messages-container" style="position: fixed; top: 20px; right: 20px; z-index: 1000;"></div>
+
+<script>
+let currentMovies = [];
+let currentMovieIndex = 0;
+let sessionState = {
+  active: false,
+  phase: 'not_started',
+  ratingsGiven: 0,
+  moviesSkipped: 0
+};
+
+function showMessage(message, type = 'success') {
+  const container = document.getElementById('messages-container');
+  const messageDiv = document.createElement('div');
+  messageDiv.className = `alert alert-${type}`;
+  messageDiv.style.cssText = `
+    padding: 10px 15px;
+    margin-bottom: 10px;
+    border-radius: 4px;
+    background-color: ${type === 'success' ? '#d4edda' : '#f8d7da'};
+    border: 1px solid ${type === 'success' ? '#c3e6cb' : '#f5c6cb'};
+    color: ${type === 'success' ? '#155724' : '#721c24'};
+  `;
+  messageDiv.textContent = message;
+  container.appendChild(messageDiv);
+
+  setTimeout(() => {
+    if (messageDiv.parentNode) {
+      messageDiv.parentNode.removeChild(messageDiv);
+    }
+  }, 5000);
+}
+
+function initializeSession() {
+  const btnText = document.getElementById('init-btn-text');
+  const btnSpinner = document.getElementById('init-btn-spinner');
+
+  btnText.style.display = 'none';
+  btnSpinner.style.display = 'inline-block';
+
+  fetch("{% url 'project4:task1' %}", {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': '{{ csrf_token }}',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      action: 'initialize_session',
+      session_id: 'user_session_' + Date.now()
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    btnText.style.display = 'inline';
+    btnSpinner.style.display = 'none';
+
+    if (data.error) {
+      showMessage(data.error, 'error');
+    } else {
+      showMessage(data.message);
+      currentMovies = data.movies || [];
+      updateSessionDisplay(data);
+      showInitialRatingPhase();
+    }
+  })
+  .catch(error => {
+    btnText.style.display = 'inline';
+    btnSpinner.style.display = 'none';
+    showMessage('Error initializing session: ' + error, 'error');
+  });
+}
+
+function showInitialRatingPhase() {
+  document.getElementById('init-section').style.display = 'none';
+  document.getElementById('initial-rating-section').style.display = 'block';
+  document.getElementById('session-controls').style.display = 'block';
+
+  displayMoviesGrid(currentMovies);
+  if (currentMovies.length > 0) {
+    showMovieForRating(currentMovies[0]);
+  }
+}
+
+function displayMoviesGrid(movies) {
+  const grid = document.getElementById('movie-grid');
+  grid.innerHTML = movies.map(movie => `
+    <div class="movie-card" id="movie-${movie.movie_id}">
+      <div class="movie-title">${movie.title}</div>
+      <div class="movie-details">
+        ${movie.genres} (${movie.year})
+      </div>
+    </div>
+  `).join('');
+}
+
+function showMovieForRating(movie) {
+  const card = document.getElementById('current-movie-card');
+  card.innerHTML = `
+    <div class="movie-title">${movie.title}</div>
+    <div class="movie-details">${movie.genres} (${movie.year})</div>
+    ${movie.predicted_rating ? `<div class="prediction">Predicted rating: ${movie.predicted_rating.toFixed(1)}</div>` : ''}
+  `;
+
+  document.getElementById('rating-interface').style.display = 'block';
+  resetStarRating();
+}
+
+function setupStarRating() {
+  const stars = document.querySelectorAll('.star');
+  stars.forEach(star => {
+    star.addEventListener('click', function() {
+      const rating = parseFloat(this.dataset.rating);
+      document.getElementById('selected-rating').value = rating;
+      document.getElementById('submit-rating-btn').disabled = false;
+
+      // Visual feedback
+      stars.forEach((s, i) => {
+        const starRating = parseFloat(s.dataset.rating);
+        s.classList.toggle('active', starRating <= rating);
+      });
+    });
+  });
+}
+
+function resetStarRating() {
+  document.querySelectorAll('.star').forEach(star => {
+    star.classList.remove('active');
+  });
+  document.getElementById('selected-rating').value = '';
+  document.getElementById('submit-rating-btn').disabled = true;
+}
+
+function submitRating() {
+  const rating = document.getElementById('selected-rating').value;
+  const currentMovie = currentMovies[currentMovieIndex];
+
+  if (!rating || !currentMovie) return;
+
+  fetch("{% url 'project4:task1' %}", {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': '{{ csrf_token }}',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      action: 'submit_rating',
+      movie_id: currentMovie.movie_id,
+      rating: parseFloat(rating)
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.error) {
+      showMessage(data.error, 'error');
+    } else {
+      showMessage(data.message);
+      updateSessionDisplay(data);
+      handleRatingSubmitted(data);
+    }
+  })
+  .catch(error => {
+    showMessage('Error submitting rating: ' + error, 'error');
+  });
+}
+
+function skipMovie() {
+  const currentMovie = currentMovies[currentMovieIndex];
+  if (!currentMovie) return;
+
+  fetch("{% url 'project4:task1' %}", {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': '{{ csrf_token }}',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      action: 'skip_movie',
+      movie_id: currentMovie.movie_id,
+      timestamp: Date.now()
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.error) {
+      showMessage(data.error, 'error');
+    } else {
+      showMessage(data.message);
+      updateSessionDisplay(data);
+
+      // Server handles all skip logic, just update UI based on response
+      if (data.next_movie) {
+        showMovieForRating(data.next_movie);
+      } else {
+        document.getElementById('rating-interface').style.display = 'none';
+      }
+
+      // Handle phase transitions if needed
+      if (data.phase === 'active_learning' && document.getElementById('initial-rating-section').style.display !== 'none') {
+        document.getElementById('initial-rating-section').style.display = 'none';
+        document.getElementById('active-learning-section').style.display = 'block';
+      }
+    }
+  })
+  .catch(error => {
+    showMessage('Error skipping movie: ' + error, 'error');
+  });
+}
+
+function handleRatingSubmitted(data) {
+  // Mark current movie as rated
+  const movieCard = document.getElementById(`movie-${currentMovies[currentMovieIndex].movie_id}`);
+  if (movieCard) {
+    movieCard.classList.add('rated');
+  }
+
+  if (data.session_step === 'active_learning') {
+    // Switch to active learning phase
+    document.getElementById('initial-rating-section').style.display = 'none';
+    document.getElementById('active-learning-section').style.display = 'block';
+  }
+
+  if (data.next_movie) {
+    showMovieForRating(data.next_movie);
+  } else {
+    document.getElementById('rating-interface').style.display = 'none';
+  }
+
+  currentMovieIndex++;
+  updateProgress();
+}
+
+function updateProgress() {
+  const progress = Math.min((sessionState.ratingsGiven / 10) * 100, 100);
+  document.getElementById('progress-fill').style.width = progress + '%';
+  document.getElementById('progress-text').textContent = `${sessionState.ratingsGiven} / 10 movies rated`;
+}
+
+function updateSessionDisplay(data) {
+  if (data.session_active !== undefined) {
+    sessionState.active = data.session_active;
+  }
+  if (data.total_ratings !== undefined) {
+    sessionState.ratingsGiven = data.total_ratings;
+    document.getElementById('ratings-count').textContent = data.total_ratings;
+  }
+  if (data.skipped_count !== undefined) {
+    sessionState.moviesSkipped = data.skipped_count;
+    document.getElementById('skipped-count').textContent = data.skipped_count;
+  }
+  if (data.session_phase) {
+    const phaseText = data.session_phase === 'initial_rating' ? 'Initial Rating' : 'Active Learning';
+    document.getElementById('current-phase').textContent = phaseText;
+  }
+
+  updateProgress();
+}
+
+function resetSession() {
+  fetch("{% url 'project4:task1' %}", {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': '{{ csrf_token }}',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      action: 'reset_session'
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.error) {
+      showMessage(data.error, 'error');
+    } else {
+      showMessage(data.message);
+      location.reload();
+    }
+  })
+  .catch(error => {
+    showMessage('Error resetting session: ' + error, 'error');
+  });
+}
+
+// Initialize page
+document.addEventListener('DOMContentLoaded', function() {
+  setupStarRating();
+
+  // Show session controls if session is active
+  {% if session_active %}
+  document.getElementById('session-controls').style.display = 'block';
+  {% endif %}
+});
+</script>
+
+{% endblock %}
