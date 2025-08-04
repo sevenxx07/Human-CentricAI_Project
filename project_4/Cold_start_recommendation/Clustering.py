@@ -8,8 +8,8 @@ import os
 from django.conf import settings
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-csv_path_movies = os.path.join(BASE_DIR, 'data', 'ml-latest-small', 'movies.csv')
-csv_path_ratings = os.path.join(BASE_DIR, 'data', 'ml-latest-small', 'ratings.csv')
+csv_path_movies = os.path.join(BASE_DIR, 'data', 'ml_latest_small', 'movies.csv')
+csv_path_ratings = os.path.join(BASE_DIR, 'data', 'ml_latest_small', 'ratings.csv')
 
 
 class TrueHybridColdStartSelector:
@@ -347,20 +347,20 @@ def run_true_hybrid_cold_start(df_movies, df_ratings, mat_fac_model=None, R_matr
     # Analyze clustering quality
     analysis = selector.analyze_clustering_quality(clustered_movies)
 
-    print("\n" + "=" * 60)
-    print("CLUSTERING ANALYSIS")
-    print("=" * 60)
-    print(f"Clustering Type: {analysis['clustering_type']}")
-    print(f"Total Movies: {analysis['total_movies']}")
-    print(f"Number of Clusters: {analysis['num_clusters']}")
-    print(f"Random Selection: Top {top_k_candidates} candidates per cluster")
-    print()
+    # print("\n" + "=" * 60)
+    # print("CLUSTERING ANALYSIS")
+    # print("=" * 60)
+    # print(f"Clustering Type: {analysis['clustering_type']}")
+    # print(f"Total Movies: {analysis['total_movies']}")
+    # print(f"Number of Clusters: {analysis['num_clusters']}")
+    # print(f"Random Selection: Top {top_k_candidates} candidates per cluster")
+    # print()
 
-    for cluster_detail in analysis['cluster_details']:
-        print(f"Cluster {cluster_detail['cluster_id']} ({cluster_detail['size']} movies):")
-        print(f"  Dominant Genres: {cluster_detail['dominant_genres']}")
-        print(f"  Sample Movies: {', '.join(cluster_detail['sample_movies'][:3])}")
-        print()
+    # for cluster_detail in analysis['cluster_details']:
+    #     print(f"Cluster {cluster_detail['cluster_id']} ({cluster_detail['size']} movies):")
+    #     print(f"  Dominant Genres: {cluster_detail['dominant_genres']}")
+    #     print(f"  Sample Movies: {', '.join(cluster_detail['sample_movies'][:3])}")
+    #     print()
 
     return selected_movies, clustered_movies, selector, analysis
 
@@ -388,3 +388,26 @@ if __name__ == "__main__":
         genre_weight=0.7,  # 70% importance to genre similarity
         latent_weight=0.3  # 30% importance to latent feature similarity
     )
+
+# Model to return the selected movies 
+def get_selected_cold_start_movies():
+    df_movies = pd.read_csv(csv_path_movies)
+    df_ratings = pd.read_csv(csv_path_ratings)
+    R_matrix = pd.read_csv("R_matrix.csv", index_col=0)
+            
+    mat_fac_model = Matrix_Factorization(R_matrix)
+    U, V = mat_fac_model.factorize(11)
+
+    mat_fac_model.U = U
+    mat_fac_model.V = V
+    selected_movies, _, _, _ = run_true_hybrid_cold_start(            
+        df_movies=df_movies,
+        df_ratings=df_ratings,
+        mat_fac_model=mat_fac_model,
+        R_matrix=R_matrix,            
+        n_clusters=10,
+        genre_weight=0.7,  # 70% importance to genre similarity
+        latent_weight=0.3  # 30% importance to latent feature similarity
+        )
+
+    return selected_movies
