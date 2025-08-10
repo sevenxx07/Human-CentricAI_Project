@@ -1,28 +1,35 @@
-from Clustering import get_selected_cold_start_movies
-from Factorization_engine import get_R_U_V 
-from feature_interpretations import feature_dict, feature_characteristics
+from .Clustering import get_selected_cold_start_movies
+from .Factorization_engine import get_R_U_V 
+from .feature_interpretations import feature_dict, feature_characteristics
 import pandas as pd
 import os
 import numpy as np
 import random
 from numpy.linalg import norm
 
-# Loading movie ID's and titles and mapping them to each other
-BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-csv_path_movies = os.path.join(BASE_DIR, 'data', 'ml_latest_small', 'movies.csv')
-df_movies = pd.read_csv(csv_path_movies)
-movieId_to_title = dict(zip(df_movies['movieId'], df_movies['title']))
+def load_movie_data():
+    # Loading movie ID's and titles and mapping them to each other
+    BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    csv_path_movies = os.path.join(BASE_DIR, 'data', 'ml_latest_small', 'movies.csv')
+    df_movies = pd.read_csv(csv_path_movies)
+    movieId_to_title = dict(zip(df_movies['movieId'], df_movies['title']))
+    return movieId_to_title
 
+movieId_to_title = load_movie_data()
 
 # ---------- Cold start ---------- #
+
+# Getting the initial movies 
+def get_initial_movies(n=3):
+    selected_movies = get_selected_cold_start_movies() 
+    initial_movies = random.sample(selected_movies, n) 
+    print(f"Initial movies:", initial_movies)
+    return initial_movies
 
 # Obtaining the initial ratings on 3 randomly selected movies (one from each cluster to ensure diversity and informativity).
 # Returns a dictionary mapping the movie ID's to their ratings 
 def get_initial_ratings():
-    selected_movies = get_selected_cold_start_movies() 
-    initial_movies = random.sample(selected_movies, 3) 
-    print(f"Initial movies:", initial_movies)
-
+    initial_movies = get_initial_movies()
     # Simulating user ratings for testing. Only temporary!
     user_rating = {}
     for movie in initial_movies:
@@ -31,6 +38,8 @@ def get_initial_ratings():
         print("Movie title:", movie['title'], "Movie_ID:", movie['movieId'])
     return user_rating 
 
+def simulate_rating():
+    return random.choice([1,2,3,4,5])
 
 # Cold Start recommender class for estimating and updating the user latent vector based on the initial
 # ratings and latent movie features. 
@@ -64,7 +73,6 @@ class ColdStart:
 # A function for comparing (cosine) similarity between two vectors 
 def cosine_similarity(a,b):
     return np.dot(a,b) / (norm(a) * norm(b)) if norm(a) > 0 and norm(b) > 0 else 0
-
 
 # For a candidate movie to rate, all possible rating (1-5) are simulated and explained how 
 # each rating would affect the user's latent profile and the next recommendation 
@@ -141,8 +149,8 @@ def active_learning_loop(initial_user_vector, V, R, user_ratings, max_rounds=3):
         explain_impact(user_ratings, top_movie_id, V, R, movieId_to_title)
 
         # Simulating user rating for the movie
-        simulated_rating = random.choice([1,2,3,4,5])
-        user_ratings[top_movie_id] = simulated_rating
+        rating = simulate_rating()
+        user_ratings[top_movie_id] = rating
         rated_ids.add(top_movie_id)
 
         # Updating the user vector with the new rating 
@@ -152,20 +160,22 @@ def active_learning_loop(initial_user_vector, V, R, user_ratings, max_rounds=3):
     return U
 
 # Loading the rating matrix R, user matrix U, movie matrix V
-model, R, U, V = get_R_U_V()
 
-# Simulating initial rating on the cold start movies
-user_ratings = get_initial_ratings()
+def run_cold_start_demo():
+    model, R, U, V = get_R_U_V()
 
-# Initializing the cold start recommender and estimating the initial user vector
-cold_start_recommender = ColdStart(V, R)
-user_vector = cold_start_recommender.update_user_vector(user_ratings)
+    # Simulating initial rating on the cold start movies
+    user_ratings = get_initial_ratings()
 
-# Refining the user vector through more ratings
-final_user_vector = active_learning_loop(user_vector, V, R, user_ratings, max_rounds=3)
+    # Initializing the cold start recommender and estimating the initial user vector
+    cold_start_recommender = ColdStart(V, R)
+    user_vector = cold_start_recommender.update_user_vector(user_ratings)
 
-# Displaying the final user vector with human-readable feature names (found in feature_interpretations.py)
-for i, value in enumerate(final_user_vector):
-    print(f" Feature {feature_dict['Feature_' + str(i+1)]}: {value:2f}")
+    # Refining the user vector through more ratings
+    final_user_vector = active_learning_loop(user_vector, V, R, user_ratings, max_rounds=3)
 
-print(f"Final user vector:", final_user_vector)
+    # Displaying the final user vector with human-readable feature names (found in feature_interpretations.py)
+    for i, value in enumerate(final_user_vector):
+        print(f" Feature {feature_dict['Feature_' + str(i+1)]}: {value:2f}")
+
+    print(f"Final user vector:", final_user_vector)

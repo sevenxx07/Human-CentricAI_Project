@@ -6,6 +6,22 @@ from django.http import JsonResponse
 from django.shortcuts import render
 from django.conf import settings
 
+import pandas as pd 
+import numpy as np
+
+
+from project_4.Cold_start_recommendation.Cold_start import (
+    ColdStart, 
+    get_initial_movies,
+    get_initial_ratings, 
+    active_learning_loop, 
+    get_R_U_V,
+    get_selected_cold_start_movies, 
+    feature_characteristics,
+    feature_dict,
+    run_cold_start_demo
+)
+
 DEBUG = True
 logging.basicConfig(level=logging.DEBUG, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
@@ -21,7 +37,6 @@ MOVIE_CACHE = {
     'V_matrix': None,  # Item features from matrix factorization
     'loaded': False
 }
-
 
 def index(request):
     """Main view for Cold Start Active Learning - handles both GET and POST"""
@@ -76,10 +91,24 @@ def initialize_coldstart_session(data, n=8):
     try:
         # Ensure movie data is loaded
         ensure_movie_data_loaded()
+        df_movies = MOVIE_CACHE['movies_df']
+        movieId_to_title = dict(zip(df_movies['movieId'], df_movies['title']))
 
-        # TODO: Call clustering method to get initial 10 movies
-        initial_movies = get_initial_movie_selection(n)
 
+        # Getting the n initial movies to rate
+        raw_movies = get_initial_movies(5)
+        
+        # Re-formatting them
+        initial_movies = [
+            {
+                'movie_id': m['movieId'],
+                'title': m['title'],
+                'genres': m['genres'],
+            }
+            for m in raw_movies
+        ]
+        
+    
         # Initialize user state
         COLDSTART_STATE = {
             'is_initialized': True,
@@ -130,12 +159,12 @@ def submit_rating(data, n=8):
         COLDSTART_STATE['rated_movies'].append(rating_data)
         COLDSTART_STATE['total_ratings'] += 1
 
-        # TODO: Update user vector based on rating
-        updated_user_vector = update_user_vector(
-            COLDSTART_STATE.get('user_vector'),
-            movie_id,
-            rating
-        )
+        # Dictionary of all rated movies so far
+        rated_dict = {d['movie_id']: d['rating'] for d in COLDSTART_STATE['rated_movies']}
+
+        # Cold start active learning function 
+        cold_start = ColdStart(MOVIE_CACHE['V_matrix'], MOVIE_CACHE['R_matrix'])
+        updated_user_vector = cold_start.update_user_vector(rated_dict)
         COLDSTART_STATE['user_vector'] = updated_user_vector
 
         # Check if we're in initial rating phase (first n movies)
@@ -155,8 +184,12 @@ def submit_rating(data, n=8):
             session_step = 'active_learning'
             message = "Rating submitted! Getting your next recommendation..."
 
-        # TODO: Get next movie recommendation
-        next_movie = get_next_movie_recommendation(COLDSTART_STATE['user_vector'])
+        # Get next movie recommendation
+        next_movie = get_next_movie_recommendation(
+            COLDSTART_STATE['user_vector'],
+            COLDSTART_STATE['rated_movies'],
+            COLDSTART_STATE['skipped_movies'])
+        
         COLDSTART_STATE['current_movies'] = [next_movie] if next_movie else []
 
         response_data = {
@@ -193,7 +226,6 @@ def skip_movie(data):
         }
         COLDSTART_STATE['skipped_movies'].append(skip_data)
 
-        # TODO: Get replacement movie (should not be affected by skip)
         next_movie = get_replacement_movie(
             COLDSTART_STATE['user_vector'],
             COLDSTART_STATE['rated_movies'],
@@ -259,24 +291,20 @@ def ensure_movie_data_loaded():
     if MOVIE_CACHE['loaded']:
         return
 
-    # TODO: Load movie data from files
-    # This should load movies.csv, ratings.csv, and pre-computed matrix factorization results
     try:
         # Load movie and rating data
-        movies_path = os.path.join(settings.BASE_DIR, 'data', 'ml-latest-small', 'movies.csv')
-        ratings_path = os.path.join(settings.BASE_DIR, 'data', 'ml-latest-small', 'ratings.csv')
+        movies_path = os.path.join(settings.BASE_DIR, 'data', 'ml_latest_small', 'movies.csv')
+        ratings_path = os.path.join(settings.BASE_DIR, 'data', 'ml_latest_small', 'ratings.csv')
 
-        # TODO: Implement actual loading
-        # movies_df = pd.read_csv(movies_path)
-        # ratings_df = pd.read_csv(ratings_path)
-        # R_matrix = load_rating_matrix()
-        # V_matrix = load_item_features()
+        movies_df = pd.read_csv(movies_path)
+        ratings_df = pd.read_csv(ratings_path)
+        model, R_matrix, U_matrix, V_matrix = get_R_U_V()
 
         MOVIE_CACHE.update({
-            'movies_df': None,  # TODO: Load actual data
-            'ratings_df': None,  # TODO: Load actual data
-            'R_matrix': None,  # TODO: Load actual data
-            'V_matrix': None,  # TODO: Load actual data
+            'movies_df': movies_df, 
+            'ratings_df': ratings_df,  
+            'R_matrix': R_matrix,  
+            'V_matrix': V_matrix, 
             'loaded': True
         })
 
@@ -288,71 +316,46 @@ def ensure_movie_data_loaded():
         raise
 
 
-# TODO: Implement these functions with actual clustering and recommendation logic
-
-def get_initial_movie_selection(n=8):
-    """
-    TODO: Call clustering method to return initial list of n films
-    This should use the clustering algorithm to select diverse movies
-    for initial user preference learning
-    """
-    # Placeholder return - replace with actual clustering implementation
-    initial_movies = [
-        {
-            'movie_id': i,
-            'title': f'Sample Movie {i}',
-            'genres': 'Action|Adventure',
-            'year': 2020,
-            'poster_url': None
-        }
-        for i in range(1, n)
-    ]
-
-    if DEBUG:
-        logger.info(f"Generated {len(initial_movies)} initial movies for rating")
-
-    return initial_movies
-
-
-def update_user_vector(current_vector, movie_id, rating):
-    """
-    TODO: Update user's vector based on their rating input
-    This should update the user's latent factor representation
-    based on the movie they rated and the rating they gave
-    """
-    # Placeholder implementation
-    if DEBUG:
-        logger.info(f"Updating user vector with rating {rating} for movie {movie_id}")
-
-    # TODO: Implement actual vector update logic
-    updated_vector = current_vector  # Placeholder
-
+def get_initial_movie_selection(n=5):
+    return get_initial_movies(n)
+    
+def update_user_vector(rated_dict):
+    cold_start = ColdStart(MOVIE_CACHE['V_matrix'],MOVIE_CACHE['R_matrix'])
+    updated_vector = cold_start.update_user_vector(rated_dict)
     return updated_vector
 
+def get_next_movie_recommendation(user_vector, rated_movies, skipped_movies):
+    rated_ids = {m['movie_id'] for m in rated_movies}
+    skipped_ids = {m['movie_id'] for m in skipped_movies}
+    excluded_ids = rated_ids.union(skipped_ids)
 
-def get_next_movie_recommendation(user_vector):
-    """
-    TODO: Query model to provide one new film prediction for user to rate
-    This should use the updated user vector to find the most informative
-    movie for the user to rate next
-    """
-    # Placeholder implementation
-    if DEBUG:
-        logger.info("Getting next movie recommendation")
+    
+    R = MOVIE_CACHE['R_matrix']
+    V = MOVIE_CACHE['V_matrix']
+    movie_ids_list = list(R.columns)
 
-    # TODO: Implement actual recommendation logic
-    # This should find movies that would be most informative for the user to rate
+    candidate_ids = [i for i in R.columns if i not in excluded_ids]
+    if not candidate_ids:
+        return None
+    
+    candidate_indices = [movie_ids_list.index(i) for i in candidate_ids]
+    V_candidates = V[candidate_ids,:]
+    predicted_ratings = V_candidates @ user_vector
+    
+    top_idx = np.argmax(predicted_ratings)
+    best_movie_id = candidate_ids[top_idx]
+    predicted_score = predicted_ratings[top_idx]
+
+    movie_info = MOVIE_CACHE['movies_df'][MOVIE_CACHE['movies_df']['movieId'] == best_movie_id].iloc[0]
+
     next_movie = {
-        'movie_id': 999,
-        'title': 'Recommended Movie',
-        'genres': 'Drama|Romance',
-        'year': 2021,
-        'poster_url': None,
-        'predicted_rating': 4.2
+        'movie_id': int(best_movie_id),
+        'title': movie_info['title'],
+        'genres': movie_info['genres'],
+        'predicted_rating': float(predicted_score)
     }
 
-    return next_movie
-
+    return next_movie 
 
 def get_replacement_movie(user_vector, rated_movies, skipped_movies):
     """

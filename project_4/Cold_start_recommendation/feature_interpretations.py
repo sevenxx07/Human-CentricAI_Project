@@ -3,7 +3,7 @@ import pandas as pd
 import os
 from collections import Counter
 import matplotlib.pyplot as plt
-from Factorization_engine import get_R_U_V 
+from .Factorization_engine import get_R_U_V 
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 
