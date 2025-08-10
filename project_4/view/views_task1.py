@@ -339,7 +339,7 @@ def get_next_movie_recommendation(user_vector, rated_movies, skipped_movies):
         return None
     
     candidate_indices = [movie_ids_list.index(i) for i in candidate_ids]
-    V_candidates = V[candidate_ids,:]
+    V_candidates = V[candidate_indices,:]
     predicted_ratings = V_candidates @ user_vector
     
     top_idx = np.argmax(predicted_ratings)
