@@ -10,7 +10,7 @@ from django.conf import settings
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 csv_path_movies = os.path.join(BASE_DIR, 'data', 'ml_latest_small', 'movies.csv')
 csv_path_ratings = os.path.join(BASE_DIR, 'data', 'ml_latest_small', 'ratings.csv')
-
+csv_path_matrix = os.path.join(BASE_DIR, 'data', 'R_matrix.csv')
 
 class TrueHybridColdStartSelector:
     """
@@ -368,7 +368,7 @@ if __name__ == "__main__":
     # Load your data (you already have this)
     df_movies = pd.read_csv(csv_path_movies)
     df_ratings = pd.read_csv(csv_path_ratings)
-    R_matrix = pd.read_csv("R_matrix.csv", index_col=0)
+    R_matrix = pd.read_csv(csv_path_matrix, index_col=0)
 
     # Train your model (you already have this)
     mat_fac_model = Matrix_Factorization(R_matrix)
@@ -393,7 +393,7 @@ if __name__ == "__main__":
 def get_selected_cold_start_movies():
     df_movies = pd.read_csv(csv_path_movies)
     df_ratings = pd.read_csv(csv_path_ratings)
-    R_matrix = pd.read_csv("R_matrix.csv", index_col=0)
+    R_matrix = pd.read_csv(csv_path_matrix, index_col=0)
             
     mat_fac_model = Matrix_Factorization(R_matrix)
     U, V = mat_fac_model.factorize(11)

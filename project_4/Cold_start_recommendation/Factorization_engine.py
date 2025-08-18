@@ -3,6 +3,10 @@ import pandas as pd
 import numpy as np
 import math
 
+from pbl.settings import BASE_DIR
+
+csv_path_matrix = os.path.join(BASE_DIR, 'data', 'R_matrix.csv')
+
 class Matrix_Factorization():
 
     def __init__(self, matrix):
@@ -83,10 +87,7 @@ class Matrix_Factorization():
 # Loading the R-matrix and running the matrix factorization with K=11 (best value found from cross-validation) 
 def get_R_U_V():
     # Getting the R matrix
-    current_dir = os.path.dirname(__file__)
-    data_path = os.path.join(current_dir, 'R_matrix.csv')
-
-    R_matrix = pd.read_csv(data_path, index_col=0)
+    R_matrix = pd.read_csv(csv_path_matrix, index_col=0)
 
     mat_fac_model = Matrix_Factorization(R_matrix)
     U, V = mat_fac_model.factorize(11)

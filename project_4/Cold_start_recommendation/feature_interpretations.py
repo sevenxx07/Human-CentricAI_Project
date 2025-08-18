@@ -1,20 +1,48 @@
-import numpy as np
-import pandas as pd
 import os
 from collections import Counter
-import matplotlib.pyplot as plt
-from .Factorization_engine import get_R_U_V 
 
-BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+import numpy as np
+import pandas as pd
+
+from pbl.settings import BASE_DIR
+from .Factorization_engine import get_R_U_V
 
 csv_path_movies = os.path.join(BASE_DIR, 'data', 'ml_latest_small', 'movies.csv')
-df_movies = pd.read_csv(csv_path_movies)
-movieId_to_title = dict(zip(df_movies['movieId'], df_movies['title']))
 
-# Contextualization of the features. 
+feature_dict = {
+ "Feature_1" : "Offbeat Capers & Musical Mischief",
+ "Feature_2": "Sci-Fi Romance with a Witty Edge",
+ "Feature_3": "Whimsical Romances & Daydream Escapes",
+ "Feature_4" : "Passion & Peril in Tumultuous Times",
+ "Feature_5": "Twisted Humor & Creepy Vibes",
+ "Feature_6": "Poetic Quests & Fantastical Journeys",
+ "Feature_7" : "Cosmic Comedy & Social Satire",
+ "Feature_8": " Intense Romances & Rebellious Thrills",
+ "Feature_9": "Low-Key Action & Quiet Intrigue",
+ "Feature_10" : "Classic Suspense with a Romantic Core",
+ "Feature_11": "Whimsical Worlds for All Ages"
+ }
+
+feature_characteristics = {
+ "Feature_1" : "Quirky Ccrime, satirical comedy, and occasional musical numbers",
+ "Feature_2": "Lighthearted or emotional stories mixing love, tech, and humor",
+ "Feature_3": "Dreamu love stories, gentre thrillers, and magical realism",
+ "Feature_4" : "Love, war, and danger collide in high-stakes drama",
+ "Feature_5": "Where horror meets irony -- funny, freaku, and off-kilter",
+ "Feature_6": "Emotionally rich adventures with surreal or mysitcal tones",
+ "Feature_7" : "Sci-fi and satire with a splash of existential humor",
+ "Feature_8": "Stylized love stories, edgy drama, and emotional heat",
+ "Feature_9": "Tense relationships and subtle thrillers with emotional depth",
+ "Feature_10" : "Mysteries and thrillers grounded in emotional stakes",
+ "Feature_11": "Lighthearted, imaginative stories for families and dreamers."
+ }
+
+
+# Contextualization of the features.
 # Purpose: To provide the user with actual, interpretable information about how their choices will affect
-# the next movie to be presented. 
+# the next movie to be presented.
 def interpret_latent_features(V, df_movies, movieId_to_title, top_n=20):
+
     feature_interpretations = []
 
     movie_ids = list(movieId_to_title.keys())
@@ -37,7 +65,7 @@ def interpret_latent_features(V, df_movies, movieId_to_title, top_n=20):
         genre_couts = Counter(top_genres)
 
         summary = {
-            'Feature': feature_index +1, 
+            'Feature': feature_index +1,
             'Top Genres': genre_couts.most_common(5),
             'Top Movies': top_titles[:5]
         }
@@ -47,48 +75,29 @@ def interpret_latent_features(V, df_movies, movieId_to_title, top_n=20):
     return feature_interpretations
 
 
-model, R, U, V = get_R_U_V()
+def __main__():
+    # Load movies data if not provided
+    df_movies = pd.read_csv(csv_path_movies)
+    movieId_to_title = dict(zip(df_movies['movieId'], df_movies['title']))
 
-feature_information = interpret_latent_features(V, df_movies, movieId_to_title)
-for feature in feature_information:
-    print(f" Feature {feature['Feature']}")
-    print(" Top Genres:", feature['Top Genres'])
-    print(" Example Movies:", feature['Top Movies'])
-    print()
+    # Load the R matrix and perform matrix factorization
+    model, R, U, V = get_R_U_V()
 
+    # Interpret the latent features
+    feature_information = interpret_latent_features(V, df_movies, movieId_to_title)
 
-feature_dict = {
- "Feature_1" : "Offbeat Capers & Musical Mischief",
- "Feature_2": "Sci-Fi Romance with a Witty Edge", 
- "Feature_3": "Whimsical Romances & Daydream Escapes",
- "Feature_4" : "Passion & Peril in Tumultuous Times", 
- "Feature_5": "Twisted Humor & Creepy Vibes", 
- "Feature_6": "Poetic Quests & Fantastical Journeys", 
- "Feature_7" : "Cosmic Comedy & Social Satire",
- "Feature_8": " Intense Romances & Rebellious Thrills", 
- "Feature_9": "Low-Key Action & Quiet Intrigue",
- "Feature_10" : "Classic Suspense with a Romantic Core", 
- "Feature_11": "Whimsical Worlds for All Ages"
- }
+    # Print the feature interpretations
+    for feature in feature_information:
+        print(f"Feature {feature['Feature']}")
+        print("Top Genres:", feature['Top Genres'])
+        print("Example Movies:", feature['Top Movies'])
+        print()
 
-feature_characteristics = {
- "Feature_1" : "Quirky Ccrime, satirical comedy, and occasional musical numbers",
- "Feature_2": "Lighthearted or emotional stories mixing love, tech, and humor", 
- "Feature_3": "Dreamu love stories, gentre thrillers, and magical realism",
- "Feature_4" : "Love, war, and danger collide in high-stakes drama", 
- "Feature_5": "Where horror meets irony -- funny, freaku, and off-kilter", 
- "Feature_6": "Emotionally rich adventures with surreal or mysitcal tones", 
- "Feature_7" : "Sci-fi and satire with a splash of existential humor",
- "Feature_8": "Stylized love stories, edgy drama, and emotional heat", 
- "Feature_9": "Tense relationships and subtle thrillers with emotional depth",
- "Feature_10" : "Mysteries and thrillers grounded in emotional stakes", 
- "Feature_11": "Lighthearted, imaginative stories for families and dreamers."
- }
 
 
 # Feature 1: Drama (10), Comedy (6), Crime (3), Musical (3), Horror (3)
 # "Quirky Crime & Musical Escapades"
-# Vibe: Stylized, offbeat stories with a blend of humor, music and crime. 
+# Vibe: Stylized, offbeat stories with a blend of humor, music and crime.
 # Example Movies: Dr.Horrible's Sing-Along Blog, Merry Madagascar, Three Colors: Red
 
 
@@ -142,11 +151,11 @@ feature_characteristics = {
 
 # Feature 10: Drama (11), Thriller (6), Romance (5), Mystery (5), Comedy (4)
 # "Emotional Thrillers & Classic Myseteries"
-# Vibe: Tense and insprospective stories witgh love, secrets, and string plot twists. 
+# Vibe: Tense and insprospective stories witgh love, secrets, and string plot twists.
 # Example Movies: Bound, Out of the Past, Jean de Florette.
 
 
 # Feature 11: Drama (8), Comedy (7), Fantasy (5), adventure (4), Children (4)
 # "Whimsical Family-Friendly Fantasies"
 # Vibe: Light-hearted, often fantastical or satirical films that span generations
-# Example Movies: Wallace and Gromit, Dr.No, Borat, Shakespeare in Love. 
+# Example Movies: Wallace and Gromit, Dr.No, Borat, Shakespeare in Love.
