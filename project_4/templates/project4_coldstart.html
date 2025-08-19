@@ -88,9 +88,6 @@
             <button type="button" class="btn btn-secondary" id="skip-btn" onclick="skipMovie()">
               Skip (Don't Know)
             </button>
-            <button type="button" class="btn btn-info" id="explain-btn" onclick="showRatingExplanation()" style="display: none;">
-              Show Impact
-            </button>
           </div>
         </div>
       </div>
@@ -233,7 +230,6 @@ function showMovieForRating(movie) {
 
   document.getElementById('rating-interface').style.display = 'block';
   document.getElementById('explanation-section').style.display = 'block';
-  document.getElementById('explain-btn').style.display = 'inline-block';
   resetStarRating();
   resetExplanation();
 }
@@ -431,28 +427,37 @@ function skipMovie() {
   .catch(error => {
     showMessage('Error skipping movie: ' + error, 'error');
   });
-}
-function handleRatingSubmitted(data) {
-    // Mark current movie as rated
-    const movieCard = document.getElementById(`movie-${currentMovies[currentMovieIndex].movie_id}`);
-    if (movieCard) {
-        movieCard.classList.add('rated');
+}function handleRatingSubmitted(data) {
+    // Mark current movie as rated in the grid (if we're in initial phase)
+    if (data.session_step === 'initial_rating' && currentMovies[currentMovieIndex]) {
+        const movieCard = document.getElementById(`movie-${currentMovies[currentMovieIndex].movie_id}`);
+        if (movieCard) {
+            movieCard.classList.add('rated');
+        }
+        // Only increment for initial phase
+        currentMovieIndex++;
     }
-
-    // Update currentMovieIndex BEFORE checking for next movie
-    currentMovieIndex++;
 
     if (data.session_step === 'active_learning') {
         // Switch to active learning phase
         document.getElementById('initial-rating-section').style.display = 'none';
         document.getElementById('active-learning-section').style.display = 'block';
+
+        // In active learning, we don't use currentMovieIndex anymore
+        // Each recommendation is independent
     }
 
     if (data.next_movie) {
+        // Update currentMovies to contain the new movie
+        if (data.session_step === 'active_learning') {
+            currentMovies = [data.next_movie];
+            currentMovieIndex = 0;
+        }
         showMovieForRating(data.next_movie);
     } else {
         document.getElementById('rating-interface').style.display = 'none';
         document.getElementById('explanation-section').style.display = 'none';
+        showMessage('No more recommendations available.', 'info');
     }
 
     updateProgress();

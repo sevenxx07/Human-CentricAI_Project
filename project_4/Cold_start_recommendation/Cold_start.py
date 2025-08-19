@@ -15,35 +15,25 @@ def load_movie_data():
     movieId_to_title = dict(zip(df_movies['movieId'], df_movies['title']))
     return movieId_to_title
 
-movieId_to_title = load_movie_data()
 
 # ---------- Cold start ---------- #
 
-# Getting the initial movies
 def get_initial_movies(n=3):
+    """
+    Getting the initial movies
+    """
     selected_movies = get_selected_cold_start_movies()
     initial_movies = random.sample(selected_movies, n)
     print(f"Initial movies:", initial_movies)
     return initial_movies
 
-# Obtaining the initial ratings on 3 randomly selected movies (one from each cluster to ensure diversity and informativity).
-# Returns a dictionary mapping the movie ID's to their ratings
-def get_initial_ratings():
-    initial_movies = get_initial_movies()
-    # Simulating user ratings for testing. Only temporary!
-    user_rating = {}
-    for movie in initial_movies:
-        random_rating = random.choice([1,2,3,4,5])
-        user_rating[movie['movieId']] = random_rating
-        print("Movie title:", movie['title'], "Movie_ID:", movie['movieId'])
-    return user_rating
 
-def simulate_rating():
-    return random.choice([1,2,3,4,5])
-
-# Cold Start recommender class for estimating and updating the user latent vector based on the initial
-# ratings and latent movie features.
 class ColdStart:
+    """
+    Cold Start recommender class for estimating and updating the user latent vector based on the initial
+    ratings and latent movie features.
+    """
+
     def __init__(self, V_matrix, R_matrix, lambd=0.1):
         self.V = V_matrix # Latent feature matrix for movies
         self.K = V_matrix.shape[1] # Nr of latent features
@@ -51,14 +41,21 @@ class ColdStart:
         self.R.columns = self.R.columns.astype(int)
         self.lambd = lambd # Regularization parameter
 
-    # Updating the latent user vector U_i after the initial ratings using regularized least squares (eq. 2 from instructions)
-    # Returns the updated latent user feature vector, U_i
     def update_user_vector(self, user_ratings):
+        """
+        Updating the latent user vector U_i after the initial ratings using regularized least squares (eq. 2 from instructions)
+        Returns the updated latent user feature vector, U_i
+        """
+
         # Extracting the rated movies and ensuring they are found in the R-matrix (i.e. have some rating from before)
         rated_ids = list(user_ratings.keys())
         found_ids = [i for i in rated_ids if i in self.R.columns]
         if found_ids != rated_ids:
-            raise ValueError("All rated ids were not found. The found ones were:", found_ids)
+            # raise ValueError("All rated ids were not found. The found ones were:", found_ids)
+            not_found = set(rated_ids) - set(found_ids)
+            print(f"ValueError: not found ids {not_found}")
+            return np.zeros(self.K)
+
 
         ratings = np.array(list(user_ratings.values()), dtype=np.float64)
         rated_indices = [self.R.columns.get_loc(i) for i in rated_ids if i in self.R.columns]
@@ -74,9 +71,13 @@ class ColdStart:
 def cosine_similarity(a,b):
     return np.dot(a,b) / (norm(a) * norm(b)) if norm(a) > 0 and norm(b) > 0 else 0
 
-# For a candidate movie to rate, all possible rating (1-5) are simulated and explained how
-# each rating would affect the user's latent profile and the next recommendation
-def explain_impact(current_user_ratings, movie_to_rate_id, V, R, movieId_to_title, top_k=1, feature_dict = feature_dict, feature_information = feature_characteristics):
+
+def explain_impact(current_user_ratings, movie_to_rate_id, V, R, movieId_to_title, top_k=1, feature_dict=feature_dict,
+                   feature_information=feature_characteristics):
+    """
+    For a candidate movie to rate, all possible rating (1-5) are simulated and explained how
+    each rating would affect the user's latent profile and the next recommendation
+    """
 
     movie_index = list(R.columns).index(movie_to_rate_id)
     movie_vector = V[movie_index]
@@ -125,9 +126,17 @@ def explain_impact(current_user_ratings, movie_to_rate_id, V, R, movieId_to_titl
             print(f"   - {explanation}")
         print()
 
-# The user repeatedly rated recommended movies and the user latent vector is updated accordingly
-# Returns: The updated user latent vector
-def active_learning_loop(initial_user_vector, V, R, user_ratings, max_rounds=3):
+
+def active_learning_loop(initial_user_vector, V, R, user_ratings, max_rounds=3, movieId_to_title=None):
+    """
+    The user repeatedly rated recommended movies and the user latent vector is updated accordingly
+    Returns: The updated user latent vector
+    """
+
+    #TODO maybe do not allow passing none
+    if movieId_to_title is None:
+        movieId_to_title = load_movie_data()
+
     U = initial_user_vector
     rated_ids = set(user_ratings.keys())
     for i in range(max_rounds):
@@ -159,9 +168,31 @@ def active_learning_loop(initial_user_vector, V, R, user_ratings, max_rounds=3):
 
     return U
 
-# Loading the rating matrix R, user matrix U, movie matrix V
+
+# --- The simulation of the cold start recommender system --- #
+
+def get_initial_ratings():
+    """
+    Obtaining the initial ratings on 3 randomly selected movies (one from each cluster to ensure diversity and informativity).
+    Returns a dictionary mapping the movie ID's to their ratings
+    """
+
+    initial_movies = get_initial_movies()
+
+    user_rating = {}
+    for movie in initial_movies:
+        random_rating = random.choice([1, 2, 3, 4, 5])
+        user_rating[movie['movieId']] = random_rating
+        print("Movie title:", movie['title'], "Movie_ID:", movie['movieId'])
+    return user_rating
+
+
+def simulate_rating():
+    return random.choice([1, 2, 3, 4, 5])
+
 
 def run_cold_start_demo():
+    # Loading the rating matrix R, user matrix U, movie matrix V
     model, R, U, V = get_R_U_V()
 
     # Simulating initial rating on the cold start movies

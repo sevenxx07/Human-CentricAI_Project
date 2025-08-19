@@ -10,9 +10,9 @@ django.setup()
 
 from django.conf import settings
 
-csv_path_movies = os.path.join(settings.BASE_DIR, 'data', 'ml-latest-small', 'movies.csv')
+csv_path_movies = os.path.join(settings.BASE_DIR, 'data', 'ml_latest_small', 'movies.csv')
 # Format: movieId, title, genres 
-csv_path_ratings = os.path.join(settings.BASE_DIR, 'data', 'ml-latest-small', 'ratings.csv')
+csv_path_ratings = os.path.join(settings.BASE_DIR, 'data', 'ml_latest_small', 'ratings.csv')
 # Format: userId, movieId, rating, timestamp 
 
 print(f"reading data")
@@ -29,4 +29,3 @@ userId = df_ratings.iloc[:,0]
 R = df_ratings.pivot(index = 'userId', columns = 'movieId', values = 'rating')
 R = R.replace(np.nan, None)
 R.to_csv("R_matrix.csv")
-
