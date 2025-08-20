@@ -1,7 +1,8 @@
 /*
-For project 4
+For project 4 - Movie Recommender System
 */
 
+/* Layout Components */
 .movie-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -10,6 +11,7 @@ For project 4
 }
 
 .movie-card {
+  position: relative;
   border: 1px solid #ddd;
   border-radius: 8px;
   padding: 15px;
@@ -21,11 +23,6 @@ For project 4
 .movie-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-}
-
-.movie-card.rated {
-  background-color: #f8f9fa;
-  border-color: #28a745;
 }
 
 .movie-title {
@@ -40,6 +37,13 @@ For project 4
   margin-bottom: 10px;
 }
 
+.prediction {
+  font-size: 12px;
+  color: #007bff;
+  font-style: italic;
+}
+
+/* Progress Bar */
 .progress-container {
   margin: 20px 0;
   text-align: center;
@@ -60,42 +64,56 @@ For project 4
   transition: width 0.3s ease;
 }
 
+/* Star Rating System */
 .star-rating {
-  font-size: 24px;
-  margin: 15px 0;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin: 20px 0;
   user-select: none;
 }
 
-.star {
+.star-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   cursor: pointer;
-  color: #ddd;
-  transition: color 0.2s;
-  margin: 0 2px;
+  padding: 5px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
 }
 
-.star:hover,
-.star.active {
+.star-container:hover {
+  background-color: #f8f9fa;
+  transform: scale(1.05);
+}
+
+.star {
+  font-size: 24px;
+  color: #ddd;
+  transition: color 0.2s ease;
+  margin-bottom: 2px;
+}
+
+.star-container:hover .star,
+.star-container.active .star {
   color: #ffc107;
 }
 
-.star.half {
-  background: linear-gradient(90deg, #ffc107 50%, #ddd 50%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+.rating-number {
+  font-size: 11px;
+  color: #666;
+  font-weight: 500;
+  text-align: center;
 }
 
-.recommendation-container {
-  max-width: 400px;
-  margin: 20px auto;
+.star-container:hover .rating-number,
+.star-container.active .rating-number {
+  color: #ffc107;
+  font-weight: bold;
 }
 
-.action-buttons {
-  display: flex;
-  gap: 10px;
-  justify-content: center;
-  margin-top: 20px;
-}
-
+/* Metrics Dashboard */
 .metrics-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -124,56 +142,34 @@ For project 4
   margin-top: 5px;
 }
 
-/* Add these styles to your custom_style4.css file */
-
-.star-rating {
-  display: flex;
-  justify-content: center;
-  gap: 15px;
-  font-size: 24px;
-  margin: 15px 0;
-  user-select: none;
+/* Recommendation Container */
+.recommendation-container {
+  max-width: 500px;
+  margin: 20px auto;
 }
 
-.star-container {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  cursor: pointer;
-  transition: transform 0.2s;
+.rating-container {
+  max-width: 600px;
+  margin: 0 auto;
 }
 
-.star-container:hover {
-  transform: scale(1.1);
-}
-
-.star {
-  color: #ddd;
-  transition: color 0.2s;
-  margin-right: 5px;
-}
-
-.star-container:hover .star,
-.star-container.active .star {
-  color: #ffc107;
-}
-
-.rating-number {
-  font-size: 12px;
-  color: #666;
-  font-weight: bold;
-  min-width: 20px;
+.rating-form {
   text-align: center;
+  margin-top: 20px;
 }
 
-.star-container.active .rating-number {
-  color: #ffc107;
+/* Action Buttons */
+.action-buttons {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  margin-top: 30px;
+  flex-wrap: wrap;
 }
-/* Add these styles to your existing custom_style4.css file */
 
-/* Explanation Section Styles */
+/* Explanation Section */
 .explanation-container {
-  margin-top: 1rem;
+  margin-top: 2rem;
 }
 
 .explanation-toggle {
@@ -183,7 +179,7 @@ For project 4
 
 .explanation-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 1rem;
   margin-top: 1rem;
 }
@@ -201,30 +197,17 @@ For project 4
   transform: translateY(-2px);
 }
 
-.explanation-card[data-rating="5"] {
-  border-left: 4px solid #28a745;
-}
-
-.explanation-card[data-rating="4"] {
-  border-left: 4px solid #17a2b8;
-}
-
-.explanation-card[data-rating="3"] {
-  border-left: 4px solid #ffc107;
-}
-
-.explanation-card[data-rating="2"] {
-  border-left: 4px solid #fd7e14;
-}
-
-.explanation-card[data-rating="1"] {
-  border-left: 4px solid #dc3545;
-}
+/* Rating-specific card colors */
+.explanation-card[data-rating="5"] { border-left: 4px solid #28a745; }
+.explanation-card[data-rating="4"] { border-left: 4px solid #17a2b8; }
+.explanation-card[data-rating="3"] { border-left: 4px solid #ffc107; }
+.explanation-card[data-rating="2"] { border-left: 4px solid #fd7e14; }
+.explanation-card[data-rating="1"] { border-left: 4px solid #dc3545; }
 
 .explanation-header h4 {
   margin: 0 0 0.5rem 0;
   color: #333;
-  font-size: 1.1rem;
+  font-size: 1rem;
 }
 
 .explanation-body {
@@ -237,9 +220,11 @@ For project 4
   border-bottom: 1px solid #e9ecef;
 }
 
-.next-movie h5 {
-  margin: 0 0 0.25rem 0;
-  font-size: 0.9rem;
+.next-movie h5,
+.feature-changes h5,
+.similarity-info h5 {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.85rem;
   color: #6c757d;
   font-weight: 600;
 }
@@ -249,20 +234,9 @@ For project 4
 }
 
 .confidence {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   color: #6c757d;
   font-style: italic;
-}
-
-.feature-changes {
-  margin-bottom: 1rem;
-}
-
-.feature-changes h5 {
-  margin: 0 0 0.5rem 0;
-  font-size: 0.9rem;
-  color: #6c757d;
-  font-weight: 600;
 }
 
 .feature-changes ul {
@@ -273,99 +247,143 @@ For project 4
 
 .feature-change {
   margin-bottom: 0.25rem;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
 }
 
-.feature-change.increased {
-  color: #28a745;
-}
-
-.feature-change.decreased {
-  color: #dc3545;
-}
+.feature-change.increase { color: #28a745; }
+.feature-change.decrease { color: #dc3545; }
 
 .feature-change::before {
   content: "→ ";
   font-weight: bold;
 }
 
-.similarity-info h5 {
-  margin: 0 0 0.25rem 0;
-  font-size: 0.9rem;
-  color: #6c757d;
-  font-weight: 600;
-}
-
 .similarity-info p {
   margin: 0;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: #495057;
 }
 
-/* Button styles for explanation toggle */
+/* Specialized Button Styles (that aren't in main CSS) */
+.btn-secondary {
+  background-color: #6c757d;
+  border-color: #6c757d;
+  color: white !important;
+  padding: 10px 20px;
+  border-radius: 6px;
+  border: 1px solid;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  display: inline-block;
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+  background-color: #545b62;
+  border-color: #545b62;
+  color: white !important;
+  text-decoration: none;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
 .btn-outline-primary {
-  color: #007bff;
+  color: #007bff !important;
   border-color: #007bff;
   background-color: transparent;
+  padding: 10px 20px;
+  border-radius: 6px;
+  border: 1px solid;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  display: inline-block;
+  text-align: center;
+  transition: all 0.2s ease;
 }
 
 .btn-outline-primary:hover {
-  color: white;
+  color: white !important;
   background-color: #007bff;
   border-color: #007bff;
+  text-decoration: none;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
-/* Spinner for loading states */
-.spinner {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  border: 2px solid #f3f3f3;
-  border-top: 2px solid #007bff;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
+/* Messages/Alerts */
+.alert {
+  padding: 10px 15px;
+  margin-bottom: 10px;
+  border-radius: 4px;
+  position: relative;
 }
 
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+.alert-success {
+  background-color: #d4edda;
+  border: 1px solid #c3e6cb;
+  color: #155724;
 }
 
-/* Responsive design for explanation cards */
+.alert-error {
+  background-color: #f8d7da;
+  border: 1px solid #f5c6cb;
+  color: #721c24;
+}
+
+.alert-info {
+  background-color: #d1ecf1;
+  border: 1px solid #bee5eb;
+  color: #0c5460;
+}
+
+/* Responsive Design */
 @media (max-width: 768px) {
   .explanation-grid {
     grid-template-columns: 1fr;
   }
 
-  .explanation-card {
-    padding: 0.75rem;
+  .movie-grid {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
   }
 
-  .explanation-header h4 {
-    font-size: 1rem;
+  .star-rating {
+    gap: 8px;
   }
-}
 
-/* Additional button styling for the "Show Impact" button */
-.action-buttons {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  justify-content: center;
-  margin-top: 1rem;
-}
+  .star {
+    font-size: 20px;
+  }
 
-.action-buttons .btn {
-  flex: 1;
-  min-width: 120px;
-}
-
-@media (max-width: 576px) {
   .action-buttons {
     flex-direction: column;
   }
 
-  .action-buttons .btn {
+  .action-buttons button {
     width: 100%;
+  }
+}
+
+@media (max-width: 576px) {
+  .metrics-grid {
+    grid-template-columns: 1fr;
+    gap: 15px;
+  }
+
+  .star-rating {
+    gap: 5px;
+  }
+
+  .star {
+    font-size: 18px;
+  }
+
+  .rating-number {
+    font-size: 10px;
   }
 }
