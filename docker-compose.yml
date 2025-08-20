@@ -1,7 +1,8 @@
 version: '3.8'
 services:
-  web:
+  application:
     image: python:3.11
+    container_name: application
     ports:
       - "8000:8000"
     volumes:
