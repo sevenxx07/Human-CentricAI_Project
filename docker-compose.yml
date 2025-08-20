@@ -1,17 +1,21 @@
-version: '3.8'
 services:
   application:
-    image: python:3.11
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
     container_name: application
     ports:
       - "8000:8000"
     volumes:
       - .:/app
+      - db_volume:/app/db
     working_dir: /app
     command: >
       bash -c "
-        apt-get update &&
-        apt-get install -y graphviz &&
-        pip install --timeout=600 -r requirements.txt &&
+        python manage.py makemigrations &&
+        python manage.py migrate &&
         python manage.py runserver 0.0.0.0:8000
       "
+
+volumes:
+  db_volume:
