@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MultiLabelBinarizer
 from sklearn.cluster import KMeans
-from Factorization_engine import Matrix_Factorization
+from project_4.Cold_start_recommendation.Factorization_engine import Matrix_Factorization
 from sklearn.metrics.pairwise import cosine_similarity
 import os
 from django.conf import settings

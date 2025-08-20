@@ -34,9 +34,9 @@
     <!-- Initialize Session -->
     <div class="step-box" id="init-section">
       <h3>Start Your Movie Journey</h3>
-      <p>We'll show you 10 diverse movies to understand your preferences, then provide personalized recommendations.</p>
+      <p>We'll show you diverse movies to understand your preferences, then provide personalized recommendations.</p>
 
-      <button type="button" class="btn btn-primary" id="init-btn" onclick="initializeSession()">
+      <button type="submit" class="btn-primary" id="init-btn" onclick="initializeSession()">
         <span id="init-btn-text">Start Rating Movies</span>
         <span id="init-btn-spinner" class="spinner" style="display:none;"></span>
       </button>
@@ -49,7 +49,7 @@
         <div class="progress-bar">
           <div class="progress-fill" id="progress-fill" style="width: 0%;"></div>
         </div>
-        <span id="progress-text">0 / 10 movies rated</span>
+        <span id="progress-text">0 / 0 movies rated</span>
       </div>
 
       <div id="movie-grid" class="movie-grid">
@@ -82,10 +82,10 @@
           <input type="hidden" id="selected-rating" value="">
 
           <div class="action-buttons">
-            <button type="button" class="btn btn-success" id="submit-rating-btn" onclick="submitRating()" disabled>
+            <button type="button" id="submit-rating-btn" onclick="submitRating()" disabled>
               Submit Rating
             </button>
-            <button type="button" class="btn btn-secondary" id="skip-btn" onclick="skipMovie()">
+            <button type="button" id="skip-btn" onclick="skipMovie()">
               Skip (Don't Know)
             </button>
           </div>
@@ -100,7 +100,7 @@
 
       <div class="explanation-container">
         <div class="explanation-toggle">
-          <button type="button" class="btn btn-outline-primary" id="toggle-explanation-btn" onclick="toggleExplanation()">
+          <button type="submit" id="toggle-explanation-btn" onclick="toggleExplanation()">
             <span id="toggle-explanation-text">Show Detailed Impact</span>
             <span id="toggle-explanation-spinner" class="spinner" style="display:none;"></span>
           </button>
@@ -117,7 +117,7 @@
     <!-- Session Controls -->
     <div class="step-box" id="session-controls" style="display: none;">
       <h3>Session Controls</h3>
-      <button type="button" class="btn btn-warning" onclick="resetSession()">Reset Session</button>
+      <button type="button" class="btn-warning" onclick="resetSession()">Reset Session</button>
     </div>
   </div>
 </div>
@@ -126,14 +126,11 @@
 <div id="messages-container" style="position: fixed; top: 20px; right: 20px; z-index: 1000;"></div>
 
 <script>
-let currentMovies = [];
-let currentMovieIndex = 0;
+let currentMovie = null;
 let explanationVisible = false;
 let sessionState = {
-  active: false,
-  phase: 'not_started',
   ratingsGiven: 0,
-  moviesSkipped: 0
+  initial_movies_count: null
 };
 
 function showMessage(message, type = 'success') {
@@ -165,7 +162,7 @@ function initializeSession() {
   btnText.style.display = 'none';
   btnSpinner.style.display = 'inline-block';
 
-  fetch("{% url 'project4:task1' %}", {
+  fetch("{% url 'project4:guided' %}", {
     method: 'POST',
     headers: {
       'X-CSRFToken': '{{ csrf_token }}',
@@ -185,9 +182,13 @@ function initializeSession() {
       showMessage(data.error, 'error');
     } else {
       showMessage(data.message);
-      currentMovies = data.movies || [];
       updateSessionDisplay(data);
-      showInitialRatingPhase();
+      showInitialRatingPhase(data.movies);
+
+      // Show the first movie for rating
+      if (data.next_movie) {
+        showMovieForRating(data.next_movie);
+      }
     }
   })
   .catch(error => {
@@ -197,14 +198,13 @@ function initializeSession() {
   });
 }
 
-function showInitialRatingPhase() {
+function showInitialRatingPhase(movies) {
   document.getElementById('init-section').style.display = 'none';
   document.getElementById('initial-rating-section').style.display = 'block';
   document.getElementById('session-controls').style.display = 'block';
 
-  displayMoviesGrid(currentMovies);
-  if (currentMovies.length > 0) {
-    showMovieForRating(currentMovies[0]);
+  if (movies) {
+    displayMoviesGrid(movies);
   }
 }
 
@@ -221,6 +221,7 @@ function displayMoviesGrid(movies) {
 }
 
 function showMovieForRating(movie) {
+  currentMovie = movie;
   const card = document.getElementById('current-movie-card');
   card.innerHTML = `
     <div class="movie-title">${movie.title}</div>
@@ -242,10 +243,16 @@ function setupStarRating() {
       document.getElementById('selected-rating').value = rating;
       document.getElementById('submit-rating-btn').disabled = false;
 
-      // Visual feedback
-      stars.forEach((s, i) => {
+      // Visual feedback - highlight this star and all previous stars
+      stars.forEach((s) => {
         const starRating = parseFloat(s.dataset.rating);
-        s.classList.toggle('active', starRating <= rating);
+        if (starRating <= rating) {
+          s.classList.add('active');
+          s.parentElement.classList.add('active');
+        } else {
+          s.classList.remove('active');
+          s.parentElement.classList.remove('active');
+        }
       });
     });
   });
@@ -276,7 +283,6 @@ function toggleExplanation() {
 }
 
 function showRatingExplanation() {
-  const currentMovie = currentMovies[currentMovieIndex];
   if (!currentMovie) return;
 
   const toggleText = document.getElementById('toggle-explanation-text');
@@ -285,7 +291,7 @@ function showRatingExplanation() {
   toggleText.style.display = 'none';
   toggleSpinner.style.display = 'inline-block';
 
-  fetch("{% url 'project4:task1' %}", {
+  fetch("{% url 'project4:guided' %}", {
     method: 'POST',
     headers: {
       'X-CSRFToken': '{{ csrf_token }}',
@@ -354,11 +360,9 @@ function displayExplanations(explanations) {
 
 function submitRating() {
   const rating = document.getElementById('selected-rating').value;
-  const currentMovie = currentMovies[currentMovieIndex];
-
   if (!rating || !currentMovie) return;
 
-  fetch("{% url 'project4:task1' %}", {
+  fetch("{% url 'project4:guided' %}", {
     method: 'POST',
     headers: {
       'X-CSRFToken': '{{ csrf_token }}',
@@ -386,10 +390,9 @@ function submitRating() {
 }
 
 function skipMovie() {
-  const currentMovie = currentMovies[currentMovieIndex];
   if (!currentMovie) return;
 
-  fetch("{% url 'project4:task1' %}", {
+  fetch("{% url 'project4:guided' %}", {
     method: 'POST',
     headers: {
       'X-CSRFToken': '{{ csrf_token }}',
@@ -397,8 +400,7 @@ function skipMovie() {
     },
     body: JSON.stringify({
       action: 'skip_movie',
-      movie_id: currentMovie.movie_id,
-      timestamp: Date.now()
+      movie_id: currentMovie.movie_id
     })
   })
   .then(response => response.json())
@@ -408,89 +410,76 @@ function skipMovie() {
     } else {
       showMessage(data.message);
       updateSessionDisplay(data);
-
-      // Server handles all skip logic, just update UI based on response
-      if (data.next_movie) {
-        showMovieForRating(data.next_movie);
-      } else {
-        document.getElementById('rating-interface').style.display = 'none';
-        document.getElementById('explanation-section').style.display = 'none';
-      }
-
-      // Handle phase transitions if needed
-      if (data.phase === 'active_learning' && document.getElementById('initial-rating-section').style.display !== 'none') {
-        document.getElementById('initial-rating-section').style.display = 'none';
-        document.getElementById('active-learning-section').style.display = 'block';
-      }
+      handleMovieSkipped(data);
     }
   })
   .catch(error => {
     showMessage('Error skipping movie: ' + error, 'error');
   });
-}function handleRatingSubmitted(data) {
-    // Mark current movie as rated in the grid (if we're in initial phase)
-    if (data.session_step === 'initial_rating' && currentMovies[currentMovieIndex]) {
-        const movieCard = document.getElementById(`movie-${currentMovies[currentMovieIndex].movie_id}`);
-        if (movieCard) {
-            movieCard.classList.add('rated');
-        }
-        // Only increment for initial phase
-        currentMovieIndex++;
-    }
+}
 
-    if (data.session_step === 'active_learning') {
-        // Switch to active learning phase
-        document.getElementById('initial-rating-section').style.display = 'none';
-        document.getElementById('active-learning-section').style.display = 'block';
+function handleRatingSubmitted(data) {
+  // Server determines phase transition, just update UI
+  if (data.session_step === 'active_learning') {
+    document.getElementById('initial-rating-section').style.display = 'none';
+    document.getElementById('active-learning-section').style.display = 'block';
+  }
 
-        // In active learning, we don't use currentMovieIndex anymore
-        // Each recommendation is independent
-    }
+  if (data.next_movie) {
+    showMovieForRating(data.next_movie);
+  } else {
+    document.getElementById('rating-interface').style.display = 'none';
+    document.getElementById('explanation-section').style.display = 'none';
+    showMessage('Session complete!', 'info');
+  }
+}
 
-    if (data.next_movie) {
-        // Update currentMovies to contain the new movie
-        if (data.session_step === 'active_learning') {
-            currentMovies = [data.next_movie];
-            currentMovieIndex = 0;
-        }
-        showMovieForRating(data.next_movie);
-    } else {
-        document.getElementById('rating-interface').style.display = 'none';
-        document.getElementById('explanation-section').style.display = 'none';
-        showMessage('No more recommendations available.', 'info');
-    }
+function handleMovieSkipped(data) {
+  // Server determines phase transition, just update UI
+  if (data.session_step === 'active_learning') {
+    document.getElementById('initial-rating-section').style.display = 'none';
+    document.getElementById('active-learning-section').style.display = 'block';
+  }
 
-    updateProgress();
+  if (data.next_movie) {
+    showMovieForRating(data.next_movie);
+  } else {
+    document.getElementById('rating-interface').style.display = 'none';
+    document.getElementById('explanation-section').style.display = 'none';
+    showMessage('Session complete!', 'info');
+  }
 }
 
 function updateProgress() {
-  const progress = Math.min((sessionState.ratingsGiven / 10) * 100, 100);
+  // Simple progress display based on server data
+  const initialCount = sessionState.initial_movies_count || 8;
+  const progress = Math.min((sessionState.ratingsGiven / initialCount) * 100, 100);
   document.getElementById('progress-fill').style.width = progress + '%';
-  document.getElementById('progress-text').textContent = `${sessionState.ratingsGiven} / 10 movies rated`;
+  document.getElementById('progress-text').textContent = `${sessionState.ratingsGiven} / ${initialCount} movies rated`;
 }
 
 function updateSessionDisplay(data) {
-  if (data.session_active !== undefined) {
-    sessionState.active = data.session_active;
-  }
+  // Let the server handle most logic, just update UI elements
   if (data.total_ratings !== undefined) {
-    sessionState.ratingsGiven = data.total_ratings;
     document.getElementById('ratings-count').textContent = data.total_ratings;
+    sessionState.ratingsGiven = data.total_ratings;
   }
   if (data.skipped_count !== undefined) {
-    sessionState.moviesSkipped = data.skipped_count;
     document.getElementById('skipped-count').textContent = data.skipped_count;
   }
   if (data.session_phase) {
     const phaseText = data.session_phase === 'initial_rating' ? 'Initial Rating' : 'Active Learning';
     document.getElementById('current-phase').textContent = phaseText;
   }
+  if (data.initial_movies_count !== undefined) {
+    sessionState.initial_movies_count = data.initial_movies_count;
+  }
 
   updateProgress();
 }
 
 function resetSession() {
-  fetch("{% url 'project4:task1' %}", {
+  fetch("{% url 'project4:guided' %}", {
     method: 'POST',
     headers: {
       'X-CSRFToken': '{{ csrf_token }}',
@@ -518,7 +507,6 @@ function resetSession() {
 document.addEventListener('DOMContentLoaded', function() {
   setupStarRating();
 
-  // Show session controls if session is active
   {% if session_active %}
   document.getElementById('session-controls').style.display = 'block';
   {% endif %}

@@ -4,31 +4,23 @@ from django.template import loader
 
 def index(request):
     """
-    Main landing page for Project 4
+    Landing page for Project 4 - Cold Start Movie Recommender Study
     """
-
-    template = loader.get_template("project4_base.html")
-
-    context = {}
-
-    return render(request, 'project4_base.html', context)
+    return render(request, 'project4_base.html')
 
 
-def task1_view(request):
+def guided(request):
     """
-    Active Learning
+    Main cold start recommendation interface
     """
+    # Get the mode from URL parameter
+    mode = request.GET.get('mode', 'guided')  # default to guided
 
-    context = {}
+    # Store mode in session for later use
+    request.session['study_mode'] = mode
+
+    context = {
+        'study_mode': mode,
+    }
 
     return render(request, 'project4_coldstart.html', context)
-
-
-def task2_view(request):
-    """
-    User Study Design & Interface
-    """
-
-    context = {}
-
-    return render(request, 'project4_userstudy.html', context)

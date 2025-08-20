@@ -38,8 +38,6 @@ MOVIE_CACHE = {
 
 def index(request):
     """Main view for Cold Start Active Learning - handles both GET and POST"""
-
-    # Handle AJAX POST requests
     if request.method == 'POST':
         return handle_ajax_request(request)
 
@@ -50,7 +48,6 @@ def index(request):
         'total_ratings': COLDSTART_STATE.get('total_ratings', 0)
     }
 
-    # Add current session context if exists
     if COLDSTART_STATE.get('is_initialized'):
         context.update(get_current_session_context())
 
@@ -67,7 +64,8 @@ def handle_ajax_request(request):
             logger.info(f"AJAX action: {action}")
 
         if action == 'initialize_session':
-            return initialize_coldstart_session(data)
+            initial_count = data.get('initial_movies_count', 8)
+            return initialize_coldstart_session(data, initial_count)
         elif action == 'submit_rating':
             return submit_rating(data)
         elif action == 'skip_movie':
@@ -75,8 +73,7 @@ def handle_ajax_request(request):
         elif action == 'reset_session':
             return reset_session()
         elif action == 'get_rating_explanation':
-            # return get_rating_explanation(data)
-            pass
+            return get_rating_explanation(data)
         else:
             return JsonResponse({'error': f'Unknown action: {action}'}, status=400)
 
@@ -85,18 +82,14 @@ def handle_ajax_request(request):
         return JsonResponse({'error': f'Server error: {str(e)}'}, status=500)
 
 
-def initialize_coldstart_session(data, n=8):
+def initialize_coldstart_session(data, initial_movies_count):
     """Initialize cold start session with initial movie selection"""
     global COLDSTART_STATE
 
     try:
-        # Ensure movie data is loaded
         ensure_movie_data_loaded()
+        raw_movies = get_initial_movie_selection(initial_movies_count)
 
-        # Getting the n initial movies to rate
-        raw_movies = get_initial_movie_selection(n)
-
-        # Re-formatting them
         initial_movies = [
             {
                 'movie_id': m['movieId'],
@@ -106,24 +99,28 @@ def initialize_coldstart_session(data, n=8):
             for m in raw_movies
         ]
 
-        # Initialize user state
         COLDSTART_STATE = {
             'is_initialized': True,
             'current_step': 0,
             'total_ratings': 0,
-            'user_vector': None,  # Will be initialized after first ratings
+            'user_vector': None,
             'current_movies': initial_movies,
             'current_movie_index': 0,
             'rated_movies': [],
             'skipped_movies': [],
-            'session_id': data.get('session_id', 'default_session')
+            'session_id': data.get('session_id', 'default_session'),
+            'initial_movies_count': initial_movies_count
         }
+
+        # Get the first movie to show
+        first_movie = initial_movies[0] if initial_movies else None
 
         response_data = {
             'message': 'Cold start session initialized successfully',
             'success': True,
             'movies': initial_movies,
-            'session_step': 'initial_rating'
+            'session_step': 'initial_rating',
+            'next_movie': first_movie
         }
         response_data.update(get_current_session_context())
 
@@ -134,7 +131,7 @@ def initialize_coldstart_session(data, n=8):
         return JsonResponse({'error': str(e)}, status=500)
 
 
-def submit_rating(data, n=8):
+def submit_rating(data):
     """Process user rating and update user vector"""
     global COLDSTART_STATE
 
@@ -157,10 +154,8 @@ def submit_rating(data, n=8):
         COLDSTART_STATE['rated_movies'].append(rating_data)
         COLDSTART_STATE['total_ratings'] += 1
 
-        # Dictionary of all rated movies so far
+        # Update user vector
         rated_dict = {d['movie_id']: d['rating'] for d in COLDSTART_STATE['rated_movies']}
-
-        # Cold start active learning function
         cold_start = ColdStart(MOVIE_CACHE['V_matrix'], MOVIE_CACHE['R_matrix'])
         updated_user_vector = cold_start.update_user_vector(rated_dict)
         COLDSTART_STATE['user_vector'] = updated_user_vector
@@ -168,10 +163,14 @@ def submit_rating(data, n=8):
         # Increment step
         COLDSTART_STATE['current_step'] += 1
 
-        # Check if we're in initial rating phase (first n movies)
-        if COLDSTART_STATE['current_step'] < n:
+        # Determine next action based on phase
+        initial_count = COLDSTART_STATE.get('initial_movies_count', 8)
+        next_movie = None
+
+        if COLDSTART_STATE['current_step'] < initial_count:
+            # Still in initial rating phase
             session_step = 'initial_rating'
-            remaining = n - COLDSTART_STATE['current_step']
+            remaining = initial_count - COLDSTART_STATE['current_step']
             message = f"Rating submitted! {remaining} more movies to rate."
 
             # Get next movie from initial movies list
@@ -181,25 +180,14 @@ def submit_rating(data, n=8):
 
             if current_index < len(initial_movies):
                 next_movie = initial_movies[current_index]
-            else:
-                # Fallback if we run out of initial movies
-                next_movie = get_next_movie_recommendation(
-                    COLDSTART_STATE['user_vector'],
-                    COLDSTART_STATE['rated_movies'],
-                    COLDSTART_STATE['skipped_movies'])
-                if next_movie:
-                    message = "Moving to personalized recommendations!"
-                    session_step = 'active_learning'
-
         else:
             # Move to active learning phase
             session_step = 'active_learning'
-            if COLDSTART_STATE['current_step'] == n:
-                message = f"Initial rating complete! Moving to personalized recommendations."
+            if COLDSTART_STATE['current_step'] == initial_count:
+                message = "Initial rating complete! Moving to personalized recommendations."
             else:
                 message = "Rating submitted! Getting your next recommendation..."
 
-            # Get recommendation using algorithm
             next_movie = get_next_movie_recommendation(
                 COLDSTART_STATE['user_vector'],
                 COLDSTART_STATE['rated_movies'],
@@ -239,23 +227,40 @@ def skip_movie(data):
         }
         COLDSTART_STATE['skipped_movies'].append(skip_data)
 
-        next_movie = get_replacement_movie(
-            COLDSTART_STATE['user_vector'],
-            COLDSTART_STATE['rated_movies'],
-            COLDSTART_STATE['skipped_movies']
-        )
+        # Determine current phase
+        initial_count = COLDSTART_STATE.get('initial_movies_count', 8)
+        current_step = COLDSTART_STATE.get('current_step', 0)
 
-        if next_movie:
-            COLDSTART_STATE['current_movies'] = [next_movie]
-            message = "Movie skipped. Here's another recommendation for you."
+        if current_step < initial_count:
+            # Initial rating phase - move to next initial movie
+            session_phase = 'initial_rating'
+            message = "Movie skipped. Continue with initial rating."
+
+            # Get next initial movie
+            initial_movies = COLDSTART_STATE.get('current_movies', [])
+            current_index = COLDSTART_STATE.get('current_movie_index', 0) + 1
+            COLDSTART_STATE['current_movie_index'] = current_index
+
+            if current_index < len(initial_movies):
+                next_movie = initial_movies[current_index]
+            else:
+                next_movie = None
+                message = "Initial movies completed."
         else:
-            message = "Movie skipped. No more recommendations available."
-            COLDSTART_STATE['current_movies'] = []
+            # Active learning phase
+            session_phase = 'active_learning'
+            message = "Movie skipped. Getting another recommendation..."
+            next_movie = get_replacement_movie(
+                COLDSTART_STATE['user_vector'],
+                COLDSTART_STATE['rated_movies'],
+                COLDSTART_STATE['skipped_movies']
+            )
 
         response_data = {
             'message': message,
             'success': True,
-            'next_movie': next_movie
+            'next_movie': next_movie,
+            'session_step': session_phase
         }
         response_data.update(get_current_session_context())
 
@@ -274,174 +279,145 @@ def get_rating_explanation(data):
         if not COLDSTART_STATE.get('is_initialized'):
             return JsonResponse({'error': 'Session not initialized'}, status=400)
 
-        movie_id = data.get('movie_id')
+        movie_id = int(data.get('movie_id'))
         if not movie_id:
             return JsonResponse({'error': 'Movie ID required'}, status=400)
 
-        # Get current user ratings
-        current_ratings = {d['movie_id']: d['rating'] for d in COLDSTART_STATE['rated_movies']}
+        current_ratings = {d['movie_id']: d['rating'] for d in COLDSTART_STATE.get('rated_movies', [])}
+        explanations = []
+        cold_start = ColdStart(MOVIE_CACHE['V_matrix'], MOVIE_CACHE['R_matrix'])
 
         # Generate explanations for each possible rating (1-5)
-        explanations = []
-
         for hypothetical_rating in range(1, 6):
-            explanation = generate_rating_impact_explanation(
-                current_ratings,
-                movie_id,
-                hypothetical_rating,
-                MOVIE_CACHE['V_matrix'],
-                MOVIE_CACHE['R_matrix']
+            explanation = generate_simple_explanation(
+                current_ratings, movie_id, hypothetical_rating, cold_start
             )
-
             explanations.append({
                 'rating': hypothetical_rating,
                 'explanation': explanation
             })
 
-        response_data = {
+        return JsonResponse({
             'success': True,
             'movie_id': movie_id,
             'explanations': explanations
-        }
-
-        return JsonResponse(response_data)
+        })
 
     except Exception as e:
         logger.error(f"Error getting rating explanation: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 
 
-def generate_rating_impact_explanation(current_ratings, movie_id, rating, V_matrix, R_matrix):
-    """
-    Generate explanation of how a specific rating would impact the user's profile and future recommendations
-    Uses the actual feature interpretation system from your code
-    """
+def generate_simple_explanation(current_ratings, movie_id, rating, cold_start):
+    """Generate simplified explanation for rating impact"""
     try:
-        # Simulate the rating
         simulated_ratings = current_ratings.copy()
         simulated_ratings[movie_id] = rating
 
-        # Get current user vector if we have ratings
         if current_ratings:
-            cold_start = ColdStart(V_matrix, R_matrix)
             current_user_vector = cold_start.update_user_vector(current_ratings)
         else:
-            current_user_vector = np.zeros(V_matrix.shape[1])
+            current_user_vector = np.zeros(MOVIE_CACHE['V_matrix'].shape[1])
 
-        # Get updated user vector with the new rating
-        cold_start = ColdStart(V_matrix, R_matrix)
         updated_user_vector = cold_start.update_user_vector(simulated_ratings)
 
-        # Calculate feature changes
+        # Find next recommended movie
+        next_movie = get_next_movie_recommendation(
+            updated_user_vector,
+            [{'movie_id': mid, 'rating': r} for mid, r in simulated_ratings.items()],
+            COLDSTART_STATE.get('skipped_movies', [])
+        )
+
+        # Analyze feature changes
         feature_deltas = updated_user_vector - current_user_vector
+        feature_changes = analyze_feature_changes(feature_deltas)
 
-        # Get predicted ratings for all movies
-        predicted_ratings = V_matrix @ updated_user_vector
-        predicted_ratings = np.clip(predicted_ratings, 0, 5)
+        # Calculate confidence
+        confidence = min(0.95, max(0.3, rating / 5.0 * 0.7 + 0.3))
 
-        # Find best unrated movie
-        rated_ids = set(simulated_ratings.keys())
-        movie_ids_list = list(R_matrix.columns)
-        unrated_indices = [idx for idx, movie_id in enumerate(movie_ids_list) if movie_id not in rated_ids]
-
-        if unrated_indices:
-            # Get the top recommended movie
-            top_index = max(unrated_indices, key=lambda i: predicted_ratings[i])
-            top_movie_id = movie_ids_list[top_index]
-            top_movie_title = MOVIE_CACHE['movieId_to_title'].get(top_movie_id, "Unknown Movie")
-            top_movie_vector = V_matrix[top_index]
-            predicted_score = predicted_ratings[top_index]
-        else:
-            top_movie_title = "No recommendations available"
-            predicted_score = 0.0
-            top_movie_vector = np.zeros(V_matrix.shape[1])
-
-        # Analyze top feature changes
-        top_feature_indices = np.argsort(np.abs(feature_deltas))[::-1][:3]
-        feature_changes = []
-
-        for idx in top_feature_indices:
-            if abs(feature_deltas[idx]) < 0.01:  # Skip very small changes
-                continue
-
-            direction = "increased" if feature_deltas[idx] > 0 else "decreased"
-            feature_key = f'Feature_{idx + 1}'
-            feature_name = feature_dict.get(feature_key, f"Feature {idx + 1}")
-            feature_description = feature_characteristics.get(feature_key, "No description available")
-
-            # Check if this change aligns with the recommended movie
-            movie_feature_value = top_movie_vector[idx]
-            alignment = "strongly aligns" if np.sign(feature_deltas[idx]) == np.sign(movie_feature_value) and abs(
-                movie_feature_value) > 0.1 else "differs"
-
-            change_description = f"Your preference for '{feature_description.lower()}' would be {direction}, which {alignment} with the recommended movie"
-
-            feature_changes.append({
-                'feature_name': feature_name,
-                'change': direction,
-                'magnitude': abs(feature_deltas[idx]),
-                'description': change_description
-            })
-
-        # Calculate confidence based on prediction strength
-        confidence = min(0.95, max(0.5, (predicted_score / 5.0) * 0.8 + 0.2))
-
-        # Determine user similarity type based on strongest features
-        strongest_features = np.argsort(np.abs(updated_user_vector))[::-1][:2]
-        user_types = []
-        for feat_idx in strongest_features:
-            feature_key = f'Feature_{feat_idx + 1}'
-            if feature_key in feature_dict:
-                user_types.append(feature_dict[feature_key])
-
-        user_type = " & ".join(user_types[:2]) if user_types else "General movie enthusiasts"
-        similarity_score = confidence * 0.9  # Approximate similarity
-
-        explanation = {
+        return {
             'predicted_next_movie': {
-                'title': top_movie_title,
+                'title': next_movie['title'] if next_movie else 'No more movies',
                 'confidence': confidence,
-                'reason': f'Based on your updated preferences for {feature_changes[0]["feature_name"] if feature_changes else "various features"}'
+                'reason': f'Based on your rating of {rating} stars'
             },
             'feature_changes': feature_changes,
             'similarity_to_users': {
-                'most_similar_user_type': user_type,
-                'similarity_score': similarity_score
-            },
-            'recommendation_confidence': confidence
+                'most_similar_user_type': get_user_type(rating),
+                'similarity_score': confidence * 0.8
+            }
         }
-
-        return explanation
 
     except Exception as e:
-        logger.error(f"Error generating explanation: {str(e)}")
-        # Return fallback explanation
-        return {
-            'predicted_next_movie': {
-                'title': 'Unable to generate prediction',
-                'confidence': 0.5,
-                'reason': 'Calculation error occurred'
-            },
-            'feature_changes': [
-                {
-                    'feature_name': 'Unknown',
-                    'change': 'unknown',
-                    'magnitude': 0.0,
-                    'description': 'Unable to calculate feature changes'
-                }
-            ],
-            'similarity_to_users': {
-                'most_similar_user_type': 'General users',
-                'similarity_score': 0.5
-            },
-            'recommendation_confidence': 0.5
+        logger.error(f"Error in simple explanation: {str(e)}")
+        return get_fallback_explanation(rating)
+
+
+def analyze_feature_changes(feature_deltas):
+    """Analyze which features changed most significantly"""
+    top_indices = np.argsort(np.abs(feature_deltas))[::-1][:3]
+    changes = []
+
+    for idx in top_indices:
+        if abs(feature_deltas[idx]) < 0.05:
+            continue
+
+        feature_key = f'Feature_{idx + 1}'
+        feature_name = feature_dict.get(feature_key, f"Feature {idx + 1}")
+        direction = "increase" if feature_deltas[idx] > 0 else "decrease"
+
+        changes.append({
+            'feature_name': feature_name,
+            'change': direction,
+            'magnitude': abs(feature_deltas[idx]),
+            'description': f"Your preference for '{feature_name.lower()}' would {direction}"
+        })
+
+    if not changes:
+        changes.append({
+            'feature_name': 'Overall preferences',
+            'change': 'adjust',
+            'magnitude': 0.1,
+            'description': 'Your taste profile would be refined'
+        })
+
+    return changes[:3]
+
+
+def get_user_type(rating):
+    """Simple user type based on rating"""
+    if rating >= 4:
+        return "Users who appreciate quality movies"
+    elif rating <= 2:
+        return "Users with selective taste"
+    else:
+        return "Users with balanced preferences"
+
+
+def get_fallback_explanation(rating):
+    """Fallback explanation when calculation fails"""
+    return {
+        'predicted_next_movie': {
+            'title': 'Similar movies to your taste',
+            'confidence': 0.5,
+            'reason': f'Based on your {rating}-star rating'
+        },
+        'feature_changes': [{
+            'feature_name': 'General preferences',
+            'change': 'adjust',
+            'magnitude': 0.2,
+            'description': 'Your taste profile would be updated'
+        }],
+        'similarity_to_users': {
+            'most_similar_user_type': 'General movie watchers',
+            'similarity_score': 0.6
         }
+    }
 
 
 def reset_session():
     """Reset the cold start session"""
-    global COLDSTART_STATE
-    global MOVIE_CACHE
+    global COLDSTART_STATE, MOVIE_CACHE
 
     try:
         COLDSTART_STATE = {}
@@ -468,14 +444,18 @@ def get_current_session_context():
     if not COLDSTART_STATE.get('is_initialized'):
         return {}
 
+    initial_count = COLDSTART_STATE.get('initial_movies_count', 8)
+    current_step = COLDSTART_STATE.get('current_step', 0)
+
     return {
         'session_active': True,
-        'current_step': COLDSTART_STATE.get('current_step', 0),
+        'current_step': current_step,
+        'initial_movies_count': initial_count,
         'total_ratings': COLDSTART_STATE.get('total_ratings', 0),
         'rated_count': len(COLDSTART_STATE.get('rated_movies', [])),
         'skipped_count': len(COLDSTART_STATE.get('skipped_movies', [])),
         'current_movies': COLDSTART_STATE.get('current_movies', []),
-        'session_phase': 'initial_rating' if COLDSTART_STATE.get('current_step', 0) < 10 else 'active_learning'
+        'session_phase': 'initial_rating' if current_step < initial_count else 'active_learning'
     }
 
 
@@ -487,15 +467,12 @@ def ensure_movie_data_loaded():
         return
 
     try:
-        # Load movie and rating data
         movies_path = os.path.join(settings.BASE_DIR, 'data', 'ml_latest_small', 'movies.csv')
         ratings_path = os.path.join(settings.BASE_DIR, 'data', 'ml_latest_small', 'ratings.csv')
 
         movies_df = pd.read_csv(movies_path)
         ratings_df = pd.read_csv(ratings_path)
         model, R_matrix, U_matrix, V_matrix = get_R_U_V()
-
-        # Load movie title mapping
         movieId_to_title = load_movie_data()
 
         MOVIE_CACHE.update({
@@ -516,25 +493,22 @@ def ensure_movie_data_loaded():
         raise
 
 
-def get_initial_movie_selection(n=8):
+def get_initial_movie_selection(n):
+    """Get initial movies for cold start using clustering"""
     if MOVIE_CACHE.get('selected_movies') is None:
-        # Import here to avoid circular imports
         from project_4.Cold_start_recommendation.Clustering import run_true_hybrid_cold_start
 
-        # Use already loaded data from cache
         df_movies = MOVIE_CACHE['movies_df']
         df_ratings = MOVIE_CACHE['ratings_df']
         R_matrix = MOVIE_CACHE['R_matrix']
         V_matrix = MOVIE_CACHE['V_matrix']
 
-        # Mock model object with V matrix
         class MockModel:
             def __init__(self, V):
                 self.V = V
 
         mock_model = MockModel(V_matrix)
 
-        # Get selected movies using already loaded data
         selected_movies, _, _, _ = run_true_hybrid_cold_start(
             df_movies=df_movies,
             df_ratings=df_ratings,
@@ -547,18 +521,14 @@ def get_initial_movie_selection(n=8):
 
     import random
     selected_movies = MOVIE_CACHE['selected_movies']
-    # Use a fixed seed or cache the sampled movies
+
     if 'sampled_movies' not in MOVIE_CACHE:
         MOVIE_CACHE['sampled_movies'] = random.sample(selected_movies, min(n, len(selected_movies)))
     return MOVIE_CACHE['sampled_movies']
 
 
-def update_user_vector(rated_dict):
-    cold_start = ColdStart(MOVIE_CACHE['V_matrix'],MOVIE_CACHE['R_matrix'])
-    updated_vector = cold_start.update_user_vector(rated_dict)
-    return updated_vector
-
 def get_next_movie_recommendation(user_vector, rated_movies, skipped_movies):
+    """Get next movie recommendation based on user vector"""
     rated_ids = {m['movie_id'] for m in rated_movies}
     skipped_ids = {m['movie_id'] for m in skipped_movies}
     excluded_ids = rated_ids.union(skipped_ids)
@@ -572,8 +542,9 @@ def get_next_movie_recommendation(user_vector, rated_movies, skipped_movies):
         return None
 
     candidate_indices = [movie_ids_list.index(i) for i in candidate_ids]
-    V_candidates = V[candidate_indices,:]
+    V_candidates = V[candidate_indices, :]
     predicted_ratings = V_candidates @ user_vector
+    predicted_ratings = np.clip(predicted_ratings, 1.0, 5.0)
 
     top_idx = np.argmax(predicted_ratings)
     best_movie_id = candidate_ids[top_idx]
@@ -581,21 +552,61 @@ def get_next_movie_recommendation(user_vector, rated_movies, skipped_movies):
 
     movie_info = MOVIE_CACHE['movies_df'][MOVIE_CACHE['movies_df']['movieId'] == best_movie_id].iloc[0]
 
-    next_movie = {
+    return {
         'movie_id': int(best_movie_id),
         'title': movie_info['title'],
         'genres': movie_info['genres'],
         'predicted_rating': float(predicted_score)
     }
 
-    return next_movie
 
 def get_replacement_movie(user_vector, rated_movies, skipped_movies):
-    """
-    Get replacement movie when user skips
-    This should find an alternative movie that doesn't affect the model
-    or user vector, excluding already rated/skipped movies
-    """
-    # For now, use the same logic as get_next_movie_recommendation
-    # but we could implement different logic for replacements
-    return get_next_movie_recommendation(user_vector, rated_movies, skipped_movies)
+    """Get replacement movie when user skips"""
+    try:
+        rated_ids = {m['movie_id'] for m in rated_movies}
+        skipped_ids = {m['movie_id'] for m in skipped_movies}
+        excluded_ids = rated_ids.union(skipped_ids)
+
+        R = MOVIE_CACHE['R_matrix']
+        V = MOVIE_CACHE['V_matrix']
+        movie_ids_list = list(R.columns)
+
+        candidate_ids = [i for i in R.columns if i not in excluded_ids]
+        if not candidate_ids:
+            return None
+
+        if user_vector is None:
+            import random
+            selected_id = random.choice(candidate_ids)
+            movie_info = MOVIE_CACHE['movies_df'][MOVIE_CACHE['movies_df']['movieId'] == selected_id].iloc[0]
+            return {
+                'movie_id': int(selected_id),
+                'title': movie_info['title'],
+                'genres': movie_info['genres']
+            }
+
+        candidate_indices = [movie_ids_list.index(i) for i in candidate_ids]
+        V_candidates = V[candidate_indices, :]
+        predicted_ratings = V_candidates @ user_vector
+        predicted_ratings = np.clip(predicted_ratings, 1.0, 5.0)
+
+        sorted_indices = np.argsort(predicted_ratings)[::-1]
+        top_candidates = sorted_indices[:min(5, len(sorted_indices))]
+
+        import random
+        selected_idx = random.choice(top_candidates)
+        best_movie_id = candidate_ids[selected_idx]
+        predicted_score = predicted_ratings[selected_idx]
+
+        movie_info = MOVIE_CACHE['movies_df'][MOVIE_CACHE['movies_df']['movieId'] == best_movie_id].iloc[0]
+
+        return {
+            'movie_id': int(best_movie_id),
+            'title': movie_info['title'],
+            'genres': movie_info['genres'],
+            'predicted_rating': float(predicted_score)
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting replacement movie: {str(e)}")
+        return None

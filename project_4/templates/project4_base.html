@@ -2,52 +2,116 @@
 {% load static %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'home/style.css' %}">
+<link rel="stylesheet" href="{% static 'custom_style4.css'%}">
+<style>
+/* Minimal additional styles using existing classes */
+.pdf-link {
+    display: inline-block;
+    color: #007bff;
+    text-decoration: none;
+    font-weight: 500;
+    padding: 8px 16px;
+    border: 2px solid #007bff;
+    border-radius: 6px;
+    transition: all 0.3s ease;
+    margin-top: 15px;
+}
+
+.pdf-link:hover {
+    background-color: #007bff;
+    color: white;
+    text-decoration: none;
+}
+
+</style>
 {% endblock %}
 
 {% block content %}
-
-<!------------- TITLE -------------->
-
 <div class="box">
     <div class="title-container">
-        <div class="title">Movie Recommender System: Active Learning for Cold Start</div>
+        <div class="title">Cold Start Movie Recommender Study</div>
     </div>
 
     <div class="main-text">
-
-<!------------- Task Selection -------------->
-
-    <div class="main-text">
-        <h2>Project Tasks</h2>
-
-        <div class="task-box">
-            <h3>Task 1: Active Learning Cold Start</h3>
-            <p>
-                Active learning setup for cold-start movie recommendations.
-            </p>
-            <a href="{% url 'project4:task1' %}" class="btn">Go to Task 1</a>
+        <!-- Header Section -->
+        <div style="text-align: center; margin-bottom: 30px;">
+            <a href="https://drive.google.com/file/d/1ApXkgPZZCGj0pl7uIr8pBvjBvgdAOp3l/view"
+               target="_blank" class="pdf-link">
+                📄 View Full Study Documentation (PDF)
+            </a>
         </div>
 
-        <div class="task-box">
-            <h3>Task 2: User Study</h3>
+        <!-- Study Description -->
+        <div class="step-box">
+            <h3>About This Study</h3>
             <p>
-                User study to evaluate the effectiveness of the guided active learning approach.
+                We're investigating how <strong>explanations</strong> affect user interaction with movie recommender systems.
+                This study compares two versions of our cold-start recommender: one that provides explanations about
+                how your ratings influence future recommendations, and one that doesn't.
             </p>
-
-            <a href="{% url 'project4:task2' %}" class="btn">Go to Task 2</a>
+            <p>
+                You'll start by rating a diverse set of movies, then receive personalized recommendations.
+                The entire process takes approximately <strong>10-15 minutes</strong>.
+            </p>
         </div>
 
+        <!-- Study Information -->
+        <div class="alert alert-info">
+            <strong>Study Information:</strong>
+            Duration: 10-15 minutes |
+            Requirements: Basic familiarity with movies |
+            Data: Anonymous and GDPR compliant
+        </div>
+
+        <!-- Conditions Section -->
+        <div class="step-box">
+            <h3 style="text-align: center; margin-bottom: 20px;">
+                Choose Your Study Condition
+            </h3>
+            <p style="text-align: center; color: #666; margin-bottom: 30px;">
+                Please select one of the two study conditions below. Both conditions are equally important for our research.
+            </p>
+
+            <!-- Using existing movie-grid layout -->
+            <div class="movie-grid">
+                <!-- Guided Condition -->
+                <div class="movie-card">
+                    <div class="movie-title">🔍 Guided Experience</div>
+                    <div class="movie-details">
+                        See detailed explanations about how your ratings will influence future movie recommendations.
+                        Understand the impact of your choices on the recommendation algorithm.
+                    </div>
+                    <div style="text-align: center; margin-top: 15px;">
+                        <a href="{% url 'project4:guided' %}?mode=guided" class="btn btn-guided">
+                            Start Guided Study
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Unguided Condition -->
+                <div class="movie-card">
+                    <div class="movie-title">⚡ Standard Experience</div>
+                    <div class="movie-details">
+                        Rate movies and receive recommendations without additional explanations.
+                        Experience the recommender system in its streamlined form.
+                    </div>
+                    <div style="text-align: center; margin-top: 15px;">
+                        <a href="{% url 'project4:unguided' %}?mode=unguided" class="btn btn-unguided">
+                            Start Standard Study
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Research Context -->
+        <div class="step-box" style="text-align: center;">
+            <h4 style="margin-bottom: 15px;">Research Context</h4>
+            <p style="margin: 0; line-height: 1.5;">
+                This study is part of ongoing research into explainable AI and human-computer interaction in recommender systems.
+                Your participation helps us understand how transparency affects user experience and system performance.
+            </p>
+        </div>
     </div>
 </div>
-
-<script>
-    // Initialize page
-    window.onload = function() {
-        console.log('Project 4: Movie Recommender System loaded');
-
-        // TODO? Add any initialization logic here
-    };
-</script>
-
 {% endblock %}
