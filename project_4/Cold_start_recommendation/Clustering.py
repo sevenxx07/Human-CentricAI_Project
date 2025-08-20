@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MultiLabelBinarizer
 from sklearn.cluster import KMeans
-from .Factorization_engine import Matrix_Factorization
+from Factorization_engine import Matrix_Factorization
 from sklearn.metrics.pairwise import cosine_similarity
 import os
 from django.conf import settings
@@ -105,6 +105,18 @@ class TrueHybridColdStartSelector:
         """
         print(f"Performing hybrid clustering (Genre: {genre_weight}, Latent: {latent_weight})...")
 
+        # Start with all movies
+        working_movies = self.df_movies.copy()
+
+        # --- NEW: count unrated movies ---
+        rated_movie_ids = set(self.df_ratings['movieId'].unique())
+        all_movie_ids = set(working_movies['movieId'].unique())
+        # Work only with rated movies
+        working_movies = self.df_movies[self.df_movies['movieId'].isin(rated_movie_ids)].copy()
+
+        # Get genre features for all movies
+        genre_features = self.get_genre_features(working_movies)
+        print(f"Genre features shape: {genre_features.shape}")
         # Start with all movies
         working_movies = self.df_movies.copy()
 
