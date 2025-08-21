@@ -77,10 +77,12 @@ def explain_impact(current_user_ratings, movie_to_rate_id, V, R, movieId_to_titl
     """
     For a candidate movie to rate, all possible rating (1-5) are simulated and explained how
     each rating would affect the user's latent profile and the next recommendation
+    Returns raw explanation data
     """
 
     movie_index = list(R.columns).index(movie_to_rate_id)
     movie_vector = V[movie_index]
+    all_explanations = []
 
     for hypothetic_rating in range(1,6):
         # Simulating user ratings
@@ -104,8 +106,8 @@ def explain_impact(current_user_ratings, movie_to_rate_id, V, R, movieId_to_titl
         # Calculating the change in the latent features caused by this particular rating
         feature_deltas = updated_user_vector - ColdStart(V,R).update_user_vector(current_user_ratings)
         top_feature_indices = np.argsort(np.abs(feature_deltas))[::-1][:3]
-        feature_explanations = []
 
+        feature_changes = []
         for idx in top_feature_indices:
             direction = "increased" if feature_deltas[idx] > 0 else "decreased"
             user_val = updated_user_vector[idx]
@@ -115,16 +117,58 @@ def explain_impact(current_user_ratings, movie_to_rate_id, V, R, movieId_to_titl
             feature_title = feature_dict['Feature_' + str(idx+1)]
             feature_info = feature_characteristics['Feature_' + str(idx+1)]
 
-            feature_explanations.append(
-                f"The feature '{feature_title}' {direction} in your profile, and this movie {match} with that change (score: {movie_val:.2f})"
-            )
+            feature_changes.append((feature_title, direction, feature_info, user_val, movie_val, match))
 
+        # Store raw explanation data
+        explanation_data = (
+            hypothetic_rating,
+            top_movie_id,
+            top_movie_title,
+            predicted_ratings[top_index],
+            feature_changes
+        )
+        all_explanations.append(explanation_data)
+
+        # Still print for console output (keep existing behavior)
         print(f"→ If you rate it a {hypothetic_rating}:")
         print(f"  Next recommended movie: '{top_movie_title}' (ID: {top_movie_id})")
         print("  Why:")
-        for explanation in feature_explanations:
-            print(f"   - {explanation}")
+        for feature_title, direction, feature_info, user_val, movie_val, match in feature_changes:
+            print(
+                f"   - The feature '{feature_title}' {direction} in your profile, and this movie {match} with that change (score: {movie_val:.2f})")
         print()
+
+    return all_explanations
+
+
+def active_learning_step(initial_user_vector, V, R, user_ratings, movieId_to_title=None, skipped_movies=None):
+    """
+    A single step of the active learning loop, where a movie is recommended and the user rates it.
+    Returns: top_movie_id, top_movie_title, predicted_rating
+    """
+
+    if movieId_to_title is None:
+        movieId_to_title = load_movie_data()
+
+    predicted_ratings = V @ initial_user_vector  # Predicted ratings for all movies
+    predicted_ratings = np.clip(predicted_ratings, 0, 5)
+
+    R.columns = R.columns.astype(int)
+    # Find indices of movies not yet rated
+    unrated_indices = [idx for idx, movie_id in enumerate(R.columns) if movie_id not in user_ratings.keys()]
+    # If skipped_movies is provided, filter out those movies from unrated_indices
+    not_skipped_indices = [idx for idx in unrated_indices if R.columns[idx] not in skipped_movies] if skipped_movies else unrated_indices
+
+    # Selecting the movie with the highest predicted rating
+    top_index = max(not_skipped_indices, key=lambda i: predicted_ratings[i])
+    top_movie_id = R.columns[top_index]
+    top_movie_title = movieId_to_title.get(top_movie_id, "Unknown title")
+
+    print(
+        f"Recommended movie: '{top_movie_title}' (movieID: {top_movie_id}) with predicted rating: {predicted_ratings[top_index]:.3f}")
+
+    # Return raw values
+    return top_movie_id, top_movie_title, predicted_ratings[top_index]
 
 
 def active_learning_loop(initial_user_vector, V, R, user_ratings, max_rounds=3, movieId_to_title=None):
@@ -148,7 +192,7 @@ def active_learning_loop(initial_user_vector, V, R, user_ratings, max_rounds=3, 
         # Find indices of movies not yet rated
         unrated_indices = [idx for idx, movie_id in enumerate(R.columns) if movie_id not in rated_ids] #movies not yet rated by the user
 
-       # Selecting the movie with the highest predicted rating
+        # Selecting the movie with the highest predicted rating
         top_index = max(unrated_indices, key=lambda i:predicted_ratings[i])
         top_movie_id = R.columns[top_index]
         top_movie_title = movieId_to_title.get(top_movie_id, "Unknown title")

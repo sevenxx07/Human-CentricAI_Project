@@ -333,9 +333,12 @@ function displayExplanations(explanations) {
       </div>
       <div class="explanation-body">
         <div class="next-movie">
-          <h5>Next Recommendation:</h5>
+          <h5>Most Likely Next Recommendation:</h5>
           <p><strong>${exp.explanation.predicted_next_movie.title}</strong></p>
-          <p class="confidence">Confidence: ${(exp.explanation.predicted_next_movie.confidence * 100).toFixed(0)}%</p>
+          <p class="confidence">Likelihood: ${(exp.explanation.predicted_next_movie.confidence * 100).toFixed(0)}%</p>
+          <p style="font-size: 0.8em; color: #666; margin-top: 5px;">
+            Note: System selects randomly from top 5 candidates for variety
+          </p>
         </div>
 
         <div class="feature-changes">
@@ -357,7 +360,6 @@ function displayExplanations(explanations) {
     </div>
   `).join('');
 }
-
 function submitRating() {
   const rating = document.getElementById('selected-rating').value;
   if (!rating || !currentMovie) return;
