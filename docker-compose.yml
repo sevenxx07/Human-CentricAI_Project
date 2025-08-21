@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
+      network: host
     container_name: application
     ports:
       - "8000:8000"
@@ -16,6 +17,12 @@ services:
         python manage.py migrate &&
         python manage.py runserver 0.0.0.0:8000
       "
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
 
 volumes:
   db_volume:
