@@ -85,14 +85,26 @@ class Matrix_Factorization():
     #     return best_parameters
 
 # Loading the R-matrix and running the matrix factorization with K=11 (best value found from cross-validation) 
+# U and V are only created if the script has not been run before, in that case they are already saved. 
 def get_R_U_V():
     # Getting the R matrix
     R_matrix = pd.read_csv(csv_path_matrix, index_col=0)
 
-    mat_fac_model = Matrix_Factorization(R_matrix)
-    U, V = mat_fac_model.factorize(11)
-    print(U)
-    return mat_fac_model, R_matrix, U, V
+    U_path = os.path.join(BASE_DIR, "data", "U_matrix.npy")
+    V_path = os.path.join(BASE_DIR, "data", "V_matrix.npy")
+
+    if os.path.exists(U_path) and os.path.exists(V_path):
+        U = np.load(U_path)
+        V = np.load(V_path)
+        print("Loaded pre-trained U and V from disk.")
+    else:
+        mat_fac_model = Matrix_Factorization(R_matrix)
+        U, V = mat_fac_model.factorize(11)
+        np.save(U_path, U)
+        np.save(V_path, V)
+        print(f"Trained and saved U and V matrices.")
+
+    return None, R_matrix, U, V
 
 
 # Runs the grid search 
