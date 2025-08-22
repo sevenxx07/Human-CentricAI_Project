@@ -4,7 +4,7 @@
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'custom_style4.css'%}">
 <style>
-/* Minimal additional styles using existing classes */
+/* Only unique styles not covered by existing CSS */
 .pdf-link {
     display: inline-block;
     color: #007bff;
@@ -41,29 +41,113 @@
             </a>
         </div>
 
-        <!-- Study Description -->
-        <div class="step-box">
-            <h3>About This Study</h3>
-            <p>
-                We're investigating how <strong>explanations</strong> affect user interaction with movie recommender systems.
-                This study compares two versions of our cold-start recommender: one that provides explanations about
-                how your ratings influence future recommendations, and one that doesn't.
-            </p>
-            <p>
-                You'll start by rating a diverse set of movies, then receive personalized recommendations.
-                The entire process takes approximately <strong>10-15 minutes</strong>.
-            </p>
-        </div>
+        <!-- Informed Consent Section -->
+        {% if not consent_given %}
+        <div class="step-box" id="consent-section">
+            <h3>Informed Consent</h3>
+            <div style="margin-bottom: 20px;">
+                <h4>Study Purpose</h4>
+                <p>
+                    We're investigating how <strong>explanations</strong> affect user interaction with movie recommender systems.
+                    This study compares two versions of our cold-start recommender: one that provides explanations about
+                    how your ratings influence future recommendations, and one that doesn't.
+                </p>
 
-        <!-- Study Information -->
-        <div class="alert alert-info">
-            <strong>Study Information:</strong>
-            Duration: 10-15 minutes |
-            Requirements: Basic familiarity with movies |
-            Data: Anonymous and GDPR compliant
-        </div>
+                <h4>What You'll Do</h4>
+                <p>
+                    You'll start by rating a diverse set of movies, then receive personalized recommendations.
+                    The entire process takes approximately <strong>10-15 minutes</strong>.
+                </p>
 
-        <!-- Conditions Section -->
+                <h4>Data Collection & Processing</h4>
+                <p>
+                    We will collect the following data during your participation:
+                </p>
+                <ul>
+                    <li>Movie ratings you provide during the study</li>
+                    <li>Interaction timestamps and response times</li>
+                    <li>Study condition assignment (guided vs. standard)</li>
+                    <li>Anonymous session identifier (no personal information)</li>
+                </ul>
+
+                <h4>Data Use & Storage</h4>
+                <p>
+                    Your data will be used solely for academic research purposes. All data is:
+                </p>
+                <ul>
+                    <li><strong>Anonymous:</strong> No personally identifiable information is collected</li>
+                    <li><strong>Secure:</strong> Stored on encrypted servers with restricted access</li>
+                    <li><strong>Retained:</strong> For up to 5 years for research analysis</li>
+                    <li><strong>Shared:</strong> Only in aggregated, anonymized form for research publications</li>
+                </ul>
+
+                <h4>Your Rights</h4>
+                <p>Under GDPR, you have the right to:</p>
+                <ul>
+                    <li>Withdraw from the study at any time without consequence</li>
+                    <li>Request information about your data processing</li>
+                    <li>Contact us with data protection concerns</li>
+                </ul>
+
+                <h4>Contact Information</h4>
+                <p>
+                    For questions about this study or data processing, contact:<br>
+                    <strong>Research Team:</strong> pseudoemail@gmail.com<br>
+                    <strong>Institution:</strong> [Your Institution]<br>
+                </p>
+            </div>
+
+            <!-- Consent Form -->
+            <form method="post" action="{% url 'project4:index' %}">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="consent">
+
+                <div style="border: 1px solid #ddd; padding: 20px; border-radius: 8px; background-color: #f9f9f9; margin: 20px 0;">
+                    <h4 style="margin-top: 0;">Consent Declaration</h4>
+
+                    {% if consent_errors %}
+                    <div class="alert alert-error" style="margin-bottom: 15px;">
+                        Please check all required consent boxes to proceed.
+                    </div>
+                    {% endif %}
+
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: flex; align-items: flex-start; cursor: pointer;">
+                            <input type="checkbox" name="consent_participate" value="1" style="margin-right: 10px; margin-top: 4px;" required>
+                            <span>I have read and understood the study information above, and I voluntarily agree to participate in this research study.</span>
+                        </label>
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: flex; align-items: flex-start; cursor: pointer;">
+                            <input type="checkbox" name="consent_data" value="1" style="margin-right: 10px; margin-top: 4px;" required>
+                            <span>I consent to the collection, processing, and storage of my anonymous study data as described above.</span>
+                        </label>
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: flex; align-items: flex-start; cursor: pointer;">
+                            <input type="checkbox" name="consent_publication" value="1" style="margin-right: 10px; margin-top: 4px;">
+                            <span>I consent to the use of my anonymized data in research publications and presentations. (Optional)</span>
+                        </label>
+                    </div>
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: flex; align-items: flex-start; cursor: pointer;">
+                            <input type="checkbox" name="consent_age" value="1" style="margin-right: 10px; margin-top: 4px;" required>
+                            <span>I confirm that I am 18 years of age or older.</span>
+                        </label>
+                    </div>
+
+                    <div class="button-container">
+                        <button type="submit" class="btn-success">
+                            I Agree - Proceed to Study
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+        {% endif %}
+
+        <!-- Study Selection Section -->
+        {% if consent_given %}
         <div class="step-box">
             <h3 style="text-align: center; margin-bottom: 20px;">
                 Choose Your Study Condition
@@ -72,39 +156,54 @@
                 Please select one of the two study conditions below. Both conditions are equally important for our research.
             </p>
 
-            <!-- Using existing movie-grid layout -->
-            <div class="movie-grid">
+            <!-- Study options using forms with regular styling -->
+            <div style="text-align: center;">
                 <!-- Guided Condition -->
-                <div class="movie-card">
-                    <div class="movie-title">🔍 Guided Experience</div>
-                    <div class="movie-details">
+                <div style="margin-bottom: 30px;">
+                    <h4>🔍 Guided Experience</h4>
+                    <p style="color: #666; line-height: 1.5; margin-bottom: 20px;">
                         See detailed explanations about how your ratings will influence future movie recommendations.
                         Understand the impact of your choices on the recommendation algorithm.
-                    </div>
-                    <div style="text-align: center; margin-top: 15px;">
-                        <a href="{% url 'project4:guided' %}?mode=guided" class="btn btn-guided">
-                            Start Guided Study
-                        </a>
+                    </p>
+                    <div class="button-container">
+                        <form method="post" action="{% url 'project4:index' %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="study_mode">
+                            <input type="hidden" name="study_mode" value="guided">
+                            <button type="submit" class="btn-success">Start Guided Study</button>
+                        </form>
                     </div>
                 </div>
 
                 <!-- Unguided Condition -->
-                <div class="movie-card">
-                    <div class="movie-title">⚡ Standard Experience</div>
-                    <div class="movie-details">
+                <div style="margin-bottom: 30px;">
+                    <h4>⚡ Standard Experience</h4>
+                    <p style="color: #666; line-height: 1.5; margin-bottom: 20px;">
                         Rate movies and receive recommendations without additional explanations.
                         Experience the recommender system in its streamlined form.
-                    </div>
-                    <div style="text-align: center; margin-top: 15px;">
-                        <a href="{% url 'project4:unguided' %}?mode=unguided" class="btn btn-unguided">
-                            Start Standard Study
-                        </a>
+                    </p>
+                    <div class="button-container">
+                        <form method="post" action="{% url 'project4:index' %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="study_mode">
+                            <input type="hidden" name="study_mode" value="unguided">
+                            <button type="submit" class="btn-primary">Start Standard Study</button>
+                        </form>
                     </div>
                 </div>
             </div>
         </div>
+        {% endif %}
 
-        <!-- Research Context -->
+        <!-- Study Information using existing alert pattern -->
+        <div class="alert alert-info">
+            <strong>Study Information:</strong>
+            Duration: 10-15 minutes |
+            Requirements: Basic familiarity with movies |
+            Data: Anonymous and GDPR compliant
+        </div>
+
+        <!-- Research Context using existing step-box -->
         <div class="step-box" style="text-align: center;">
             <h4 style="margin-bottom: 15px;">Research Context</h4>
             <p style="margin: 0; line-height: 1.5;">
