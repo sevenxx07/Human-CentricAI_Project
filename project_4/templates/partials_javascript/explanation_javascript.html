@@ -74,6 +74,14 @@ function displayExplanations(explanations) {
             ${exp.explanation.feature_changes.map(change => `
               <li class="feature-change ${change.change}">
                 <strong>${change.feature_name}:</strong> ${change.description}
+                ${change.delta_value !== undefined ? `
+                  <div style="margin-top: 0.25rem; font-size: 0.75rem; color: #495057; font-family: monospace;">
+                    Change: ${change.delta_value >= 0 ? '+' : ''}${change.delta_value.toFixed(3)},
+                    Your score: ${change.user_value.toFixed(2)},
+                    Movie score: ${change.movie_value.toFixed(2)}
+                    (${change.match})
+                  </div>
+                ` : ''}
               </li>
             `).join('')}
           </ul>

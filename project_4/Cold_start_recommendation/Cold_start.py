@@ -150,7 +150,13 @@ def explain_impact(current_user_ratings, movie_to_rate_id, V, R, movieId_to_titl
             feature_title = feature_dict['Feature_' + str(idx + 1)]
             feature_info = feature_characteristics['Feature_' + str(idx + 1)]
 
-            feature_changes.append((feature_title, direction, feature_info, user_val, movie_val, match))
+            feature_changes.append((feature_title,
+                                    direction,
+                                    feature_info,
+                                    user_val,
+                                    movie_val,
+                                    match,
+                                    raw_feature_deltas[idx]))
 
         # Accumulate raw data 
         explanation_data = (
@@ -167,7 +173,7 @@ def explain_impact(current_user_ratings, movie_to_rate_id, V, R, movieId_to_titl
         print(f"  Next recommended movie: '{top_movie_title}' (ID: {top_movie_id})"
               f"with predicted rating {predicted_ratings[top_index]:.2f}")
         print("  Why:")
-        for feature_title, direction, feature_info, user_val, movie_val, match in feature_changes:
+        for feature_title, direction, feature_info, user_val, movie_val, match, delta_val in feature_changes:
             print(
                 f"   - The feature '{feature_title}' {direction} in your profile, and this movie {match} with that change (score: {movie_val:.2f})")
             # print(f"   - Feature '{feature_title}' {direction} by {delta_val:.3f}, "
