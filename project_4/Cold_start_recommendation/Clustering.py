@@ -110,19 +110,19 @@ class TrueHybridColdStartSelector:
 
         # --- NEW: count unrated movies ---
         rated_movie_ids = set(self.df_ratings['movieId'].unique())
-        all_movie_ids = set(working_movies['movieId'].unique())
-        # Work only with rated movies
         working_movies = self.df_movies[self.df_movies['movieId'].isin(rated_movie_ids)].copy()
+        working_movies = working_movies.reset_index(drop=True)
+        
+        #all_movie_ids = set(working_movies['movieId'].unique())
+        ## Work only with rated movies
+        #working_movies = self.df_movies[self.df_movies['movieId'].isin(rated_movie_ids)].copy()
 
         # Get genre features for all movies
         genre_features = self.get_genre_features(working_movies)
         print(f"Genre features shape: {genre_features.shape}")
         # Start with all movies
-        working_movies = self.df_movies.copy()
-
-        # Get genre features for all movies
-        genre_features = self.get_genre_features(working_movies)
-        print(f"Genre features shape: {genre_features.shape}")
+        
+        #working_movies = self.df_movies.copy()
 
         # Get latent features (only for movies that have them)
         latent_features, valid_latent_indices = self.get_latent_features(working_movies)
@@ -140,7 +140,8 @@ class TrueHybridColdStartSelector:
             for idx, row in working_movies.iterrows():
                 genre_feat = genre_features[idx]
 
-                if idx in valid_latent_indices:
+                if latent_features is not None and idx in valid_latent_indices:
+                #if idx in valid_latent_indices:
                     # Movie has latent features - combine both
                     latent_idx = valid_latent_indices.index(idx)
                     latent_feat = latent_features[latent_idx]
