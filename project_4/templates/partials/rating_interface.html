@@ -1,0 +1,24 @@
+<div class="step-box" id="rating-interface" style="display: none;">
+  <div class="rating-container">
+    <div class="movie-card" id="current-movie-card">
+      <!-- Current movie details -->
+    </div>
+
+    <div class="rating-form">
+      <h4>Rate this movie:</h4>
+
+      {% include 'partials/star_rating.html' %}
+
+      <input type="hidden" id="selected-rating" value="">
+
+      <div class="action-buttons">
+        <button type="button" id="submit-rating-btn" onclick="submitRating()" disabled>
+          Submit Rating
+        </button>
+        <button type="button" id="skip-btn" onclick="skipMovie()">
+          Skip (Don't Know)
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

@@ -94,7 +94,7 @@ def guided(request):
         'session_active': True,
     }
 
-    return render(request, 'project4_coldstart.html', context)
+    return render(request, 'project4_guided.html', context)
 
 
 def unguided(request):
@@ -112,4 +112,4 @@ def unguided(request):
         'session_active': True,
     }
 
-    return render(request, 'project4_coldstart.html', context)
+    return render(request, 'project4_unguided.html', context)

@@ -1,130 +1,3 @@
-{% extends 'base.html' %}
-{% load static %}
-
-{% block extra_css %}
-<link rel="stylesheet" href="{% static 'custom_style4.css'%}">
-{% endblock %}
-
-{% block content %}
-<div class="box">
-  <div class="title-container">
-    <div class="title">Cold Start Movie Recommendations</div>
-  </div>
-
-  <div class="main-text">
-    <!-- Session Status -->
-    <div class="step-box" id="session-status">
-      <h3>Session Status</h3>
-      <div class="metrics-grid" id="status-display">
-        <div class="metric">
-          <span class="metric-value" id="ratings-count">0</span>
-          <span class="metric-label">Ratings Given</span>
-        </div>
-        <div class="metric">
-          <span class="metric-value" id="current-phase">Not Started</span>
-          <span class="metric-label">Current Phase</span>
-        </div>
-        <div class="metric">
-          <span class="metric-value" id="skipped-count">0</span>
-          <span class="metric-label">Movies Skipped</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Initialize Session -->
-    <div class="step-box" id="init-section">
-      <h3>Start Your Movie Journey</h3>
-      <p>We'll show you diverse movies to understand your preferences, then provide personalized recommendations.</p>
-
-      <button type="submit" class="btn-primary" id="init-btn" onclick="initializeSession()">
-        <span id="init-btn-text">Start Rating Movies</span>
-        <span id="init-btn-spinner" class="spinner" style="display:none;"></span>
-      </button>
-    </div>
-
-    <!-- Initial Rating Phase -->
-    <div class="step-box" id="initial-rating-section" style="display: none;">
-      <h3>Initial Movie Rating</h3>
-      <div id="progress-bar" class="progress-container">
-        <div class="progress-bar">
-          <div class="progress-fill" id="progress-fill" style="width: 0%;"></div>
-        </div>
-        <span id="progress-text">0 / 0 movies rated</span>
-      </div>
-
-      <div id="movie-grid" class="movie-grid">
-        <!-- Movies will be populated here -->
-      </div>
-    </div>
-
-    <!-- Active Learning Phase -->
-    <div class="step-box" id="active-learning-section" style="display: none;">
-      <h3>Personalized Recommendations</h3>
-      <p>Based on your ratings, here's a movie we think you'll enjoy:</p>
-
-      <div id="recommendation-display" class="recommendation-container">
-        <!-- Single movie recommendation will be displayed here -->
-      </div>
-    </div>
-
-    <!-- Rating Interface -->
-    <div class="step-box" id="rating-interface" style="display: none;">
-      <div class="rating-container">
-        <div class="movie-card" id="current-movie-card">
-          <!-- Current movie details -->
-        </div>
-
-        <div class="rating-form">
-          <h4>Rate this movie:</h4>
-
-          {% include 'partials/star_rating.html' %}
-
-          <input type="hidden" id="selected-rating" value="">
-
-          <div class="action-buttons">
-            <button type="button" id="submit-rating-btn" onclick="submitRating()" disabled>
-              Submit Rating
-            </button>
-            <button type="button" id="skip-btn" onclick="skipMovie()">
-              Skip (Don't Know)
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Rating Impact Explanation Section -->
-    <div class="step-box" id="explanation-section" style="display: none;">
-      <h3>How Your Rating Will Affect Future Recommendations</h3>
-      <p>See how different ratings for this movie would impact your personalized recommendations:</p>
-
-      <div class="explanation-container">
-        <div class="explanation-toggle">
-          <button type="submit" id="toggle-explanation-btn" onclick="toggleExplanation()">
-            <span id="toggle-explanation-text">Show Detailed Impact</span>
-            <span id="toggle-explanation-spinner" class="spinner" style="display:none;"></span>
-          </button>
-        </div>
-
-        <div id="explanation-content" style="display: none;">
-          <div class="explanation-grid" id="explanation-grid">
-            <!-- Explanations for different ratings will be populated here -->
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Session Controls -->
-    <div class="step-box" id="session-controls" style="display: none;">
-      <h3>Session Controls</h3>
-      <button type="button" class="btn-warning" onclick="resetSession()">Reset Session</button>
-    </div>
-  </div>
-</div>
-
-<!-- Messages Container -->
-<div id="messages-container" style="position: fixed; top: 20px; right: 20px; z-index: 1000;"></div>
-
 <script>
 let currentMovie = null;
 let explanationVisible = false;
@@ -230,7 +103,13 @@ function showMovieForRating(movie) {
   `;
 
   document.getElementById('rating-interface').style.display = 'block';
-  document.getElementById('explanation-section').style.display = 'block';
+
+  // Only show explanation section if it exists (for guided version)
+  const explanationSection = document.getElementById('explanation-section');
+  if (explanationSection) {
+    explanationSection.style.display = 'block';
+  }
+
   resetStarRating();
   resetExplanation();
 }
@@ -268,98 +147,17 @@ function resetStarRating() {
 
 function resetExplanation() {
   explanationVisible = false;
-  document.getElementById('explanation-content').style.display = 'none';
-  document.getElementById('toggle-explanation-text').textContent = 'Show Detailed Impact';
-}
+  const explanationContent = document.getElementById('explanation-content');
+  const explanationText = document.getElementById('toggle-explanation-text');
 
-function toggleExplanation() {
-  if (explanationVisible) {
-    document.getElementById('explanation-content').style.display = 'none';
-    document.getElementById('toggle-explanation-text').textContent = 'Show Detailed Impact';
-    explanationVisible = false;
-  } else {
-    showRatingExplanation();
+  if (explanationContent) {
+    explanationContent.style.display = 'none';
+  }
+  if (explanationText) {
+    explanationText.textContent = 'Show Detailed Impact';
   }
 }
 
-function showRatingExplanation() {
-  if (!currentMovie) return;
-
-  const toggleText = document.getElementById('toggle-explanation-text');
-  const toggleSpinner = document.getElementById('toggle-explanation-spinner');
-
-  toggleText.style.display = 'none';
-  toggleSpinner.style.display = 'inline-block';
-
-  fetch("{% url 'project4:guided' %}", {
-    method: 'POST',
-    headers: {
-      'X-CSRFToken': '{{ csrf_token }}',
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      action: 'get_rating_explanation',
-      movie_id: currentMovie.movie_id
-    })
-  })
-  .then(response => response.json())
-  .then(data => {
-    toggleText.style.display = 'inline';
-    toggleSpinner.style.display = 'none';
-
-    if (data.error) {
-      showMessage(data.error, 'error');
-    } else {
-      displayExplanations(data.explanations);
-      document.getElementById('explanation-content').style.display = 'block';
-      toggleText.textContent = 'Hide Detailed Impact';
-      explanationVisible = true;
-    }
-  })
-  .catch(error => {
-    toggleText.style.display = 'inline';
-    toggleSpinner.style.display = 'none';
-    showMessage('Error getting explanation: ' + error, 'error');
-  });
-}
-
-function displayExplanations(explanations) {
-  const grid = document.getElementById('explanation-grid');
-
-  grid.innerHTML = explanations.map(exp => `
-    <div class="explanation-card" data-rating="${exp.rating}">
-      <div class="explanation-header">
-        <h4>If you rate it ${exp.rating} star${exp.rating > 1 ? 's' : ''}</h4>
-      </div>
-      <div class="explanation-body">
-        <div class="next-movie">
-          <h5>Most Likely Next Recommendation:</h5>
-          <p><strong>${exp.explanation.predicted_next_movie.title}</strong></p>
-          <p class="confidence">Likelihood: ${(exp.explanation.predicted_next_movie.confidence * 100).toFixed(0)}%</p>
-          <p style="font-size: 0.8em; color: #666; margin-top: 5px;">
-            Note: System selects randomly from top 5 candidates for variety
-          </p>
-        </div>
-
-        <div class="feature-changes">
-          <h5>Your Preferences Would:</h5>
-          <ul>
-            ${exp.explanation.feature_changes.map(change => `
-              <li class="feature-change ${change.change}">
-                <strong>${change.feature_name}:</strong> ${change.description}
-              </li>
-            `).join('')}
-          </ul>
-        </div>
-
-        <div class="similarity-info">
-          <h5>You'd be similar to:</h5>
-          <p>${exp.explanation.similarity_to_users.most_similar_user_type} (${(exp.explanation.similarity_to_users.similarity_score * 100).toFixed(0)}% similarity)</p>
-        </div>
-      </div>
-    </div>
-  `).join('');
-}
 function submitRating() {
   const rating = document.getElementById('selected-rating').value;
   if (!rating || !currentMovie) return;
@@ -431,7 +229,10 @@ function handleRatingSubmitted(data) {
     showMovieForRating(data.next_movie);
   } else {
     document.getElementById('rating-interface').style.display = 'none';
-    document.getElementById('explanation-section').style.display = 'none';
+    const explanationSection = document.getElementById('explanation-section');
+    if (explanationSection) {
+      explanationSection.style.display = 'none';
+    }
     showMessage('Session complete!', 'info');
   }
 }
@@ -447,7 +248,10 @@ function handleMovieSkipped(data) {
     showMovieForRating(data.next_movie);
   } else {
     document.getElementById('rating-interface').style.display = 'none';
-    document.getElementById('explanation-section').style.display = 'none';
+    const explanationSection = document.getElementById('explanation-section');
+    if (explanationSection) {
+      explanationSection.style.display = 'none';
+    }
     showMessage('Session complete!', 'info');
   }
 }
@@ -514,5 +318,3 @@ document.addEventListener('DOMContentLoaded', function() {
   {% endif %}
 });
 </script>
-
-{% endblock %}

@@ -57,7 +57,7 @@ def index(request):
     if COLDSTART_STATE.get('is_initialized'):
         context.update(get_current_session_context())
 
-    return render(request, 'project4_coldstart.html', context)
+    return render(request, 'project4_guided.html', context)
 
 
 def handle_ajax_request(request):
@@ -455,7 +455,6 @@ def get_rating_explanation(data):
 
             # Calculate confidence based on rating extremeness
             confidence = min(0.95, max(0.4, 0.5 + abs(rating - 3) * 0.2))
-            similarity_score = min(0.95, max(0.3, 0.5 + abs(rating - 3) * 0.15))
 
             formatted_exp = {
                 'rating': rating,
@@ -466,9 +465,6 @@ def get_rating_explanation(data):
                         'confidence': confidence
                     },
                     'feature_changes': transformed_features,
-                    'similarity_to_users': {
-                        'similarity_score': similarity_score
-                    }
                 }
             }
             formatted_explanations.append(formatted_exp)

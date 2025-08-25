@@ -1,0 +1,85 @@
+<script>
+function toggleExplanation() {
+  if (explanationVisible) {
+    document.getElementById('explanation-content').style.display = 'none';
+    document.getElementById('toggle-explanation-text').textContent = 'Show Detailed Impact';
+    explanationVisible = false;
+  } else {
+    showRatingExplanation();
+  }
+}
+
+function showRatingExplanation() {
+  if (!currentMovie) return;
+
+  const toggleText = document.getElementById('toggle-explanation-text');
+  const toggleSpinner = document.getElementById('toggle-explanation-spinner');
+
+  toggleText.style.display = 'none';
+  toggleSpinner.style.display = 'inline-block';
+
+  fetch("{% url 'project4:guided' %}", {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': '{{ csrf_token }}',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      action: 'get_rating_explanation',
+      movie_id: currentMovie.movie_id
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    toggleText.style.display = 'inline';
+    toggleSpinner.style.display = 'none';
+
+    if (data.error) {
+      showMessage(data.error, 'error');
+    } else {
+      displayExplanations(data.explanations);
+      document.getElementById('explanation-content').style.display = 'block';
+      toggleText.textContent = 'Hide Detailed Impact';
+      explanationVisible = true;
+    }
+  })
+  .catch(error => {
+    toggleText.style.display = 'inline';
+    toggleSpinner.style.display = 'none';
+    showMessage('Error getting explanation: ' + error, 'error');
+  });
+}
+
+function displayExplanations(explanations) {
+  const grid = document.getElementById('explanation-grid');
+
+  grid.innerHTML = explanations.map(exp => `
+    <div class="explanation-card" data-rating="${exp.rating}">
+      <div class="explanation-header">
+        <h4>If you rate it ${exp.rating} star${exp.rating > 1 ? 's' : ''}</h4>
+      </div>
+      <div class="explanation-body">
+        <div class="next-movie">
+          <h5>Most Likely Next Recommendation:</h5>
+          <p><strong>${exp.explanation.predicted_next_movie.title}</strong></p>
+          <p class="confidence">Likelihood: ${(exp.explanation.predicted_next_movie.confidence * 100).toFixed(0)}%</p>
+          <p style="font-size: 0.8em; color: #666; margin-top: 5px;">
+            Note: System selects randomly from top 5 candidates for variety
+          </p>
+        </div>
+
+        <div class="feature-changes">
+          <h5>Your Preferences Would:</h5>
+          <ul>
+            ${exp.explanation.feature_changes.map(change => `
+              <li class="feature-change ${change.change}">
+                <strong>${change.feature_name}:</strong> ${change.description}
+              </li>
+            `).join('')}
+          </ul>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+</script>

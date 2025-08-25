@@ -1,0 +1,30 @@
+<!-- project4_guided.html -->
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'custom_style4.css'%}">
+{% endblock %}
+
+{% block content %}
+<div class="box">
+  <div class="title-container">
+    <div class="title">Cold Start Movie Recommendations - Guided Version</div>
+  </div>
+
+  <div class="main-text">
+    {% include 'partials/session_status.html' %}
+    {% include 'partials/initialize_section.html' %}
+    {% include 'partials/initial_rating_section.html' %}
+    {% include 'partials/active_learning_section.html' %}
+    {% include 'partials/rating_interface.html' %}
+    {% include 'partials/explanation_section.html' %}
+    {% include 'partials/session_controls.html' %}
+  </div>
+</div>
+
+{% include 'partials/messages_container.html' %}
+{% include 'partials_javascript/shared_javascript.html' %}
+{% include 'partials_javascript/explanation_javascript.html' %}
+
+{% endblock %}
