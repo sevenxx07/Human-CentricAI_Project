@@ -1,6 +1,8 @@
 import logging
 import os
 import pandas as pd
+import time
+import numpy as np
 from django.conf import settings
 
 from project_4.Cold_start_recommendation.Cold_start import (
@@ -9,6 +11,7 @@ from project_4.Cold_start_recommendation.Cold_start import (
     load_movie_data,
     active_learning_step
 )
+from .metrics_recorder import MetricsRecorder, TimingTracker
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -79,8 +82,14 @@ class MovieCache:
 class ColdStartSession:
     """Session state management for cold start recommendation"""
 
-    def __init__(self, session_id=None):
+    def __init__(self, session_id=None, study_mode=None):
         self.session_id = session_id or f'session_{id(self)}'
+        self.study_mode = study_mode or 'unknown'
+
+        # Initialize metrics recording
+        self.metrics_recorder = MetricsRecorder(self.session_id, self.study_mode)
+        self.timing_tracker = TimingTracker()
+
         self.reset()
 
     def reset(self):
@@ -97,25 +106,99 @@ class ColdStartSession:
         self.active_learning_round = 0
         self.max_active_learning_rounds = MAX_ACTIVE_LEARNING_ROUNDS
 
-    def store_rating(self, movie_id, rating):
-        """Store a rating and increment counters"""
+        # Track current movie timing
+        self.current_movie_start_time = None
+
+    def start_movie_timing(self, movie_id):
+        """Start timing for rating a specific movie"""
+        self.current_movie_start_time = time.time()
+        self.timing_tracker.start_action(f"movie_{movie_id}")
+
+    def get_expected_rating_at_time_of_rating(self, movie_id, movie_cache):
+        """
+        Calculate what the predicted rating was at the time of rating submission.
+        This is crucial for RMSE calculation - we need the prediction that existed
+        when the user made their rating decision.
+        """
+        if self.user_vector is None:
+            logger.info(f"No user vector available for movie {movie_id} - likely initial rating")
+            return None
+
+        try:
+            # Ensure movie_id exists in the matrix
+            movie_cache.R_matrix.columns = movie_cache.R_matrix.columns.astype(int)
+            if movie_id not in movie_cache.R_matrix.columns:
+                logger.warning(f"Movie ID {movie_id} not found in R matrix columns")
+                return None
+
+            # Get movie index and vector
+            movie_index = list(movie_cache.R_matrix.columns).index(movie_id)
+            movie_vector = movie_cache.V_matrix[movie_index]
+
+            # Calculate predicted rating using current user vector
+            predicted_rating = np.dot(self.user_vector, movie_vector)
+
+            # Clip to valid rating range
+            predicted_rating = float(np.clip(predicted_rating, 0.5, 5.0))
+
+            logger.info(f"Expected rating for movie {movie_id}: {predicted_rating:.3f}")
+            return predicted_rating
+
+        except Exception as e:
+            logger.error(f"Error calculating expected rating for {movie_id}: {e}")
+            return None
+
+    def store_rating(self, movie_id, rating, movie_title=None, predicted_rating=None):
+        """Store a rating and record metrics"""
+        # Calculate time taken if timing was started
+        time_taken = None
+        if self.current_movie_start_time:
+            time_taken = time.time() - self.current_movie_start_time
+            self.current_movie_start_time = None
+
+        # Store in session
         rating_data = {
             'movie_id': movie_id,
             'rating': rating,
-            'step': self.current_step
+            'step': self.current_step,
+            'time_taken': time_taken,
+            'predicted_rating': predicted_rating
         }
         self.rated_movies.append(rating_data)
         self.total_ratings += 1
         self.current_step += 1
-        logger.info(f"Stored rating: {movie_id} -> {rating}")
 
-    def store_skip(self, movie_id):
-        """Store a skip"""
+        # Record metrics
+        phase = 'initial' if self.is_in_initial_phase() else 'active_learning'
+        self.metrics_recorder.session_phase = phase
+        self.metrics_recorder.record_rating(movie_id, rating, movie_title, time_taken, predicted_rating)
+
+        logger.info(
+            f"Stored rating: {movie_id} -> {rating} (expected: {predicted_rating:.3f}, time: {time_taken:.2f}s)"
+            if predicted_rating and time_taken
+            else f"Stored rating: {movie_id} -> {rating}")
+
+    def store_skip(self, movie_id, movie_title=None, predicted_rating=None):
+        """Store a skip and record metrics"""
+        # Calculate time taken if timing was started
+        time_taken = None
+        if self.current_movie_start_time:
+            time_taken = time.time() - self.current_movie_start_time
+            self.current_movie_start_time = None
+
+        # Store in session
         skip_data = {
             'movie_id': movie_id,
-            'step': self.current_step
+            'step': self.current_step,
+            'time_taken': time_taken,
+            'predicted_rating': predicted_rating
         }
         self.skipped_movies.append(skip_data)
+
+        # Record metrics
+        phase = 'initial' if self.is_in_initial_phase() else 'active_learning'
+        self.metrics_recorder.session_phase = phase
+        self.metrics_recorder.record_skip(movie_id, movie_title, time_taken, predicted_rating)
 
     def get_rated_dict(self):
         """Get ratings as dictionary"""
@@ -132,12 +215,41 @@ class ColdStartSession:
         self.user_vector = cold_start.update_user_vector(rated_dict)
         logger.info(f"Updated user vector. Total ratings: {len(rated_dict)}")
 
+    def get_predicted_rating(self, movie_id, movie_cache):
+        """Calculate predicted rating for a movie given current user vector"""
+        if self.user_vector is None:
+            return None
+
+        try:
+            movie_cache.R_matrix.columns = movie_cache.R_matrix.columns.astype(int)
+            if movie_id in movie_cache.R_matrix.columns:
+                movie_index = list(movie_cache.R_matrix.columns).index(movie_id)
+                movie_vector = movie_cache.V_matrix[movie_index]
+                predicted_rating = np.dot(self.user_vector, movie_vector)
+                return float(np.clip(predicted_rating, 0.5, 5.0))
+        except Exception as e:
+            logger.error(f"Error calculating predicted rating for {movie_id}: {e}")
+
+        return None
+
+    def finalize_session(self, movie_cache):
+        """Finalize session and calculate final metrics"""
+        if self.metrics_recorder and movie_cache.loaded:
+            final_metrics = self.metrics_recorder.finalize_session(
+                V_matrix=movie_cache.V_matrix,
+                R_matrix=movie_cache.R_matrix,
+                user_vector=self.user_vector
+            )
+            logger.info(f"Session finalized. Final metrics: {final_metrics}")
+            return final_metrics
+        return None
+
     def get_session_context(self):
         """Get current session state for responses"""
         if not self.is_initialized:
             return {}
 
-        return {
+        context = {
             'session_active': True,
             'current_step': self.current_step,
             'initial_movies_count': self.initial_movies_count,
@@ -150,13 +262,24 @@ class ColdStartSession:
             'max_active_learning_rounds': self.max_active_learning_rounds
         }
 
+        # Add current metrics
+        if self.metrics_recorder:
+            current_metrics = self.metrics_recorder.get_current_metrics()
+            context.update(current_metrics)
+
+        return context
+
     def is_in_initial_phase(self):
         """Check if still in initial rating phase"""
         return self.current_step < self.initial_movies_count
 
     def is_session_complete(self):
         """Check if session is complete"""
-        return self.active_learning_round > self.max_active_learning_rounds
+        is_complete = self.active_learning_round > self.max_active_learning_rounds
+        if is_complete and self.metrics_recorder:
+            # Auto-finalize when session is complete
+            self.finalize_session(None)  # Will be called properly from views
+        return is_complete
 
 
 def initialize_session(session, movie_cache, initial_count=None):
@@ -180,6 +303,9 @@ def initialize_session(session, movie_cache, initial_count=None):
     session.current_movies = initial_movies
     session.initial_movies_count = initial_count
 
+    # Record phase change to initial
+    session.metrics_recorder.set_phase('initial')
+
     return initial_movies
 
 
@@ -198,7 +324,10 @@ def get_next_initial_movie(session):
     session.current_movie_index = current_index
 
     if current_index < len(initial_movies):
-        return initial_movies[current_index]
+        next_movie = initial_movies[current_index]
+        # Start timing for this movie
+        session.start_movie_timing(next_movie['movie_id'])
+        return next_movie
     else:
         return None
 
@@ -232,6 +361,9 @@ def get_next_active_learning_movie(session, movie_cache):
             'predicted_rating': float(predicted_rating)
         }
 
+        # Start timing for this movie
+        session.start_movie_timing(top_movie_id)
+
         logger.info(f"Active learning selected: {top_movie_title} "
                     f"(predicted: {predicted_rating:.2f})")
 
@@ -244,21 +376,37 @@ def get_next_active_learning_movie(session, movie_cache):
 
 def process_rating_submission(session, movie_cache, movie_id, rating):
     """Process rating submission and determine next action"""
-    session.store_rating(movie_id, rating)
+
+    # CRITICAL: Get the expected rating BEFORE updating user vector
+    # This represents what the system predicted when the user made their decision
+    expected_rating = session.get_expected_rating_at_time_of_rating(movie_id, movie_cache)
+
+    # Get movie title for metrics
+    movie_title = movie_cache.movieId_to_title.get(movie_id, "Unknown")
+
+    # Store rating with the expected value calculated at decision time
+    # NOTE: store_rating() increments current_step, so do this first
+    session.store_rating(movie_id, rating, movie_title, expected_rating)
+
+    # NOW update the user vector (after we've recorded the prediction)
     session.update_user_vector(movie_cache)
 
     # Determine next movie and messages
     if session.is_in_initial_phase():
+        # Still in initial phase
         next_movie = get_next_initial_movie(session)
         remaining = session.initial_movies_count - session.current_step
         message = f"Rating submitted! {remaining} more movies to rate."
         session_step = 'initial_rating'
     else:
-        # Transitioning to or continuing active learning
+        # We've just transitioned to active learning phase
+        # Update phase tracking AFTER storing the rating but BEFORE active learning logic
         if session.current_step == session.initial_movies_count:
+            session.metrics_recorder.set_phase('active_learning')
             message = "Initial rating complete! Moving to personalized recommendations."
             session.active_learning_round = 1
         else:
+            # Continuing active learning
             session.active_learning_round += 1
             round_num = session.active_learning_round
             max_rounds = session.max_active_learning_rounds
@@ -271,13 +419,23 @@ def process_rating_submission(session, movie_cache, movie_id, rating):
         else:
             message = "Active learning session complete! Thank you for your participation."
             next_movie = None
+            # Finalize metrics when session is complete
+            session.finalize_session(movie_cache)
 
     return next_movie, message, session_step
 
 
 def process_movie_skip(session, movie_cache, movie_id):
     """Process movie skip and determine next action"""
-    session.store_skip(movie_id)
+
+    # Get expected rating for this movie (what system would have predicted)
+    expected_rating = session.get_expected_rating_at_time_of_rating(movie_id, movie_cache)
+
+    # Get movie title for metrics
+    movie_title = movie_cache.movieId_to_title.get(movie_id, "Unknown")
+
+    # Store skip with expected rating for analysis
+    session.store_skip(movie_id, movie_title, expected_rating)
 
     if session.is_in_initial_phase():
         next_movie = get_next_initial_movie(session)
@@ -296,6 +454,8 @@ def process_movie_skip(session, movie_cache, movie_id):
 
         if next_movie is None:
             message = "Active learning session complete! Thank you for your participation."
+            # Finalize metrics when session is complete
+            session.finalize_session(movie_cache)
 
     return next_movie, message, session_step
 

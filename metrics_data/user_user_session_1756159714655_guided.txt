@@ -1,0 +1,49 @@
+============================================================
+MOVIE RECOMMENDER METRICS
+============================================================
+Session ID: user_session_1756159714655
+Study Mode: guided
+Start Time: 2025-08-25 22:08:34
+Start Timestamp: 1756159714.6588848
+
+
+--- PHASE CHANGE: INITIAL ---
+RATING: 296 -> 4.0 | Title: Pulp Fiction (1994) | Expected: N/A | Error: N/A | Phase: initial | Time: 4.49s | Elapsed: 8.9s
+RATING: 318 -> 5.0 | Title: Shawshank Redemption, The (1994) | Expected: 3.610 | Error: 1.390 | Phase: initial | Time: 7.78s | Elapsed: 16.7s
+RATING: 260 -> 1.5 | Title: Star Wars: Episode IV - A New Hope (1977) | Expected: 4.712 | Error: 3.212 | Phase: initial | Time: 1.72s | Elapsed: 18.4s
+RATING: 344 -> 0.5 | Title: Ace Ventura: Pet Detective (1994) | Expected: 0.500 | Error: 0.000 | Phase: initial | Time: 4.11s | Elapsed: 22.5s
+RATING: 5669 -> 4.0 | Title: Bowling for Columbine (2002) | Expected: 5.000 | Error: 1.000 | Phase: active_learning | Time: 2.17s | Elapsed: 24.7s
+
+--- PHASE CHANGE: ACTIVE_LEARNING ---
+RATING: 7 -> 2.0 | Title: Sabrina (1995) | Expected: 5.000 | Error: 3.000 | Phase: active_learning | Time: 3.10s | Elapsed: 27.8s
+RATING: 16 -> 5.0 | Title: Casino (1995) | Expected: 5.000 | Error: 0.000 | Phase: active_learning | Time: 2.95s | Elapsed: 30.7s
+RATING: 17 -> 3.5 | Title: Sense and Sensibility (1995) | Expected: 5.000 | Error: 1.500 | Phase: active_learning | Time: 1.70s | Elapsed: 32.4s
+RATING: 18 -> 1.0 | Title: Four Rooms (1995) | Expected: 5.000 | Error: 4.000 | Phase: active_learning | Time: 2.60s | Elapsed: 35.0s
+
+============================================================
+FINAL METRICS SUMMARY
+============================================================
+Session Duration: 35.1 seconds
+Number of Ratings: 9
+Number of Skips: 0
+Ratings with Predictions: 8/9
+Average Time per Rating: 3.40s
+RMSE: 2.2501
+End Time: 2025-08-25 22:09:09
+
+PHASE BREAKDOWN:
+Initial Phase Ratings: 4
+Active Learning Ratings: 5
+Initial Phase RMSE: 2.0209 (3 ratings)
+Active Learning RMSE: 2.3770 (5 ratings)
+
+DETAILED RATING LOG:
+1. Movie 296: Actual=4.0, Expected=N/A, Error=N/A | Phase=initial
+2. Movie 318: Actual=5.0, Expected=3.610, Error=1.390 | Phase=initial
+3. Movie 260: Actual=1.5, Expected=4.712, Error=3.212 | Phase=initial
+4. Movie 344: Actual=0.5, Expected=0.500, Error=0.000 | Phase=initial
+5. Movie 5669: Actual=4.0, Expected=5.000, Error=1.000 | Phase=active_learning
+6. Movie 7: Actual=2.0, Expected=5.000, Error=3.000 | Phase=active_learning
+7. Movie 16: Actual=5.0, Expected=5.000, Error=0.000 | Phase=active_learning
+8. Movie 17: Actual=3.5, Expected=5.000, Error=1.500 | Phase=active_learning
+9. Movie 18: Actual=1.0, Expected=5.000, Error=4.000 | Phase=active_learning

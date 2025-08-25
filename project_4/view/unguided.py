@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 from django.http import JsonResponse
 from django.shortcuts import render
 from .session_utils import (
@@ -65,12 +66,17 @@ def initialize_unguided_session(data):
     global UNGUIDED_STATE
 
     try:
-        session = ColdStartSession(data.get('session_id', 'unguided_session'))
+        session_id = data.get('session_id', f'unguided_{int(time.time())}')
+        session = ColdStartSession(session_id=session_id, study_mode='unguided')
         initial_movies = initialize_session(session, UNGUIDED_MOVIE_CACHE)
 
         UNGUIDED_STATE['session'] = session
 
         first_movie = initial_movies[0] if initial_movies else None
+
+        # Start timing for first movie if it exists
+        if first_movie:
+            session.start_movie_timing(first_movie['movie_id'])
 
         response_data = {
             'message': 'Cold start session initialized successfully',
@@ -93,6 +99,10 @@ def reset_session(data=None):
     global UNGUIDED_STATE
 
     try:
+        # Finalize current session if it exists
+        if UNGUIDED_STATE.get('session'):
+            UNGUIDED_STATE['session'].finalize_session(UNGUIDED_MOVIE_CACHE)
+
         UNGUIDED_STATE = {}
         # Clear cached selections but keep expensive data loaded
         UNGUIDED_MOVIE_CACHE.selected_movies = None

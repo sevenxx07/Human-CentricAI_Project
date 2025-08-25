@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 from django.http import JsonResponse
 from django.shortcuts import render
 from .session_utils import (
@@ -67,12 +68,17 @@ def initialize_guided_session(data):
     global GUIDED_STATE
 
     try:
-        session = ColdStartSession(data.get('session_id', 'guided_session'))
+        session_id = data.get('session_id', f'guided_{int(time.time())}')
+        session = ColdStartSession(session_id=session_id, study_mode='guided')
         initial_movies = initialize_session(session, GUIDED_MOVIE_CACHE)
 
         GUIDED_STATE['session'] = session
 
         first_movie = initial_movies[0] if initial_movies else None
+
+        # Start timing for first movie if it exists
+        if first_movie:
+            session.start_movie_timing(first_movie['movie_id'])
 
         response_data = {
             'message': 'Cold start session initialized successfully',
@@ -95,6 +101,10 @@ def reset_session(data=None):
     global GUIDED_STATE
 
     try:
+        # Finalize current session if it exists
+        if GUIDED_STATE.get('session'):
+            GUIDED_STATE['session'].finalize_session(GUIDED_MOVIE_CACHE)
+
         GUIDED_STATE = {}
         # Clear cached selections but keep expensive data loaded
         GUIDED_MOVIE_CACHE.selected_movies = None

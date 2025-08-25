@@ -1,0 +1,49 @@
+============================================================
+MOVIE RECOMMENDER METRICS
+============================================================
+Session ID: user_session_1756159764842
+Study Mode: guided
+Start Time: 2025-08-25 22:09:24
+Start Timestamp: 1756159764.8455513
+
+
+--- PHASE CHANGE: INITIAL ---
+RATING: 296 -> 3.5 | Title: Pulp Fiction (1994) | Expected: N/A | Error: N/A | Phase: initial | Time: 2.90s | Elapsed: 2.9s
+RATING: 318 -> 1.0 | Title: Shawshank Redemption, The (1994) | Expected: 3.158 | Error: 2.158 | Phase: initial | Time: 1.46s | Elapsed: 4.4s
+RATING: 260 -> 4.0 | Title: Star Wars: Episode IV - A New Hope (1977) | Expected: 2.442 | Error: 1.558 | Phase: initial | Time: 1.45s | Elapsed: 5.8s
+RATING: 344 -> 0.5 | Title: Ace Ventura: Pet Detective (1994) | Expected: 2.712 | Error: 2.212 | Phase: initial | Time: 2.31s | Elapsed: 8.1s
+RATING: 5669 -> 4.0 | Title: Bowling for Columbine (2002) | Expected: 0.500 | Error: 3.500 | Phase: active_learning | Time: 1.87s | Elapsed: 10.0s
+
+--- PHASE CHANGE: ACTIVE_LEARNING ---
+RATING: 8 -> 0.5 | Title: Tom and Huck (1995) | Expected: 5.000 | Error: 4.500 | Phase: active_learning | Time: 1.66s | Elapsed: 11.7s
+RATING: 6 -> 2.5 | Title: Heat (1995) | Expected: 5.000 | Error: 2.500 | Phase: active_learning | Time: 1.80s | Elapsed: 13.5s
+RATING: 11 -> 4.5 | Title: American President, The (1995) | Expected: 5.000 | Error: 0.500 | Phase: active_learning | Time: 1.81s | Elapsed: 15.3s
+RATING: 19 -> 5.0 | Title: Ace Ventura: When Nature Calls (1995) | Expected: 5.000 | Error: 0.000 | Phase: active_learning | Time: 3.30s | Elapsed: 18.6s
+
+============================================================
+FINAL METRICS SUMMARY
+============================================================
+Session Duration: 18.6 seconds
+Number of Ratings: 9
+Number of Skips: 0
+Ratings with Predictions: 8/9
+Average Time per Rating: 2.06s
+RMSE: 2.5244
+End Time: 2025-08-25 22:09:43
+
+PHASE BREAKDOWN:
+Initial Phase Ratings: 4
+Active Learning Ratings: 5
+Initial Phase RMSE: 1.9982 (3 ratings)
+Active Learning RMSE: 2.7928 (5 ratings)
+
+DETAILED RATING LOG:
+1. Movie 296: Actual=3.5, Expected=N/A, Error=N/A | Phase=initial
+2. Movie 318: Actual=1.0, Expected=3.158, Error=2.158 | Phase=initial
+3. Movie 260: Actual=4.0, Expected=2.442, Error=1.558 | Phase=initial
+4. Movie 344: Actual=0.5, Expected=2.712, Error=2.212 | Phase=initial
+5. Movie 5669: Actual=4.0, Expected=0.500, Error=3.500 | Phase=active_learning
+6. Movie 8: Actual=0.5, Expected=5.000, Error=4.500 | Phase=active_learning
+7. Movie 6: Actual=2.5, Expected=5.000, Error=2.500 | Phase=active_learning
+8. Movie 11: Actual=4.5, Expected=5.000, Error=0.500 | Phase=active_learning
+9. Movie 19: Actual=5.0, Expected=5.000, Error=0.000 | Phase=active_learning
