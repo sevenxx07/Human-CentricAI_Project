@@ -15,7 +15,7 @@ if __name__ == "__main__":
     trajectories = sample_trajectories(policy, K=40, time_horizon=50)
 
     # 3) Build pairwise preferences (use "human" to prompt in terminal)
-    pairs = build_pairwise_preferences(trajectories, provider="human")  # "sim" or "human"
+    pairs = build_pairwise_preferences(trajectories, provider="sim")  # "sim" or "human"
 
     # 4) Train the reward model with BT loss
     reward_net = RewardNet()

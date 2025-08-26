@@ -15,7 +15,8 @@ from mouse import (
     GRID_SIZE,
     ACTION_TO_DELTA,
     CHEESE,
-    ORGANIC_CHEESE
+    ORGANIC_CHEESE,
+    TRAP
 )
 from policy_network import create_policy_network
 
