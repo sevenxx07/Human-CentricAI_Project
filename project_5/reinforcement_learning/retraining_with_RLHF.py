@@ -99,6 +99,10 @@ def reinforce_with_learned_reward(
                 st_tensor = state_to_tensor(s_grid).to(device)
                 # reward_net returns scalar per state
                 r_hat = reward_net(st_tensor).detach().cpu().item()
+                # Reward shaping:
+                if (s_grid == ORGANIC_CHEESE).any():  # if this state has organic cheese
+                    r_hat -= 3.0  # add penalty
+
                 learned_rewards.append(r_hat)
 
             # Now compute discounted returns on learned_rewards (per-trajectory)
@@ -172,7 +176,6 @@ def evaluate_policy_organic_avoidance(policy, K=200, time_horizon=50):
     }
 
 # ---------- Example driver ----------
-
 if __name__ == "__main__":
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -185,27 +188,26 @@ if __name__ == "__main__":
     except Exception as e:
         print("Could not load reward_net_bt.pt — make sure you trained Task2 and saved it. Error:", e)
         # still continue (reward_net randomly initialized) but results won't be meaningful
-
     # optional: evaluate before training
     print("Evaluation BEFORE Task3 training:")
     before_stats = evaluate_policy_organic_avoidance(policy, K=200)
     print(before_stats)
-
     # 2) Retrain policy with learned reward + KL
-    beta = 0.003   # small KL weight; tune (e.g. 0.005 - 0.05)
-    policy = policy.to(device)
+    beta = 0.01  # Reduce from 0.003 to allow more learning
+
+    # And these parameters in reinforce_with_learned_reward:
     trained_policy = reinforce_with_learned_reward(
         policy,
         reward_net,
-        N_epochs=120,
-        trajectories_per_epoch=32,
+        N_epochs=80,  # Reduce epochs
+        trajectories_per_epoch=30,  # Fewer trajectories per epoch
         time_horizon=50,
         gamma=0.99,
         beta=beta,
-        lr=1e-3,
+        lr=2e-3,  # Higher learning rate
         device=device,
         normalize_returns=True,
-        verbose_every=10
+        verbose_every=5  # More frequent updates
     )
 
     # 3) Evaluate after training

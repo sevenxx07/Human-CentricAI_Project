@@ -20,17 +20,19 @@ from mouse import (
 )
 from policy_network import create_policy_network
 
+
 # ---------- Helpers reused from your code ----------
 def state_to_tensor(grid):
     """One-hot CxHxW tensor with C=6 channels, H=W=5."""
     one_hot = np.eye(6)[grid]
-    return torch.tensor(one_hot, dtype=torch.float32).permute(2,0,1).unsqueeze(0)
+    return torch.tensor(one_hot, dtype=torch.float32).permute(2, 0, 1).unsqueeze(0)
+
 
 def select_action(policy, grid):
     """Sample an action from the policy. Your policy already ends with Softmax."""
     state = state_to_tensor(grid)
     with torch.no_grad():
-        probs = policy(state)          # shape: (1, 4), already probabilities
+        probs = policy(state)  # shape: (1, 4), already probabilities
     dist = torch.distributions.Categorical(probs.squeeze(0))
     a_idx = dist.sample()
     return ACTIONS[a_idx.item()], torch.log(probs.squeeze(0)[a_idx])
@@ -61,22 +63,25 @@ def collect_trajectory(policy, time_horizon=50, gamma=0.99, stop_on_terminal=Tru
 
         if cell_content == CHEESE:
             cheese_hits += 1
-            terminal = True if stop_on_terminal else terminal
+            if stop_on_terminal:
+                terminal = True
         elif cell_content == ORGANIC_CHEESE:
             organic_hits += 1
-            terminal = True if stop_on_terminal else terminal
+            if stop_on_terminal:
+                terminal = True
 
         # trap also terminal in your env
-        if r == 10 or r == -50:
-            terminal = True if stop_on_terminal else terminal
+        if r == -50:  # trap
+            if stop_on_terminal:
+                terminal = True
 
         if terminal:
             break
 
     return {
-        "states": states,           # each is 5x5 int grid
-        "actions": actions,         # strings
-        "rewards": rewards,         # floats
+        "states": states,  # each is 5x5 int grid
+        "actions": actions,  # strings
+        "rewards": rewards,  # floats
         "cheese_hits": cheese_hits,
         "organic_hits": organic_hits,
         "terminal": terminal,
@@ -94,7 +99,8 @@ def sample_trajectories(policy, K=20, time_horizon=50):
 # ---------- Preference providers ----------
 def show_trajectory_text(traj, title="Trajectory"):
     """Pretty-print a trajectory for a human to judge."""
-    print(f"\n=== {title} | len={len(traj['states'])} | cheese={traj['cheese_hits']} | organic={traj['organic_hits']} ===")
+    print(
+        f"\n=== {title} | len={len(traj['states'])} | cheese={traj['cheese_hits']} | organic={traj['organic_hits']} ===")
     for step, (grid, act, rew) in enumerate(zip(traj['states'], traj['actions'], traj['rewards'])):
         print(f"\nStep {step}: action={act}, env_reward={rew:.2f}")
         print_grid_with_cheese_types(grid)
@@ -116,33 +122,33 @@ def human_preference(traj_a, traj_b):
 
 def simulated_preference(traj_a, traj_b):
     """
-    Simulated feedback rule:
-    - Prefer the one with FEWER ORGANIC cheese hits.
-    - Tie-breaker: prefer the one with MORE normal cheese hits.
-    - Final tie-breaker: shorter trajectory (faster).
+    FIXED: Simulated feedback rule that prefers AVOIDING organic cheese.
+    - Primary: Prefer the one with FEWER ORGANIC cheese hits (avoid organic)
+    - Secondary: If organic hits are equal, prefer MORE normal cheese hits (get food)
+    - Tertiary: If both equal, prefer shorter trajectory (efficiency)
     Returns 1 if A preferred, 0 if B preferred.
     """
     oa, ob = traj_a["organic_hits"], traj_b["organic_hits"]
     ca, cb = traj_a["cheese_hits"], traj_b["cheese_hits"]
 
-    # Prefer fewer organic cheese hits
+    # Primary criterion: FEWER organic hits is better
     if oa != ob:
-        return 1 if oa < ob else 0
+        return 1 if oa < ob else 0  # A preferred if A has fewer organic hits
 
-    # Prefer more normal cheese hits
+    # Secondary: MORE normal cheese hits is better (when organic hits are equal)
     if ca != cb:
-        return 1 if ca > cb else 0
+        return 1 if ca > cb else 0  # A preferred if A has more normal cheese
 
-    # Prefer shorter (faster) trajectory
+    # Tertiary: shorter trajectory is better (efficiency)
     la, lb = len(traj_a["states"]), len(traj_b["states"])
     if la != lb:
-        return 1 if la < lb else 0
+        return 1 if la < lb else 0  # A preferred if A is shorter
 
-    # Random last tie-break
+    # Random tie-breaker
     return np.random.randint(0, 2)
 
 
-def build_pairwise_preferences(trajectories, provider="sim"):
+def build_pairwise_preferences(trajectories, provider="sim", max_pairs=100):
     """
     Create pairwise (i, j, y) with y=1 if traj i preferred over j, else 0.
     provider: "sim" or "human"
@@ -151,32 +157,51 @@ def build_pairwise_preferences(trajectories, provider="sim"):
     N = len(trajectories)
     choose = simulated_preference if provider == "sim" else human_preference
 
-    # Simple pairing: consecutive pairs
-    for i in range(0, N - 1, 2):
-        j = i + 1
-        y = choose(trajectories[i], trajectories[j])
-        prefs.append((i, j, y))
+    # Create more diverse pairs, not just consecutive ones
+    pairs_created = 0
+    for i in range(N):
+        for j in range(i + 1, N):
+            if pairs_created >= max_pairs:
+                break
+
+            # Prioritize pairs where organic hits differ significantly
+            oa, ob = trajectories[i]["organic_hits"], trajectories[j]["organic_hits"]
+            if abs(oa - ob) > 0 or np.random.random() < 0.3:  # Include some random pairs too
+                y = choose(trajectories[i], trajectories[j])
+                prefs.append((i, j, y))
+                pairs_created += 1
+
+        if pairs_created >= max_pairs:
+            break
+
     return prefs
+
 
 class RewardNet(nn.Module):
     """
     CNN reward model: input Cx5x5 (C=6 one-hot channels), output scalar r(s).
     Trajectory score S = sum_t r(s_t).
     """
+
     def __init__(self):
         super().__init__()
         self.net = nn.Sequential(
             nn.Conv2d(6, 16, kernel_size=3, padding=1),
             nn.ReLU(),
-            nn.Flatten(),
-            nn.Linear(16 * 5 * 5, 64),
+            nn.Conv2d(16, 32, kernel_size=3, padding=1),  # Added depth
             nn.ReLU(),
-            nn.Linear(64, 1)   # scalar reward per state
+            nn.Flatten(),
+            nn.Linear(32 * 5 * 5, 128),  # Increased capacity
+            nn.ReLU(),
+            nn.Dropout(0.1),  # Added dropout for regularization
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Linear(64, 1)  # scalar reward per state
         )
 
     def forward(self, state_tensor_bchw):
         # state_tensor_bchw: (B, 6, 5, 5)
-        return self.net(state_tensor_bchw).squeeze(-1).squeeze(-1)  # (B,)
+        return self.net(state_tensor_bchw).squeeze(-1)  # (B,)
 
 
 def score_trajectory(reward_net, traj, device="cpu"):
@@ -187,7 +212,7 @@ def score_trajectory(reward_net, traj, device="cpu"):
     with torch.no_grad():
         batch = torch.cat([state_to_tensor(s) for s in states], dim=0)  # (T, 6, 5, 5)
         batch = batch.to(device)
-        per_state_rewards = reward_net(batch)                           # (T,)
+        per_state_rewards = reward_net(batch)  # (T,)
         return per_state_rewards.sum().item()
 
 
@@ -195,6 +220,7 @@ class PairwisePrefDataset(Dataset):
     """
     Holds (trajectory_i, trajectory_j, label y∈{0,1}) and feeds state tensors to reward model.
     """
+
     def __init__(self, trajectories, pairs):
         self.trajs = trajectories
         self.pairs = pairs
@@ -205,70 +231,83 @@ class PairwisePrefDataset(Dataset):
     def __getitem__(self, idx):
         i, j, y = self.pairs[idx]
         ti, tj = self.trajs[i], self.trajs[j]
-        # Pack states as variable-length lists; collate will handle
         return ti["states"], tj["states"], torch.tensor([y], dtype=torch.float32)
 
 
 def collate_pairs(batch):
     """
-    Collate variable-length trajectories. We compute scores inside the training loop by
-    running the reward net on each trajectory's states then summing.
+    Collate variable-length trajectories.
     """
-    # batch is list of (states_i, states_j, y)
     return batch
 
 
 def train_reward_bt(
-    reward_net, trajectories, pairs,
-    epochs=5, lr=1e-3, batch_size=8, device="cpu"
+        reward_net, trajectories, pairs,
+        epochs=20, lr=1e-3, batch_size=4, device="cpu"
 ):
     """
-    Train reward_net with Bradley–Terry loss on pairwise preferences.
+    IMPROVED: Train reward_net with Bradley–Terry loss on pairwise preferences.
     """
+    print(f"Training reward model with {len(pairs)} preference pairs...")
+
     reward_net.to(device)
     dataset = PairwisePrefDataset(trajectories, pairs)
-    #loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_pairs)
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_pairs, num_workers=0)
 
-    opt = optim.Adam(reward_net.parameters(), lr=lr)
+    opt = optim.Adam(reward_net.parameters(), lr=lr, weight_decay=1e-4)
     criterion = nn.BCEWithLogitsLoss()
 
-    for ep in range(1, epochs+1):
+    for ep in range(1, epochs + 1):
         total_loss, n = 0.0, 0
         correct = 0
         total = 0
 
         for batch in loader:
-            # Each element: (states_i, states_j, y)
             opt.zero_grad()
             logits_list, labels_list = [], []
 
             for states_i, states_j, y in batch:
                 # Build tensors for each trajectory and sum predicted rewards
-                Si = reward_net(torch.cat([state_to_tensor(s) for s in states_i], dim=0).to(device)).sum()
-                Sj = reward_net(torch.cat([state_to_tensor(s) for s in states_j], dim=0).to(device)).sum()
+                batch_i = torch.cat([state_to_tensor(s) for s in states_i], dim=0).to(device)
+                batch_j = torch.cat([state_to_tensor(s) for s in states_j], dim=0).to(device)
+
+                Si = reward_net(batch_i).sum()
+                Sj = reward_net(batch_j).sum()
 
                 # Bradley–Terry logit is (Si - Sj)
                 logit = (Si - Sj).unsqueeze(0)  # shape (1,)
                 logits_list.append(logit)
-                labels_list.append(y.to(device))  # shape (1,)
+                labels_list.append(y.to(device))
 
-            logits = torch.cat(logits_list, dim=0)   # (B, 1)
-            labels = torch.cat(labels_list, dim=0)   # (B, 1)
+            if logits_list:  # Check if we have any data
+                logits = torch.cat(logits_list, dim=0)
+                labels = torch.cat(labels_list, dim=0)
 
-            loss = criterion(logits, labels)
-            loss.backward()
-            opt.step()
+                loss = criterion(logits, labels)
+                loss.backward()
 
-            total_loss += loss.item() * logits.size(0)
-            n += logits.size(0)
+                # Gradient clipping for stability
+                torch.nn.utils.clip_grad_norm_(reward_net.parameters(), max_norm=1.0)
 
-            # Accuracy for sanity check
-            with torch.no_grad():
-                preds = (torch.sigmoid(logits) > 0.5).float()
-                correct += (preds == labels).sum().item()
-                total += labels.numel()
+                opt.step()
 
-        print(f"[RewardNet][Epoch {ep}] loss={total_loss/n:.4f}  pref-acc={correct/total:.3f}")
+                total_loss += loss.item() * logits.size(0)
+                n += logits.size(0)
+
+                # Accuracy for sanity check
+                with torch.no_grad():
+                    preds = (torch.sigmoid(logits) > 0.5).float()
+                    correct += (preds == labels).sum().item()
+                    total += labels.numel()
+
+        if n > 0:
+            avg_loss = total_loss / n
+            accuracy = correct / total if total > 0 else 0
+            print(f"[RewardNet][Epoch {ep}] loss={avg_loss:.4f} pref-acc={accuracy:.3f}")
+
+        # Early stopping based on accuracy
+        if accuracy > 0.95 and ep > 10:
+            print("Early stopping: High accuracy achieved")
+            break
 
     return reward_net
