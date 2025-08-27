@@ -2,7 +2,7 @@
 
 import torch
 from policy_network import create_policy_network
-from rlhf import sample_trajectories, build_pairwise_preferences, RewardNet, train_reward_bt
+from rlhf import sample_trajectories, build_pairwise_preferences_sim, RewardNet, train_reward_bt
 
 if __name__ == "__main__":
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -22,7 +22,7 @@ if __name__ == "__main__":
     print(f"  Total normal cheese hits: {cheese_hits}")
 
     # 3) Build pairwise preferences
-    pairs = build_pairwise_preferences(trajectories, provider="sim", max_pairs=120)
+    pairs = build_pairwise_preferences_sim(trajectories, provider="sim", max_pairs=120)
 
     # 4) Train the reward model with BETTER parameters
     reward_net = RewardNet()

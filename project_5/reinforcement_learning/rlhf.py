@@ -148,7 +148,7 @@ def simulated_preference(traj_a, traj_b):
     return np.random.randint(0, 2)
 
 
-def build_pairwise_preferences(trajectories, provider="sim", max_pairs=100):
+def build_pairwise_preferences_sim(trajectories, provider="sim", max_pairs=100):
     """
     Create pairwise (i, j, y) with y=1 if traj i preferred over j, else 0.
     provider: "sim" or "human"
@@ -175,7 +175,6 @@ def build_pairwise_preferences(trajectories, provider="sim", max_pairs=100):
             break
 
     return prefs
-
 
 class RewardNet(nn.Module):
     """
