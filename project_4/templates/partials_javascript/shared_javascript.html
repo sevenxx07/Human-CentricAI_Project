@@ -1,6 +1,7 @@
 <script>
 let currentMovie = null;
 let explanationVisible = false;
+let sessionCompleted = false; // Track completion status
 let sessionState = {
   ratingsGiven: 0,
   initial_movies_count: null
@@ -64,13 +65,16 @@ function initializeSession() {
       updateSessionDisplay(data);
       showInitialRatingPhase(data.movies);
 
+      // Track session completion
+      sessionCompleted = (data.session_step === 'complete');
+
       if (data.session_step && typeof onSessionStepChange === 'function') {
-          onSessionStepChange(data.session_step);
+        onSessionStepChange(data.session_step);
       }
 
       // Show the first movie for rating
       if (data.next_movie) {
-        showMovieForRating(data.next_movie);
+        showMovieForRating(data.next_movie, data.session_step);
       }
     }
   })
@@ -103,31 +107,48 @@ function displayMoviesGrid(movies) {
   `).join('');
 }
 
-function showMovieForRating(movie) {
+function showMovieForRating(movie, sessionStep = null) {
   currentMovie = movie;
   const card = document.getElementById('current-movie-card');
+  const isComplete = sessionStep === 'complete';
+
   card.innerHTML = `
     <div class="movie-title">${movie.title}</div>
     <div class="movie-details">${movie.genres}</div>
     ${movie.predicted_rating ? `<div class="prediction">Predicted rating: ${movie.predicted_rating.toFixed(1)}</div>` : ''}
+    ${isComplete ? '<div class="display-only-notice" style="background-color: #e3f2fd; padding: 8px; border-radius: 4px; margin-top: 10px; color: #1565c0; font-weight: bold;">Final Recommendation - Display Only</div>' : ''}
   `;
 
   document.getElementById('rating-interface').style.display = 'block';
 
-  // Only show explanation section if it exists (for guided version)
+  // Only show explanation section if it exists and session not complete
   const explanationSection = document.getElementById('explanation-section');
   if (explanationSection) {
-    explanationSection.style.display = 'block';
+    explanationSection.style.display = isComplete ? 'none' : 'block';
   }
 
-  resetStarRating();
-  resetExplanation();
+  // Handle rating controls based on session completion
+  const ratingForm = document.querySelector('.rating-form');
+  if (isComplete) {
+    // Hide rating controls for completed sessions
+    ratingForm.style.display = 'none';
+  } else {
+    ratingForm.style.display = 'block';
+    resetStarRating();
+    resetExplanation();
+  }
 }
 
 function setupStarRating() {
   const stars = document.querySelectorAll('.star');
   stars.forEach(star => {
     star.addEventListener('click', function() {
+      // Prevent rating if session is completed
+      if (sessionCompleted) {
+        showMessage('This movie is for display purposes only. The session is complete.', 'info');
+        return;
+      }
+
       const rating = parseFloat(this.dataset.rating);
       document.getElementById('selected-rating').value = rating;
       document.getElementById('submit-rating-btn').disabled = false;
@@ -169,6 +190,12 @@ function resetExplanation() {
 }
 
 function submitRating() {
+  // Prevent submission if session is completed
+  if (sessionCompleted) {
+    showMessage('This movie is for display purposes only. The session is complete.', 'info');
+    return;
+  }
+
   const rating = document.getElementById('selected-rating').value;
   if (!rating || !currentMovie) return;
 
@@ -192,6 +219,9 @@ function submitRating() {
       showMessage(data.message);
       updateSessionDisplay(data);
 
+      // Update completion status
+      sessionCompleted = (data.session_step === 'complete');
+
       if (data.session_step && typeof onSessionStepChange === 'function') {
         onSessionStepChange(data.session_step);
       }
@@ -205,6 +235,12 @@ function submitRating() {
 }
 
 function skipMovie() {
+  // Prevent skipping if session is completed
+  if (sessionCompleted) {
+    showMessage('This movie is for display purposes only. The session is complete.', 'info');
+    return;
+  }
+
   if (!currentMovie) return;
 
   fetch("{% url 'project4:guided' %}", {
@@ -226,6 +262,9 @@ function skipMovie() {
       showMessage(data.message);
       updateSessionDisplay(data);
 
+      // Update completion status
+      sessionCompleted = (data.session_step === 'complete');
+
       if (data.session_step && typeof onSessionStepChange === 'function') {
         onSessionStepChange(data.session_step);
       }
@@ -246,8 +285,9 @@ function handleRatingSubmitted(data) {
   }
 
   if (data.next_movie) {
-    showMovieForRating(data.next_movie);
+    showMovieForRating(data.next_movie, data.session_step);
   } else {
+    // No next movie - session complete
     document.getElementById('rating-interface').style.display = 'none';
     const explanationSection = document.getElementById('explanation-section');
     if (explanationSection) {
@@ -265,8 +305,9 @@ function handleMovieSkipped(data) {
   }
 
   if (data.next_movie) {
-    showMovieForRating(data.next_movie);
+    showMovieForRating(data.next_movie, data.session_step);
   } else {
+    // No next movie - session complete
     document.getElementById('rating-interface').style.display = 'none';
     const explanationSection = document.getElementById('explanation-section');
     if (explanationSection) {

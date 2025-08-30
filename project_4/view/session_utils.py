@@ -275,12 +275,7 @@ class ColdStartSession:
 
     def is_session_complete(self):
         """Check if session is complete"""
-        is_complete = self.active_learning_round > self.max_active_learning_rounds
-        if is_complete and self.metrics_recorder:
-            # Auto-finalize when session is complete
-            self.finalize_session(None)  # Will be called properly from views
-        return is_complete
-
+        return self.active_learning_round > self.max_active_learning_rounds
 
 def initialize_session(session, movie_cache, initial_count=None):
     """Initialize cold start session"""
@@ -326,9 +321,6 @@ def get_next_initial_movie(session):
 
 def get_next_active_learning_movie(session, movie_cache):
     """Get next movie in active learning phase using active learning step"""
-    if session.is_session_complete():
-        return None
-
     try:
         # Use the existing active_learning_step function
         top_movie_id, top_movie_title, predicted_rating = active_learning_step(
@@ -353,11 +345,16 @@ def get_next_active_learning_movie(session, movie_cache):
             'predicted_rating': float(predicted_rating)
         }
 
-        # Start timing for this movie
-        session.start_movie_timing(top_movie_id)
+        # Only start timing if session is not complete (for display-only movies, don't time)
+        if not session.is_session_complete():
+            # Start timing for this movie
+            session.start_movie_timing(top_movie_id)
 
-        logger.info(f"Active learning selected: {top_movie_title} "
-                    f"(predicted: {predicted_rating:.2f})")
+            logger.info(f"Active learning selected: {top_movie_title} "
+                        f"(predicted: {predicted_rating:.2f})")
+        else:
+            logger.info(f"Final display movie: {top_movie_title} "
+                        f"(predicted: {predicted_rating:.2f}) - display only")
 
         return movie_data
 
@@ -391,8 +388,7 @@ def process_rating_submission(session, movie_cache, movie_id, rating):
         message = f"Rating submitted! {remaining} more movies to rate."
         session_step = 'initial_rating'
     else:
-        # We've just transitioned to active learning phase
-        # Update phase tracking AFTER storing the rating but BEFORE active learning logic
+        # We've just transitioned to or are continuing active learning phase
         if session.current_step == session.initial_movies_count:
             session.metrics_recorder.set_phase('active_learning')
             message = "Initial rating complete! Moving to personalized recommendations."
@@ -406,12 +402,13 @@ def process_rating_submission(session, movie_cache, movie_id, rating):
 
         session_step = 'active_learning'
 
-        if session.active_learning_round <= session.max_active_learning_rounds:
-            next_movie = get_next_active_learning_movie(session, movie_cache)
-        else:
-            message = "Active learning session complete! Thank you for your participation."
-            next_movie = None
-            # Finalize metrics when session is complete
+        next_movie = get_next_active_learning_movie(session, movie_cache)
+
+        # Check if session should complete
+        if session.is_session_complete():
+            # Session is complete - get a final movie for display only
+            message = "Active learning complete! Here's what we'd recommend next based on your ratings."
+            session_step = 'complete'
             session.finalize_session(movie_cache)
 
     return next_movie, message, session_step
@@ -437,17 +434,19 @@ def process_movie_skip(session, movie_cache, movie_id):
         if next_movie is None:
             message = "Initial movies completed."
     else:
-        # Active learning phase - get next recommendation
         next_movie = get_next_active_learning_movie(session, movie_cache)
-        round_num = session.active_learning_round
-        max_rounds = session.max_active_learning_rounds
-        message = f"Movie skipped. Round {round_num}/{max_rounds} of active learning."
-        session_step = 'active_learning'
 
-        if next_movie is None:
-            message = "Active learning session complete! Thank you for your participation."
-            # Finalize metrics when session is complete
+        # Active learning phase - check if we should complete
+        if session.is_session_complete():
+            # Session is complete - get a final movie for display only
+            message = "Active learning complete! Here's what we'd recommend next based on your ratings."
+            session_step = 'complete'
             session.finalize_session(movie_cache)
+        else:
+            round_num = session.active_learning_round
+            max_rounds = session.max_active_learning_rounds
+            message = f"Movie skipped. Round {round_num}/{max_rounds} of active learning."
+            session_step = 'active_learning'
 
     return next_movie, message, session_step
 
