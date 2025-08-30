@@ -71,7 +71,7 @@ The project is organized into 5 main parts:
  
 ### Steps
 1. **Clone the repository**:
-     git clone https://github.com/your-username/your-project.git
+     git clone [https://github.com/your-username/your-project.git](https://github.com/sevenxx07/Human-CentricAI_Project.git)
      cd your-project
 2. **Build the Docker image**:
      docker-compose build
