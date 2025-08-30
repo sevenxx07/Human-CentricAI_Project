@@ -1,0 +1,328 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'custom_style5.css' %}">
+<link rel="stylesheet" href="{% static 'grid_visualization.css' %}">
+{% endblock %}
+
+{% block content %}
+
+<!------------- TITLE -------------->
+
+<div class="box">
+    <div class="title-container">
+        <div class="title">Reinforcement Learning with Human Feedback</div>
+    </div>
+
+<!------------- Project description -------------->
+
+    <div class="main-text">
+        <div class="summary">
+            <div class="centered-text">
+                <h3>Project Description</h3>
+                <p style="text-align:center;">
+                    In this project, we implement Reinforcement Learning with Human Feedback (RLHF) using a mouse navigation environment.
+                    The mouse learns to navigate a 5x5 grid to collect cheese while avoiding traps and learning to avoid organic cheese
+                    based on human preferences. The project demonstrates policy training, reward modeling from preferences, and policy
+                    retraining with learned rewards.
+                </p>
+            </div>
+        </div>
+
+<!------------- Django Messages -------------->
+        {% if messages %}
+        <div class="messages">
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} {% if message.tags == 'success' %}alert-success{% elif message.tags == 'error' %}alert-error{% else %}alert-info{% endif %}">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+<!------------- Current Status -------------->
+        {% if policy %}
+        <div class="summary" style="background-color: #d4edda; border: 1px solid #c3e6cb; margin: 20px 0;">
+            <div class="centered-text">
+                <h4>✓ Policy Network Ready</h4>
+                <p><strong>Status:</strong> Policy network has been trained and is ready for further tasks</p>
+                <p><strong>Architecture:</strong> CNN-based policy network for grid navigation</p>
+                <p><strong>Actions:</strong> Up, Down, Left, Right movement</p>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if reward_net %}
+        <div class="summary" style="background-color: #d1ecf1; border: 1px solid #bee5eb; margin: 20px 0;">
+            <div class="centered-text">
+                <h4>✓ Reward Model Trained</h4>
+                <p><strong>Status:</strong> Reward network has been trained from preferences</p>
+                <p><strong>Ready for:</strong> Policy retraining with RLHF (Task 3)</p>
+            </div>
+        </div>
+        {% endif %}
+
+<!------------- Task Control Panel -------------->
+        <div class="summary">
+            <div class="centered-text">
+                <h3>RLHF Training Pipeline</h3>
+                <p>Follow the tasks in sequence to complete the full RLHF training process.</p>
+
+{#                <!-- Sample Grid Visualization Button -->#}
+{#                <form method="POST" style="margin-top: 15px;">#}
+{#                    {% csrf_token %}#}
+{#                    <input type="hidden" name="action" value="show_grid">#}
+{#                    <button type="submit" class="btn btn-primary" style="padding: 8px 20px; font-size: 14px;">#}
+{#                        👁️ Show Sample Environment#}
+{#                    </button>#}
+{#                </form>#}
+            </div>
+        </div>
+
+{#        <!-- Display Sample Grid if Generated -->#}
+{#        {% if sample_grid %}#}
+{#        <div class="summary" style="background-color: #f8f9fa; margin: 20px 0;">#}
+{#            <div class="centered-text">#}
+{#                <h4>Environment Visualization</h4>#}
+{#                {{ sample_grid|safe }}#}
+{#                <p style="margin-top: 15px; font-size: 14px;">#}
+{#                    <strong>Legend:</strong>#}
+{#                    🐭 Mouse | 🧀 Cheese | 🥬 Organic Cheese | ⚠️ Trap | ⬛ Wall | · Empty#}
+{#                </p>#}
+{#            </div>#}
+{#        </div>#}
+{#        {% endif %}#}
+{#    </div>#}
+{#    <hr>#}
+
+<!------------- Task Selection -------------->
+
+    <div class="main-text">
+        <h2>Training Tasks</h2>
+
+    <!------------- Task 1 reinforcement alg-------------->
+        <div class="task-grid">
+            <div class="task-box">
+                <div class="task-header">
+                    <h3>Task 1: Policy Training</h3>
+                    <div class="task-status {% if policy %}completed{% else %}pending{% endif %}">
+                        {% if policy %}✓ Completed{% else %}○ Pending{% endif %}
+                    </div>
+                </div>
+                <p>Train the initial policy network using REINFORCE algorithm. The mouse learns to navigate the grid and collect cheese while avoiding traps through environmental rewards.</p>
+
+                <div class="task-details">
+                    <strong>What it does:</strong>
+                    <ul>
+                        <li>Creates a CNN-based policy network</li>
+                        <li>Runs trajectory simulation with REINFORCE</li>
+                        <li>Learns basic navigation and cheese collection</li>
+                    </ul>
+                </div>
+
+                <form method="POST" class="task-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="trajectory">
+                    <button type="submit" class="btn btn-primary">
+                        {% if policy %}Re-train Policy{% else %}Train Initial Policy{% endif %}
+                    </button>
+                </form>
+            </div>
+    <!------------- Task 2a simulated -------------->
+            <div class="task-box">
+                <div class="task-header">
+                    <h3>Task 2a: Simulated Preferences</h3>
+                    <div class="task-status {% if reward_net %}completed{% else %}pending{% endif %}">
+                        {% if reward_net %}✓ Completed{% else %}○ Ready{% endif %}
+                    </div>
+                </div>
+                <p>Generate trajectory preferences automatically using a simulated preference function. This trains a reward model to predict human preferences without actual human input.</p>
+
+                <div class="task-details">
+                    <strong>What it does:</strong>
+                    <ul>
+                        <li>Samples trajectories from current policy</li>
+                        <li>Generates pairwise preferences automatically</li>
+                        <li>Trains reward network using Bradley-Terry model</li>
+                    </ul>
+                </div>
+
+                <form method="POST" class="task-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="train_sim">
+                    <button type="submit" class="btn btn-success" {% if not policy %}disabled title="Complete Task 1 first"{% endif %}>
+                        {% if reward_net %}Re-train with Simulated{% else %}Train with Simulated Preferences{% endif %}
+                    </button>
+                </form>
+            </div>
+    <!------------- Task 2b human -------------->
+
+            <div class="task-box">
+                <div class="task-header">
+                    <h3>Task 2b: Human Preferences</h3>
+                    <div class="task-status pending">○ Ready</div>
+                </div>
+                <p>Collect human preferences interactively by comparing trajectory pairs. You'll choose which trajectory you prefer based on the mouse's behavior.</p>
+
+                <div class="task-details">
+                    <strong>What it does:</strong>
+                    <ul>
+                        <li>Shows trajectory pairs for human comparison</li>
+                        <li>Collects preference labels interactively</li>
+                        <li>Trains reward network from human feedback</li>
+                    </ul>
+                </div>
+
+                <form method="POST" class="task-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="train_human">
+                    <button type="submit" class="btn btn-success" {% if not policy %}disabled title="Complete Task 1 first"{% endif %}>
+                        Train with Human Preferences
+                    </button>
+                </form>
+            </div>
+    <!------------- Task 3 retrain -------------->
+            <div class="task-box">
+                <div class="task-header">
+                    <h3>Task 3: Policy Retraining</h3>
+                    <div class="task-status pending">○ Ready</div>
+                </div>
+                <p>Retrain the policy using the learned reward model with KL regularization. The mouse learns to optimize the learned human preferences while staying close to the original policy.</p>
+
+                <div class="task-details">
+                    <strong>What it does:</strong>
+                    <ul>
+                        <li>Loads trained reward model from Task 2</li>
+                        <li>Retrains policy with learned rewards + KL penalty</li>
+                        <li>Evaluates performance before and after training</li>
+                    </ul>
+                </div>
+
+                <form method="POST" class="task-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="retrain">
+                    <button type="submit" class="btn btn-danger" {% if not policy or not reward_net %}disabled title="Complete Tasks 1 and 2 first"{% endif %}>
+                        Retrain with RLHF
+                    </button>
+                </form>
+            </div>
+        </div>
+
+<!------------- Training Progress and Results -------------->
+        {% if show_comparison %}
+        <div class="results-section" style="background-color: #fff3cd; border: 2px solid #ffc107;">
+            <h3>🎯 Human Preference Collection</h3>
+            <p style="text-align: center; margin-bottom: 20px;">
+                Please review both trajectories and select the one you prefer.
+                The mouse should collect cheese while avoiding traps and organic cheese.
+                {% if preferences_collected %}
+                <br><strong>Progress: {{ preferences_collected }}/10 preferences collected</strong>
+                {% endif %}
+            </p>
+            {{ comparison_html|safe }}
+        </div>
+        {% endif %}
+
+        {% if training_results %}
+        <div class="results-section">
+            <h3>Training Results</h3>
+            <div class="results-grid">
+                {% for result in training_results %}
+                <div class="result-box">
+                    <h4>{{ result.task_name }}</h4>
+                    <div class="result-content">
+                        {{ result.details|safe }}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+<!------------- Environment Info -------------->
+        <div class="environment-info">
+            <h3>Environment Details</h3>
+            <div class="env-grid">
+                <div class="env-item">
+                    <strong>Grid Size:</strong> 5×5
+                </div>
+                <div class="env-item">
+                    <strong>Actions:</strong> Up, Down, Left, Right
+                </div>
+                <div class="env-item">
+                    <strong>Cheese Reward:</strong> +10
+                </div>
+                <div class="env-item">
+                    <strong>Organic Cheese:</strong> +10 (to be avoided via RLHF)
+                </div>
+                <div class="env-item">
+                    <strong>Trap Penalty:</strong> -50
+                </div>
+                <div class="env-item">
+                    <strong>Time Horizon:</strong> 50 steps
+                </div>
+            </div>
+        </div>
+
+<!------------- Reset Button -------------->
+        <div class="summary" style="margin-top: 40px; background-color: #f8f9fa; border: 2px solid #dee2e6;">
+            <div class="centered-text">
+                <h3>Session Management</h3>
+                <p>Reset the entire training session to start over from scratch.</p>
+                <form method="POST" class="task-form" onsubmit="return confirmReset()">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="reset">
+                    <button type="submit" class="btn btn-danger" style="margin: 20px auto;">
+                        🔄 Reset All Training
+                    </button>
+                </form>
+                <p style="font-size: 12px; color: #6c757d; margin-top: 10px;">
+                    Warning: This will clear all trained models and progress.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Handle form submissions with loading states
+    document.querySelectorAll('.task-form').forEach(form => {
+        form.addEventListener('submit', function(e) {
+            // Skip loading state for reset confirmation
+            if (this.querySelector('input[name="action"]').value === 'reset') {
+                return;
+            }
+
+            const button = form.querySelector('button[type="submit"]');
+            const originalText = button.textContent;
+
+            button.textContent = 'Training...';
+            button.disabled = true;
+
+            // Add spinner
+            const spinner = document.createElement('span');
+            spinner.className = 'spinner';
+            button.appendChild(spinner);
+        });
+    });
+
+    // Confirmation dialog for reset
+    function confirmReset() {
+        return confirm('Are you sure you want to reset all training progress? This action cannot be undone.');
+    }
+
+    // Auto-dismiss success messages after 5 seconds
+    setTimeout(() => {
+        const alerts = document.querySelectorAll('.alert-success');
+        alerts.forEach(alert => {
+            alert.style.transition = 'opacity 0.5s';
+            alert.style.opacity = '0';
+            setTimeout(() => alert.remove(), 500);
+        });
+    }, 5000);
+
+    console.log('RLHF Project initialized');
+</script>
+
+{% endblock %}

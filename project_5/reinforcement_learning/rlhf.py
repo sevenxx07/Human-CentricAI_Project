@@ -93,6 +93,7 @@ def sample_trajectories(policy, K=20, time_horizon=50):
     trajs = []
     for _ in range(K):
         trajs.append(collect_trajectory(policy, time_horizon=time_horizon))
+        show_trajectory_text(trajs[-1], title=f"Sampled Trajectory {_ + 1}")
     return trajs
 
 
@@ -104,6 +105,7 @@ def show_trajectory_text(traj, title="Trajectory"):
     for step, (grid, act, rew) in enumerate(zip(traj['states'], traj['actions'], traj['rewards'])):
         print(f"\nStep {step}: action={act}, env_reward={rew:.2f}")
         print_grid_with_cheese_types(grid)
+
 
 
 def human_preference(traj_a, traj_b):

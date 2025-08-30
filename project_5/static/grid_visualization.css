@@ -1,0 +1,144 @@
+/* Grid Visualization Styles */
+
+.grid-display {
+    margin: 20px 0;
+    padding: 15px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    display: inline-block;
+}
+
+.game-grid {
+    border-collapse: collapse;
+    margin: 10px auto;
+}
+
+.game-grid td {
+    width: 50px;
+    height: 50px;
+    border: 2px solid #dee2e6;
+    text-align: center;
+    vertical-align: middle;
+    font-size: 24px;
+    position: relative;
+}
+
+.grid-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+}
+
+.step-info {
+    margin: 10px 0;
+    padding: 8px;
+    background: #f8f9fa;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.reward-positive {
+    color: #28a745;
+    font-weight: bold;
+}
+
+.reward-negative {
+    color: #dc3545;
+    font-weight: bold;
+}
+
+.reward-neutral {
+    color: #6c757d;
+}
+
+.trajectory-display {
+    margin: 20px 0;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.trajectory-summary {
+    padding: 10px;
+    background: white;
+    border-radius: 4px;
+    margin-bottom: 15px;
+    font-size: 14px;
+}
+
+.trajectory-steps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    justify-content: flex-start;
+}
+
+.trajectory-truncated {
+    width: 100%;
+    text-align: center;
+    padding: 20px;
+    color: #6c757d;
+    font-style: italic;
+}
+
+.trajectory-comparison {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+    margin: 20px 0;
+}
+
+.trajectory-option {
+    border: 2px solid #dee2e6;
+    border-radius: 8px;
+    padding: 20px;
+    background: white;
+    transition: all 0.3s ease;
+}
+
+.trajectory-option:hover {
+    border-color: #156e78;
+    box-shadow: 0 4px 12px rgba(21, 110, 120, 0.2);
+}
+
+.trajectory-option.selected {
+    border-color: #156e78;
+    background-color: #e8f4f8;
+}
+
+.select-trajectory {
+    width: 100%;
+    margin-top: 15px;
+    padding: 10px;
+    background: #156e78;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background 0.3s;
+}
+
+.select-trajectory:hover {
+    background: #1a8a96;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .trajectory-comparison {
+        grid-template-columns: 1fr;
+    }
+
+    .game-grid td {
+        width: 40px;
+        height: 40px;
+        font-size: 20px;
+    }
+
+    .trajectory-steps {
+        justify-content: center;
+    }
+}
