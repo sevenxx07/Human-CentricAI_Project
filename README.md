@@ -60,13 +60,12 @@ The project is organized into 5 main parts:
 
 ### Requirements
 - Install **Docker** and **Docker Compose** on your system
-  - Docker Desktop for Mac/Windows
-  - Linux: sudo apt install docker.io docker-compose
+  - Docker Desktop for Mac/Windows: https://www.docker.com/products/docker-desktop/
+  - Linux: `sudo apt install docker.io docker-compose`
  
 ### Steps
 1. **Clone the repository**:
-     `git clone [https://github.com/your-username/your-project.git](https://github.com/sevenxx07/Human-CentricAI_Project.git)
-     cd your-projec`
+     `git clone https://github.com/sevenxx07/Human-CentricAI_Project.git`
 2. **Build the Docker image**:
      `docker-compose build`
    - This uses the Dockerfile in docker/Dockerfile to create an environment with all dependencies
