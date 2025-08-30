@@ -65,14 +65,14 @@ The project is organized into 5 main parts:
  
 ### Steps
 1. **Clone the repository**:
-     git clone [https://github.com/your-username/your-project.git](https://github.com/sevenxx07/Human-CentricAI_Project.git)
-     cd your-project
+     `git clone [https://github.com/your-username/your-project.git](https://github.com/sevenxx07/Human-CentricAI_Project.git)
+     cd your-projec`
 2. **Build the Docker image**:
-     docker-compose build
+     `docker-compose build`
    - This uses the Dockerfile in docker/Dockerfile to create an environment with all dependencies
 
 3. **Run the project**:
-   docker-compose up
+   `docker-compose up`
    - The command automatically runs:
      - python manage.py makemigrations
      - python manage.py migrate
@@ -80,8 +80,5 @@ The project is organized into 5 main parts:
   - Your Django app will be accessible at: http://127.0.0.1:8000
 
 4. **Stop the project**:
-   docker-compose down
+   `docker-compose down`
 
-
-# Create a superuser (optional)
-python manage.py createsuperuser
