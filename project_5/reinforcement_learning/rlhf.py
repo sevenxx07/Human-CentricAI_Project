@@ -5,7 +5,7 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 
 # Reuse your existing imports & constants
-from mouse import (
+from  project_5.reinforcement_learning.mouse import (
     initialize_grid_with_cheese_types,
     print_grid_with_cheese_types,
     move,
@@ -18,7 +18,7 @@ from mouse import (
     ORGANIC_CHEESE,
     TRAP
 )
-from policy_network import create_policy_network
+from  project_5.reinforcement_learning.policy_network import create_policy_network
 
 
 # ---------- Helpers reused from your code ----------

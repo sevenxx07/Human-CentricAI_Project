@@ -1,8 +1,8 @@
 # train_reward_model.py (example driver)
 
 import torch
-from policy_network import create_policy_network
-from rlhf import sample_trajectories, build_pairwise_preferences_sim, RewardNet, train_reward_bt
+from project_5.reinforcement_learning.policy_network import create_policy_network
+from project_5.reinforcement_learning.rlhf import sample_trajectories, build_pairwise_preferences_sim, RewardNet, train_reward_bt
 
 if __name__ == "__main__":
     device = "cuda" if torch.cuda.is_available() else "cpu"

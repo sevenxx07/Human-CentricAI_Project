@@ -2,7 +2,7 @@ import torch
 import torch.optim as optim
 import numpy as np
 
-from mouse import (
+from project_5.reinforcement_learning.mouse import (
     initialize_grid_with_cheese_types, 
     print_grid_with_cheese_types,
     move,
@@ -11,7 +11,7 @@ from mouse import (
     MOUSE,
     GRID_SIZE,
     ACTION_TO_DELTA)
-from policy_network import create_policy_network
+from project_5.reinforcement_learning.policy_network import create_policy_network
 
 # Initializing the mouse environment and the policy network
 grid, mouse_pos, cheese_pos, organic_cheese_positions = initialize_grid_with_cheese_types()

@@ -5,8 +5,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.distributions import Categorical
-from policy_network import create_policy_network
-from rlhf import (
+from project_5.reinforcement_learning.policy_network import create_policy_network
+from project_5.reinforcement_learning.rlhf import (
     state_to_tensor,
     sample_trajectories,
     collect_trajectory,

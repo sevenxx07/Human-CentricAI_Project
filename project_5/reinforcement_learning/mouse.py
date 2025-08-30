@@ -121,5 +121,6 @@ def get_reward(cell_content):
 
 
 # Example usage
-grid, mouse_pos, cheese_pos, organic_cheese_positions = initialize_grid_with_cheese_types()
-print_grid_with_cheese_types(grid)
+if __name__ == "__main__":
+    grid, mouse_pos, cheese_pos, organic_cheese_positions = initialize_grid_with_cheese_types()
+    print_grid_with_cheese_types(grid)
