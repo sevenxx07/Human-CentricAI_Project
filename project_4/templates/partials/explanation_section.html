@@ -1,19 +1,78 @@
 <div class="step-box" id="explanation-section" style="display: none;">
   <h3>How Your Rating Will Affect Future Recommendations</h3>
-  <p>See how different ratings for this movie would impact your personalized recommendations:</p>
 
-  <div class="explanation-container">
-    <div class="explanation-toggle">
-      <button type="submit" id="toggle-explanation-btn" onclick="toggleExplanation()">
-        <span id="toggle-explanation-text">Show Detailed Impact</span>
-        <span id="toggle-explanation-spinner" class="spinner" style="display:none;"></span>
-      </button>
-    </div>
+  <!-- This div shows during initial phase -->
+  <div id="explanation-not-available">
+    <p>This functionality will be available after you complete the initial rating phase.</p>
+  </div>
 
-    <div id="explanation-content" style="display: none;">
-      <div class="explanation-grid" id="explanation-grid">
-        <!-- Explanations for different ratings will be populated here -->
+  <!-- This div shows during active learning phase -->
+  <div id="explanation-available" style="display: none;">
+    <p>See how different ratings for this movie would impact your personalized recommendations:</p>
+
+    <div class="explanation-container">
+      <div class="explanation-toggle">
+        <button type="submit" id="toggle-explanation-btn" onclick="toggleExplanation()">
+          <span id="toggle-explanation-text">Show Detailed Impact</span>
+          <span id="toggle-explanation-spinner" class="spinner" style="display:none;"></span>
+        </button>
+      </div>
+
+      <div id="explanation-content" style="display: none;">
+        <div class="explanation-grid" id="explanation-grid">
+          <!-- Explanations for different ratings will be populated here -->
+        </div>
       </div>
     </div>
   </div>
 </div>
+
+<script>
+// Function to update explanation section based on session phase
+function updateExplanationSection(sessionStep) {
+  const explanationSection = document.getElementById('explanation-section');
+  const notAvailableDiv = document.getElementById('explanation-not-available');
+  const availableDiv = document.getElementById('explanation-available');
+
+  if (sessionStep === 'initial_rating') {
+    // In initial phase - show "not available" message, hide explanation functionality
+    notAvailableDiv.style.display = 'block';
+    availableDiv.style.display = 'none';
+    explanationSection.style.display = 'block';
+
+    // Hide any open explanations
+    document.getElementById('explanation-content').style.display = 'none';
+    if (document.getElementById('toggle-explanation-text')) {
+      document.getElementById('toggle-explanation-text').textContent = 'Show Detailed Impact';
+    }
+    explanationVisible = false;
+
+  } else if (sessionStep === 'active_learning') {
+    // In active learning phase - show explanation functionality, hide "not available" message
+    notAvailableDiv.style.display = 'none';
+    availableDiv.style.display = 'block';
+    explanationSection.style.display = 'block';
+  } else {
+    // Unknown phase or session not active - hide everything
+    explanationSection.style.display = 'none';
+  }
+}
+
+// Initialize the section based on current session state
+document.addEventListener('DOMContentLoaded', function() {
+  // Get session phase from Django template variable
+  const sessionPhase = '{{ session_phase|default:"none" }}';
+  const sessionActive = {{ session_active|default:"false" }};
+
+  if (sessionActive && sessionPhase !== 'none') {
+    updateExplanationSection(sessionPhase);
+  } else {
+    document.getElementById('explanation-section').style.display = 'none';
+  }
+});
+
+// Make this function globally accessible for AJAX responses
+window.onSessionStepChange = function(newStep) {
+  updateExplanationSection(newStep);
+};
+</script>

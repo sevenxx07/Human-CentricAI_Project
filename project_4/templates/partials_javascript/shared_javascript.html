@@ -6,6 +6,12 @@ let sessionState = {
   initial_movies_count: null
 };
 
+window.onSessionStepChange = function(newStep) {
+  if (typeof updateExplanationSection === 'function') {
+    updateExplanationSection(newStep);
+  }
+};
+
 function showMessage(message, type = 'success') {
   const container = document.getElementById('messages-container');
   const messageDiv = document.createElement('div');
@@ -57,6 +63,10 @@ function initializeSession() {
       showMessage(data.message);
       updateSessionDisplay(data);
       showInitialRatingPhase(data.movies);
+
+      if (data.session_step && typeof onSessionStepChange === 'function') {
+          onSessionStepChange(data.session_step);
+      }
 
       // Show the first movie for rating
       if (data.next_movie) {
@@ -181,6 +191,11 @@ function submitRating() {
     } else {
       showMessage(data.message);
       updateSessionDisplay(data);
+
+      if (data.session_step && typeof onSessionStepChange === 'function') {
+        onSessionStepChange(data.session_step);
+      }
+
       handleRatingSubmitted(data);
     }
   })
@@ -210,6 +225,11 @@ function skipMovie() {
     } else {
       showMessage(data.message);
       updateSessionDisplay(data);
+
+      if (data.session_step && typeof onSessionStepChange === 'function') {
+        onSessionStepChange(data.session_step);
+      }
+
       handleMovieSkipped(data);
     }
   })

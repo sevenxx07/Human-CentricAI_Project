@@ -309,14 +309,6 @@ def initialize_session(session, movie_cache, initial_count=None):
     return initial_movies
 
 
-def get_next_movie_in_phase(session, movie_cache):
-    """Get next movie based on current phase"""
-    if session.is_in_initial_phase():
-        return get_next_initial_movie(session)
-    else:
-        return get_next_active_learning_movie(session, movie_cache)
-
-
 def get_next_initial_movie(session):
     """Get next movie in initial rating phase"""
     initial_movies = session.current_movies

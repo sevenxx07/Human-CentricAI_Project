@@ -254,8 +254,3 @@ class TimingTracker:
             del self.action_start_times[action_id]
             return duration
         return None
-
-
-def create_session_metrics_recorder(session_id, study_mode):
-    """Factory function to create a metrics recorder for a session"""
-    return MetricsRecorder(session_id, study_mode)
