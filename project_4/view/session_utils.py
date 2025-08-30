@@ -17,8 +17,8 @@ from .metrics_recorder import MetricsRecorder, TimingTracker
 logger = logging.getLogger(__name__)
 
 # Configuration constants
-INITIAL_MOVIES_COUNT = 5
-MAX_ACTIVE_LEARNING_ROUNDS = 4
+INITIAL_MOVIES_COUNT = 3
+MAX_ACTIVE_LEARNING_ROUNDS = 5
 
 
 class MovieCache:
