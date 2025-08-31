@@ -23,7 +23,7 @@ def load_movie_data():
 
 # ---------- Cold start ---------- #
 
-def get_initial_movies(n=3):
+def get_initial_movies(n=5):
     """Picking n diverse cold start movies to present 
     to the user in the initial stage"""
 
@@ -264,10 +264,6 @@ def run_cold_start_demo():
         print(f" Feature {feature_dict['Feature_' + str(i + 1)]}: {value:2f}")
 
     print(f"Final user vector:", final_user_vector)
-
-
-# def __main__():
-#     run_cold_start_demo()
 
 if __name__=="__main__":
     run_cold_start_demo()
