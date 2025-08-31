@@ -35,7 +35,7 @@ _current_policy = None
 _current_reward_net = None
 
 MAX_PREFERENCES = 10
-SAVE_MODEL_PATH = os.path.join(settings.BASE_DIR, 'data', 'project_5_models')
+SAVE_MODEL_PATH = os.path.join(settings.BASE_DIR, 'data', 'project_5')
 
 
 def index(request):
@@ -95,77 +95,6 @@ def index(request):
                 messages.success(request, "Reward model trained with simulated preferences!")
             else:
                 messages.error(request, "Please train the initial policy first!")
-
-        elif action == 'train_human':
-            if _current_policy is not None:
-                # Show trajectory comparison interface
-                trajectories = sample_trajectories(_current_policy, K=10, time_horizon=30)
-
-                # Select two trajectories with different characteristics for comparison
-                traj_pair = random.sample(trajectories, 2)
-
-                # Get CSRF token
-                from django.middleware.csrf import get_token
-                csrf_token = get_token(request)
-
-                # Generate comparison HTML with CSRF token
-                comparison_html = compare_trajectories_html(traj_pair[0], traj_pair[1])
-
-                # Store trajectories in session for when user makes choice
-                request.session['traj_pair'] = [traj_pair[0], traj_pair[1]]
-                request.session['comparison_mode'] = True
-
-                context['show_comparison'] = True
-                context['comparison_html'] = comparison_html
-                messages.info(request, "Please select which trajectory you prefer")
-            else:
-                messages.error(request, "Please train the initial policy first!")
-
-        elif action == 'submit_preference':
-            # Handle the preference submission
-            preference = request.POST.get('preference')  # 'A' or 'B'
-            if preference and request.session.get('comparison_mode'):
-                # Get stored trajectories
-                traj_pair = request.session.get('traj_pair')
-
-                # Initialize preferences list if not exists
-                if 'preferences' not in request.session:
-                    request.session['preferences'] = []
-
-                # Record preference: 1 if A preferred, 0 if B
-                pref_value = 1 if preference == 'A' else 0
-                prefs_list = request.session['preferences']
-                prefs_list.append({
-                    'traj_a': traj_pair[0],
-                    'traj_b': traj_pair[1],
-                    'preference': pref_value
-                })
-                request.session['preferences'] = prefs_list
-                request.session.modified = True  # Ensure session is saved
-
-                # Check if we have enough preferences
-                num_prefs = len(request.session.get('preferences', []))
-                if num_prefs < MAX_PREFERENCES:  # Collect 10 preferences
-                    # Show another pair
-                    trajectories = sample_trajectories(_current_policy, time_horizon=30)  # TODO K???
-                    traj_pair = random.sample(trajectories, 2)
-
-                    comparison_html = compare_trajectories_html(traj_pair[0], traj_pair[1])
-                    request.session['traj_pair'] = [traj_pair[0], traj_pair[1]]
-
-                    context['show_comparison'] = True
-                    context['comparison_html'] = comparison_html
-                    context['preferences_collected'] = num_prefs
-                    messages.info(request, f"Preference recorded! ({num_prefs}/10 collected)")
-                else:
-                    # Enough preferences collected, train the reward model
-                    messages.success(request, f"Collected {num_prefs} preferences! Training reward model...")
-                    _current_reward_net = train_with_human_preferences(request, context, _current_policy)
-                    context['reward_net'] = True
-                    request.session['comparison_mode'] = False
-                    request.session['preferences'] = []
-                    request.session.modified = True
-
         elif action == 'retrain':
             if _current_policy is not None and _current_reward_net is not None:
                 retrain_policy(request, context, _current_policy, _current_reward_net)
@@ -177,7 +106,7 @@ def index(request):
 
 
 def sample_trajectory_check(request, context, policy):
-    """ Generate a sample trajectory for visualizatio """
+    """ Generate a sample trajectory for visualization """
 
     if context['phase'] == 'task1':
         sample_traj = sample_trajectories(policy, K=1, time_horizon=20)[0]
@@ -185,16 +114,24 @@ def sample_trajectory_check(request, context, policy):
 
         context['training_results'].append({
             'task_name': 'Task 1: Initial Policy Training',
-            'details': f'Policy trained with REINFORCE (500 trajectories)\n\nSample trajectory:\n{traj_html}'
+            'details': {
+                'type': 'task1_complete',
+                'trajectory_html': traj_html,
+                'message': 'Training completed successfully! The policy network has learned basic navigation and cheese collection through REINFORCE algorithm.'
+            }
         })
-    elif context['phase'] == 'task2':
+    elif context['phase'] == 'task3':
         sample_traj = sample_trajectories(policy, K=1, time_horizon=20)[0]
         traj_html = trajectory_to_html(sample_traj, max_steps=5, title="Sample Trajectory After Reward Model Training")
 
-        # context['training_results'].append({
-        #     'task_name': 'Task 2: Reward Model Training',
-        #     'details': f'Policy evaluated after reward model training\n\nSample trajectory:\n{traj_html}'
-        # })
+        context['training_results'].append({
+            'task_name': 'Task 2: Reward Model Training',
+            'details': {
+                'type': 'task2_complete',
+                'trajectory_html': traj_html,
+                'message': 'Policy evaluated after reward model training'
+            }
+        })
     return None
 
 
@@ -202,8 +139,8 @@ def trajectory_simulation(request, context, policy):
     """Task 1: Train initial policy - modified to accept policy as parameter"""
     context['phase'] = 'task1'
 
-    RL(policy, N_trajectories=3000)
-    # Generate a sample trajectory for visualizatio
+    RL(policy, N_trajectories=1000)
+    # Generate a sample trajectory for visualization
     sample_trajectory_check(request, context, policy)
 
     return None
@@ -234,77 +171,22 @@ def train_with_rlhf_sim(request, context, policy):
     torch.save(reward_net.state_dict(), os.path.join(SAVE_MODEL_PATH, "reward_net_bt.pt"))
     print("Saved reward_net_bt.pt")
 
-    # Add results to context
+    # Add results to context - pass data not HTML
     organic_hits = sum(t["organic_hits"] for t in trajectories)
     cheese_hits = sum(t["cheese_hits"] for t in trajectories)
+
     context['training_results'].append({
-        'task_name': 'Task 2: Reward Model Training',
-        'details': f'Trained on {len(pairs)} preferences. Organic hits: {organic_hits}, Cheese hits: {cheese_hits}'
-    })
-
-    return reward_net
-
-
-def train_with_human_preferences(request, context, policy):
-    """Task 2b: Train reward model with collected human preferences"""
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-
-    # Get all collected preferences from session
-    preferences = request.session.get('preferences', [])
-
-    if not preferences:
-        messages.error(request, "No preferences collected!")
-        return None
-
-    # Convert preferences to the format expected by train_reward_bt
-    # We need a list of all unique trajectories and pair indices
-    all_trajectories = []
-    trajectory_map = {}  # To track unique trajectories
-    pairs = []
-
-    for pref in preferences:
-        traj_a = pref['traj_a']
-        traj_b = pref['traj_b']
-
-        # Add trajectories to list if not already there
-        # (In practice, we'd hash them properly, but for simplicity...)
-        if id(traj_a) not in trajectory_map:
-            trajectory_map[id(traj_a)] = len(all_trajectories)
-            all_trajectories.append(traj_a)
-        if id(traj_b) not in trajectory_map:
-            trajectory_map[id(traj_b)] = len(all_trajectories)
-            all_trajectories.append(traj_b)
-
-        # Add pair with indices
-        idx_a = trajectory_map[id(traj_a)]
-        idx_b = trajectory_map[id(traj_b)]
-        pairs.append((idx_a, idx_b, pref['preference']))
-
-    # If we don't have enough unique trajectories, sample more
-    if len(all_trajectories) < 20:
-        extra_trajs = sample_trajectories(policy, K=20 - len(all_trajectories), time_horizon=30)
-        all_trajectories.extend(extra_trajs)
-
-    print(f"Training reward model with {len(pairs)} human preferences")
-
-    # Train reward model
-    reward_net = RewardNet()
-    reward_net = train_reward_bt(
-        reward_net, all_trajectories, pairs,
-        epochs=20,
-        lr=2e-3,
-        batch_size=4,
-        device=device
-    )
-
-    # Save the reward model
-    torch.save(reward_net.state_dict(), os.path.join(SAVE_MODEL_PATH, "reward_net_human.pt"))
-    print("Saved reward_net_human.pt")
-
-    # Add results to context
-    context['training_results'].append({
-        'task_name': 'Task 2b: Reward Model (Human Preferences)',
-        'details': f'Trained on {len(pairs)} human preference pairs'
+        'task_name': 'Task 2a: Reward Model Training',
+        'details': {
+            'type': 'task2a_complete',
+            'trajectories_count': len(trajectories),
+            'pairs_count': len(pairs),
+            'organic_hits': organic_hits,
+            'cheese_hits': cheese_hits,
+            'epochs': 20,
+            'device': device.upper(),
+            'message': 'Reward model trained successfully using simulated preferences!'
+        }
     })
 
     return reward_net
@@ -318,10 +200,10 @@ def retrain_policy(request, context, policy, reward_net):
     print("Evaluation BEFORE Task3 training:")
     before_stats = evaluate_policy_organic_avoidance(policy, K=200)
     print(before_stats)
-    # 2) Retrain policy with learned reward + KL
+
+    # Retrain policy with learned reward + KL
     beta = 0.01  # Reduce from 0.003 to allow more learning
 
-    # And these parameters in reinforce_with_learned_reward:
     trained_policy = reinforce_with_learned_reward(
         policy,
         reward_net,
@@ -336,23 +218,38 @@ def retrain_policy(request, context, policy, reward_net):
         verbose_every=5  # More frequent updates
     )
 
-    # 3) Evaluate after training
+    # Evaluate after training
     print("Evaluation AFTER Task3 training:")
     after_stats = evaluate_policy_organic_avoidance(trained_policy, K=200)
     print(after_stats)
 
-    # Optionally save the trained policy
-    torch.save(trained_policy.state_dict(), "policy_task3_rlhf.pt")
+    # Save the trained policy
+    torch.save(trained_policy.state_dict(), os.path.join(SAVE_MODEL_PATH, "policy_task3_rlhf.pt"))
     print("Saved trained policy to policy_task3_rlhf.pt")
 
     # Update global policy
     global _current_policy
     _current_policy = trained_policy
 
-    # Add results to context
+    # Add results to context - pass data not HTML
+    improvement = before_stats["total_organic_hits"] - after_stats["total_organic_hits"]
+    improvement_pct = (improvement / before_stats["total_organic_hits"] * 100) if before_stats[
+                                                                                      "total_organic_hits"] > 0 else 0
+
     context['training_results'].append({
-        'task_name': 'Task 3: RLHF Retraining',
-        'details': f'Before: {before_stats["total_organic_hits"]} organic hits. After: {after_stats["total_organic_hits"]} organic hits.'
+        'task_name': 'Task 3: RLHF Policy Retraining',
+        'details': {
+            'type': 'task3_complete',
+            'before_stats': before_stats,
+            'after_stats': after_stats,
+            'improvement': improvement,
+            'improvement_pct': improvement_pct,
+            'beta': beta,
+            'epochs': 80,
+            'lr': 2e-3,
+            'device': device.upper(),
+            'message': 'Policy successfully retrained with learned human preferences!'
+        }
     })
 
     return None
@@ -362,20 +259,25 @@ def retrain_policy(request, context, policy, reward_net):
 def load_saved_states():
     global _current_policy, _current_reward_net
 
-    if os.path.exists("current_policy.pt"):
+    policy_path = os.path.join(SAVE_MODEL_PATH, "current_policy.pt")
+    reward_path = os.path.join(SAVE_MODEL_PATH, "reward_net_bt.pt")
+
+    if os.path.exists(policy_path):
         try:
             _current_policy = create_policy_network()
-            _current_policy.load_state_dict(torch.load("current_policy.pt", map_location="cpu"))
+            _current_policy.load_state_dict(torch.load(policy_path, map_location="cpu"))
             print("Loaded saved policy")
-        except:
+        except Exception as e:
+            print(f"Failed to load policy: {e}")
             pass
 
-    if os.path.exists("reward_net_bt.pt"):
+    if os.path.exists(reward_path):
         try:
             _current_reward_net = RewardNet()
-            _current_reward_net.load_state_dict(torch.load("reward_net_bt.pt", map_location="cpu"))
+            _current_reward_net.load_state_dict(torch.load(reward_path, map_location="cpu"))
             print("Loaded saved reward net")
-        except:
+        except Exception as e:
+            print(f"Failed to load reward net: {e}")
             pass
 
 

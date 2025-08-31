@@ -93,7 +93,7 @@ def sample_trajectories(policy, K=20, time_horizon=50):
     trajs = []
     for _ in range(K):
         trajs.append(collect_trajectory(policy, time_horizon=time_horizon))
-        show_trajectory_text(trajs[-1], title=f"Sampled Trajectory {_ + 1}")
+        # show_trajectory_text(trajs[-1], title=f"Sampled Trajectory {_ + 1}")
     return trajs
 
 

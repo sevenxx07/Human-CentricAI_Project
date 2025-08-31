@@ -68,40 +68,13 @@
             <div class="centered-text">
                 <h3>RLHF Training Pipeline</h3>
                 <p>Follow the tasks in sequence to complete the full RLHF training process.</p>
-
-{#                <!-- Sample Grid Visualization Button -->#}
-{#                <form method="POST" style="margin-top: 15px;">#}
-{#                    {% csrf_token %}#}
-{#                    <input type="hidden" name="action" value="show_grid">#}
-{#                    <button type="submit" class="btn btn-primary" style="padding: 8px 20px; font-size: 14px;">#}
-{#                        👁️ Show Sample Environment#}
-{#                    </button>#}
-{#                </form>#}
             </div>
         </div>
 
-{#        <!-- Display Sample Grid if Generated -->#}
-{#        {% if sample_grid %}#}
-{#        <div class="summary" style="background-color: #f8f9fa; margin: 20px 0;">#}
-{#            <div class="centered-text">#}
-{#                <h4>Environment Visualization</h4>#}
-{#                {{ sample_grid|safe }}#}
-{#                <p style="margin-top: 15px; font-size: 14px;">#}
-{#                    <strong>Legend:</strong>#}
-{#                    🐭 Mouse | 🧀 Cheese | 🥬 Organic Cheese | ⚠️ Trap | ⬛ Wall | · Empty#}
-{#                </p>#}
-{#            </div>#}
-{#        </div>#}
-{#        {% endif %}#}
-{#    </div>#}
-{#    <hr>#}
-
-<!------------- Task Selection -------------->
-
-    <div class="main-text">
+        <!------------- Task Selection -------------->
         <h2>Training Tasks</h2>
 
-    <!------------- Task 1 reinforcement alg-------------->
+        <!------------- Task 1 reinforcement alg-------------->
         <div class="task-grid">
             <div class="task-box">
                 <div class="task-header">
@@ -129,10 +102,11 @@
                     </button>
                 </form>
             </div>
-    <!------------- Task 2a simulated -------------->
+
+            <!------------- Task 2a simulated -------------->
             <div class="task-box">
                 <div class="task-header">
-                    <h3>Task 2a: Simulated Preferences</h3>
+                    <h3>Task 2: Simulated Preferences</h3>
                     <div class="task-status {% if reward_net %}completed{% else %}pending{% endif %}">
                         {% if reward_net %}✓ Completed{% else %}○ Ready{% endif %}
                     </div>
@@ -156,33 +130,8 @@
                     </button>
                 </form>
             </div>
-    <!------------- Task 2b human -------------->
 
-            <div class="task-box">
-                <div class="task-header">
-                    <h3>Task 2b: Human Preferences</h3>
-                    <div class="task-status pending">○ Ready</div>
-                </div>
-                <p>Collect human preferences interactively by comparing trajectory pairs. You'll choose which trajectory you prefer based on the mouse's behavior.</p>
-
-                <div class="task-details">
-                    <strong>What it does:</strong>
-                    <ul>
-                        <li>Shows trajectory pairs for human comparison</li>
-                        <li>Collects preference labels interactively</li>
-                        <li>Trains reward network from human feedback</li>
-                    </ul>
-                </div>
-
-                <form method="POST" class="task-form">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="train_human">
-                    <button type="submit" class="btn btn-success" {% if not policy %}disabled title="Complete Task 1 first"{% endif %}>
-                        Train with Human Preferences
-                    </button>
-                </form>
-            </div>
-    <!------------- Task 3 retrain -------------->
+            <!------------- Task 3 retrain -------------->
             <div class="task-box">
                 <div class="task-header">
                     <h3>Task 3: Policy Retraining</h3>
@@ -193,7 +142,7 @@
                 <div class="task-details">
                     <strong>What it does:</strong>
                     <ul>
-                        <li>Loads trained reward model from Task 2</li>
+                        <li>Loads trained reward model from Task 2a</li>
                         <li>Retrains policy with learned rewards + KL penalty</li>
                         <li>Evaluates performance before and after training</li>
                     </ul>
@@ -202,14 +151,14 @@
                 <form method="POST" class="task-form">
                     {% csrf_token %}
                     <input type="hidden" name="action" value="retrain">
-                    <button type="submit" class="btn btn-danger" {% if not policy or not reward_net %}disabled title="Complete Tasks 1 and 2 first"{% endif %}>
+                    <button type="submit" class="btn btn-danger" {% if not policy or not reward_net %}disabled title="Complete Tasks 1 and 2a first"{% endif %}>
                         Retrain with RLHF
                     </button>
                 </form>
             </div>
         </div>
 
-<!------------- Training Progress and Results -------------->
+        <!------------- Training Progress and Results -------------->
         {% if show_comparison %}
         <div class="results-section" style="background-color: #fff3cd; border: 2px solid #ffc107;">
             <h3>🎯 Human Preference Collection</h3>
@@ -232,7 +181,62 @@
                 <div class="result-box">
                     <h4>{{ result.task_name }}</h4>
                     <div class="result-content">
-                        {{ result.details|safe }}
+                        {% if result.details.type == 'task1_complete' %}
+                            <div class="summary">
+                                <p><strong>{{ result.details.message }}</strong></p>
+                                <div class="step-box">
+                                    {{ result.details.trajectory_html|safe }}
+                                </div>
+                            </div>
+
+                        {% elif result.details.type == 'task2a_complete' %}
+                            <div class="summary">
+                                <p><strong>{{ result.details.message }}</strong></p>
+                                <p style="font-size: 16px;">The reward model has been trained to prefer trajectories that avoid organic cheese while still collecting normal cheese.</p>
+
+                                <div class="step-box">
+                                    <h4>Training Statistics</h4>
+                                    <h5><strong>Trajectories sampled:</strong> {{ result.details.trajectories_count }}</h5>
+                                    <h5><strong>Preference pairs:</strong> {{ result.details.pairs_count }}</h5>
+                                    <h5><strong>Total organic cheese hits:</strong> {{ result.details.organic_hits }}</h5>
+                                    <h5><strong>Total normal cheese hits:</strong> {{ result.details.cheese_hits }}</h5>
+                                    <h5><strong>Training epochs:</strong> {{ result.details.epochs }}</h5>
+                                    <h5><strong>Device used:</strong> {{ result.details.device }}</h5>
+                                </div>
+                            </div>
+
+                        {% elif result.details.type == 'task3_complete' %}
+                            <div class="summary">
+                                <p><strong>{{ result.details.message }}</strong></p>
+                                <p>
+                                    {% if result.details.improvement > 0 %}
+                                        The policy learned to better avoid organic cheese!
+                                    {% else %}
+                                        The policy maintained its behavior regarding organic cheese.
+                                    {% endif %}
+                                </p>
+
+                                <div class="step-box">
+                                    <h4>Performance Comparison</h4>
+                                    <p><strong>Organic Cheese Hits:</strong> {{ result.details.before_stats.total_organic_hits }} → {{ result.details.after_stats.total_organic_hits }} ({{ result.details.improvement|floatformat:"+0" }} hits, {{ result.details.improvement_pct|floatformat:"+1" }}%)</p>
+                                    <p><strong>Normal Cheese Hits:</strong> {{ result.details.before_stats.total_normal_cheese_hits }} → {{ result.details.after_stats.total_normal_cheese_hits }}</p>
+                                    <p><strong>Episodes with Organic:</strong> {{ result.details.before_stats.frac_trajectories_with_organic|floatformat:"1" }}% → {{ result.details.after_stats.frac_trajectories_with_organic|floatformat:"1" }}%</p>
+                                </div>
+
+                                <div class="step-box">
+                                    <h4>Training Configuration</h4>
+                                    <p><strong>Epochs:</strong> {{ result.details.epochs }}</p>
+                                    <p><strong>Learning rate:</strong> {{ result.details.lr }}</p>
+                                    <p><strong>KL penalty (β):</strong> {{ result.details.beta }}</p>
+                                    <p><strong>Evaluation episodes:</strong> 200 (before & after)</p>
+                                    <p><strong>Device:</strong> {{ result.details.device }}</p>
+                                </div>
+                            </div>
+
+                        {% else %}
+                            <!-- Fallback for any string-based details -->
+                            {{ result.details|safe }}
+                        {% endif %}
                     </div>
                 </div>
                 {% endfor %}
@@ -240,7 +244,7 @@
         </div>
         {% endif %}
 
-<!------------- Environment Info -------------->
+        <!------------- Environment Info -------------->
         <div class="environment-info">
             <h3>Environment Details</h3>
             <div class="env-grid">
@@ -265,7 +269,7 @@
             </div>
         </div>
 
-<!------------- Reset Button -------------->
+        <!------------- Reset Button -------------->
         <div class="summary" style="margin-top: 40px; background-color: #f8f9fa; border: 2px solid #dee2e6;">
             <div class="centered-text">
                 <h3>Session Management</h3>
@@ -282,8 +286,8 @@
                 </p>
             </div>
         </div>
-    </div>
-</div>
+    </div> <!-- closing main-text div -->
+</div> <!-- closing box div -->
 
 <script>
     // Handle form submissions with loading states
