@@ -100,15 +100,13 @@ def explain_impact(current_user_ratings, movie_to_rate_id, V, R, movieId_to_titl
         # Simulating user ratings
         simulated_ratings = current_user_ratings.copy()
         simulated_ratings[movie_to_rate_id] = hypothetic_rating
+
         # Recomputing U and the feature deltas
         updated_user_vector = cold_start.update_user_vector(simulated_ratings)
-
         raw_feature_deltas = updated_user_vector - baseline_user_vector
     
         # Predicting scores for all movies with the updated user vector 
-        predicted_ratings = np.maximum(0, V @ updated_user_vector)
-        predicted_ratings = np.clip(predicted_ratings, 0, 5)
-        #predicted_ratings += np.arange(len(predicted_ratings)) * 1e-10
+        predicted_ratings = np.clip(V @ updated_user_vector, 0, 5)
 
         # We only consider movies that the user has not rated yet
         rated_ids = set(simulated_ratings.keys())
@@ -125,17 +123,13 @@ def explain_impact(current_user_ratings, movie_to_rate_id, V, R, movieId_to_titl
         feature_changes = []
         for idx in top_feature_indices:
             # Direction of user feature change
-            delta_val = raw_feature_deltas
             direction = "increased" if raw_feature_deltas[idx] > 0 else "decreased"
-            user_val = updated_user_vector[idx]
             movie_val = top_movie_vector[idx]
-            # Does the movie's feature point the same way as the change in U?
+            user_val = updated_user_vector[idx]
             match = "aligns well" if np.sign(raw_feature_deltas[idx]) == np.sign(movie_val) else "differs"
-
             # Human readanle label + description
             feature_title = feature_dict['Feature_' + str(idx + 1)]
             feature_info = feature_characteristics['Feature_' + str(idx + 1)]
-
             feature_changes.append((feature_title,
                                     direction,
                                     feature_info,
@@ -183,7 +177,6 @@ def active_learning_step(initial_user_vector, V, R, user_ratings, movieId_to_tit
         movieId_to_title = load_movie_data()
 
     predicted_ratings = np.clip(V @ initial_user_vector, 0, 5)
-
     R.columns = R.columns.astype(int)
 
     # Find indices of movies not yet rated
@@ -192,7 +185,6 @@ def active_learning_step(initial_user_vector, V, R, user_ratings, movieId_to_tit
     not_skipped_indices = [idx for idx in unrated_indices if
                            R.columns[idx] not in skipped_movies] if skipped_movies else unrated_indices
 
-    # Selecting the movie with the highest predicted rating
     top_index = max(not_skipped_indices, key=lambda i: predicted_ratings[i])
     top_movie_id = R.columns[top_index]
     top_movie_title = movieId_to_title.get(top_movie_id, "Unknown title")
