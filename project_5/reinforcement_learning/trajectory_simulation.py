@@ -4,19 +4,15 @@ import numpy as np
 
 from project_5.reinforcement_learning.mouse import (
     initialize_grid_with_cheese_types, 
-    print_grid_with_cheese_types,
     move,
     get_reward,
-    ACTIONS,
-    MOUSE,
-    GRID_SIZE,
-    ACTION_TO_DELTA)
+    ACTIONS)
+
 from project_5.reinforcement_learning.policy_network import create_policy_network
 
 # Initializing the mouse environment and the policy network
 grid, mouse_pos, cheese_pos, organic_cheese_positions = initialize_grid_with_cheese_types()
 policy = create_policy_network()
-
 
 # Converting the grid to a one-hot encoded tensor suitable for the netwok
 def state_to_tensor(grid):
@@ -32,71 +28,74 @@ def select_action(policy, grid):
     actions_index = distribution.sample() # Sampling an action from the distribution
     return ACTIONS[actions_index.item()], distribution.log_prob(actions_index)# Returning the selected action and the log probability of it (needed for the reinforce gradient)
 
+
 # Reainforcement learning loop. 
-def RL(policy, N_trajectories=500, gamma=0.99, time_horizon=50):
+def RL(policy, N_trajectories=500, gamma=0.99, time_horizon=50, N_epochs=10):
     opt = optim.Adam(policy.parameters(), lr=0.01)
 
+    for epoch in range(N_epochs):
     # Tracking the times the mouse hits cheese or a trap
-    cheese_encounters = 0
-    trap_encounters = 0
+        batch_loss = 0
+        total_rewards = 0
+        cheese_encounters = 0
+        trap_encounters = 0
 
-    for trajectory in range(N_trajectories):
-        grid, mouse_pos, cheese_pos, organic_cheese_positions = initialize_grid_with_cheese_types() # Resetting the envionment at the start of each trajectory
-        
-        log_probabilites = []
-        rewards = []
-        done = False
+        for trajectory in range(N_trajectories):
+            grid, mouse_pos, cheese_pos, organic_cheese_positions = initialize_grid_with_cheese_types() # Resetting the envionment at the start of each trajectory
+            log_probabilites = []
+            rewards = []
 
-        for time_step in range(time_horizon):
-            action, log_prob = select_action(policy, grid) # Select action
-            prev_mouse_pos = tuple(np.argwhere(grid == 1)[0]) # Position of mouse before playing an action (moving)
-            grid, cell_content = move(action, grid) # Move mouse --> Get the new grid and the cell content
-            new_mouse_pos = tuple(np.argwhere(grid == 1)[0])
-            reward = get_reward(cell_content) # Get reward based on the cell content
+            for time_step in range(time_horizon):
+                action, log_prob = select_action(policy, grid) # Select action
+                prev_mouse_pos = tuple(np.argwhere(grid == 1)[0]) # Position of mouse before playing an action (moving)
+                grid, cell_content = move(action, grid) # Move mouse --> Get the new grid and the cell content
+                new_mouse_pos = tuple(np.argwhere(grid == 1)[0])
+                reward = get_reward(cell_content) # Get reward based on the cell content
+                
+                if reward == 10:
+                    cheese_encounters +=1
+                elif reward == -50:
+                    trap_encounters +=1
+                
+                log_probabilites.append(log_prob) 
+                rewards.append(reward)
+
+
+                if reward == 10 or reward == -50:
+                    break # Stop early if cheese or trap is encountered 
             
-            if reward == 10:
-                cheese_encounters +=1
-            elif reward == -50:
-                trap_encounters +=1
+            total_rewards += sum(rewards)
+
+            # Computing returns for each step
+            returns = []
+            G = 0
+            for r in reversed(rewards):
+                G = r + gamma*G
+                returns.insert(0,G)
+            returns = torch.tensor(returns)
+
+            # Normalizing returns to stabilize learning 
+            if len(returns) > 1:
+                returns = (returns - returns.mean()) / (returns.std() +1e-8) 
+            else:
+                returns = (returns - returns.mean()) 
+
+            # Policy loss calculaed using the reinforce gradient
+            loss = 0
+            for log_prob, G in zip(log_probabilites, returns):
+                loss += -log_prob * G  # Negative because reinforce is gradient ascent but PyTorch is descent 
+                batch_loss += loss
             
-            log_probabilites.append(log_prob) 
-            rewards.append(reward)
+            # Gradient update
+            opt.zero_grad()
+            loss.backward()
+            opt.step()
 
-
-            if reward == 10 or reward == -50:
-                done = True
-                break # Stop early if cheese or trap is encountered 
-        
-        # Computing returns for each step
-        returns = []
-        G = 0
-        for r in reversed(rewards):
-            G = r + gamma*G
-            returns.insert(0,G)
-        returns = torch.tensor(returns)
-
-        # Normalizing returns to stabilize learning 
-        if len(returns) > 1:
-            returns = (returns - returns.mean()) / (returns.std() +1e-8) 
-        else:
-            returns = (returns - returns.mean()) 
-
-        # Policy loss calculaed using the reinforce gradient
-        loss = 0
-        for log_prob, G in zip(log_probabilites, returns):
-            loss += -log_prob * G  # Negative because reinforce is gradient ascent but PyTorch is descent 
-        
-        # Gradient update
-        opt.zero_grad()
-        loss.backward()
-        opt.step()
-
-        # Printing summary after every 50 trajectories
-        if trajectory % 50 == 0:
-            print(f"Trajectory {trajectory}: Total reward = {sum(rewards):.2f}",
-                  f" Cheese hits = {cheese_encounters}, trap hits = {trap_encounters}")
-
-
+        print(
+            f"Epoch {epoch+1}/{N_epochs}: "
+            f"Avg reward = {total_rewards / N_trajectories:.2f}, "
+            f"Cheese hits = {cheese_encounters}, Trap hits = {trap_encounters}"
+        )
 if __name__ == "__main__":
     policy = create_policy_network()
     RL(policy)
