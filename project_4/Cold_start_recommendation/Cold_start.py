@@ -100,46 +100,27 @@ def explain_impact(current_user_ratings, movie_to_rate_id, V, R, movieId_to_titl
         # Simulating user ratings
         simulated_ratings = current_user_ratings.copy()
         simulated_ratings[movie_to_rate_id] = hypothetic_rating
-
         # Recomputing U and the feature deltas
         updated_user_vector = cold_start.update_user_vector(simulated_ratings)
 
         raw_feature_deltas = updated_user_vector - baseline_user_vector
-        change_magnitude = np.linalg.norm(raw_feature_deltas)
-        # normalized_deltas = raw_feature_deltas / norm_feature_deltas
-
-        # Debug: show actual change magnitude
-        # print(f"[DEBUG] Rating {hypothetic_rating}: raw delta = {raw_feature_deltas}, norm = {norm_feature_deltas}")
-        print(f"Rating {hypothetic_rating}: U = {updated_user_vector}")
-
+    
         # Predicting scores for all movies with the updated user vector 
-        predicted_ratings = V @ updated_user_vector
-        # predicted_ratings = np.clip(predicted_ratings, 0, 5) # Keep scores within [0,5]
-        predicted_ratings += np.random.normal(0, 1e-4, size=predicted_ratings.shape)
+        predicted_ratings = np.maximum(0, V @ updated_user_vector)
+        predicted_ratings = np.clip(predicted_ratings, 0, 5)
+        #predicted_ratings += np.arange(len(predicted_ratings)) * 1e-10
 
         # We only consider movies that the user has not rated yet
         rated_ids = set(simulated_ratings.keys())
         unrated_indices = [idx for idx, movie_id in enumerate(R.columns) if movie_id not in rated_ids]
 
-        # Extracting the top recommended movie for the hypothetic rating
-        # top_n = 3  # or 5
-        # top_indices = np.argsort(predicted_ratings[unrated_indices])[-top_n:]
-        # # top_index = max(unrated_indices, key=lambda i: predicted_ratings[i])
-        # top_index = random.choice([unrated_indices[i] for i in top_indices])
-        # top_movie_id = R.columns[top_index]
-        # top_movie_title = movieId_to_title.get(top_movie_id, "Unknown")
-        # top_movie_vector = V[top_index]
-
-        top_index = unrated_indices[np.argmax(predicted_ratings[unrated_indices])]
+        top_index = max(unrated_indices, key=lambda i: predicted_ratings[i])
         top_movie_id = R.columns[top_index]
         top_movie_title = movieId_to_title.get(top_movie_id, "Unknown")
         top_movie_vector = V[top_index]
 
         # Ranking features by absolute change in magnitude and selecting top k
         top_feature_indices = np.argsort(np.abs(raw_feature_deltas))[::-1][:3]
-        # full_ranking = np.argsort(np.abs(raw_feature_deltas))[::-1]
-        # print(f"[DEBUG] Rating {hypothetic_rating}: full delta ranking = {full_ranking}")
-        print(f"[DEBUG] Rating {hypothetic_rating}: top {top_k} deltas = {raw_feature_deltas[top_feature_indices]}")
 
         feature_changes = []
         for idx in top_feature_indices:
@@ -201,10 +182,10 @@ def active_learning_step(initial_user_vector, V, R, user_ratings, movieId_to_tit
     if movieId_to_title is None:
         movieId_to_title = load_movie_data()
 
-    predicted_ratings = V @ initial_user_vector  # Predicted ratings for all movies
-    predicted_ratings = np.clip(predicted_ratings, 0, 5)
+    predicted_ratings = np.clip(V @ initial_user_vector, 0, 5)
 
     R.columns = R.columns.astype(int)
+
     # Find indices of movies not yet rated
     unrated_indices = [idx for idx, movie_id in enumerate(R.columns) if movie_id not in user_ratings.keys()]
     # If skipped_movies is provided, filter out those movies from unrated_indices
@@ -236,32 +217,14 @@ def active_learning_loop(initial_user_vector, V, R, user_ratings, max_rounds=3, 
     rated_ids = set(user_ratings.keys())
 
     for i in range(max_rounds):
-        predicted_ratings = V @ U  # Predicted ratings for all movies
+        top_movie_id, top_movie_title, _ = active_learning_step(U, V, R, user_ratings, movieId_to_title)
+        print(f"Round {i+1}: Recommended '{top_movie_title}' (ID: {top_movie_id})")
 
-        predicted_ratings = np.clip(predicted_ratings, 0, 5)
-
-        R.columns = R.columns.astype(int)
-        # Find indices of movies not yet rated
-        unrated_indices = [idx for idx, movie_id in enumerate(R.columns) if
-                           movie_id not in rated_ids]  # movies not yet rated by the user
-
-        # Selecting the movie with the highest predicted rating
-        top_index = max(unrated_indices, key=lambda i: predicted_ratings[i])
-        top_movie_id = R.columns[top_index]
-        top_movie_title = movieId_to_title.get(top_movie_id, "Unknown title")
-
-        print(
-            f" Round {i + 1}: Recommended movie: '{top_movie_title}' (movieID: {top_movie_id}) with predicted rating: {predicted_ratings[top_index]:.3f}")
-        print(f"Let's see how your ratings will affect your next recommendation:")
-        explain_impact(user_ratings, top_movie_id, V, R, movieId_to_title, feature_dict=feature_dict,
-                       feature_information=feature_characteristics)
-
-        # Simulating user rating for the movie
+        explain_impact(user_ratings, top_movie_id, V, R, movieId_to_title, top_k=3)
         rating = simulate_rating()
         user_ratings[top_movie_id] = rating
         rated_ids.add(top_movie_id)
-
-        # Updating the user vector with the new rating
+        print(f"Simulated user rating: {rating}\n")
         cold_start = ColdStart(V, R)
         U = cold_start.update_user_vector(user_ratings)
 
@@ -311,5 +274,8 @@ def run_cold_start_demo():
     print(f"Final user vector:", final_user_vector)
 
 
-def __main__():
+# def __main__():
+#     run_cold_start_demo()
+
+if __name__=="__main__":
     run_cold_start_demo()
