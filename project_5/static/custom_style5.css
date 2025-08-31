@@ -103,7 +103,7 @@
   margin: 0 auto;
 }
 
-/* Results Section */
+/* Results Section - IMPROVED */
 .results-section {
   margin: 40px 0;
   padding: 30px;
@@ -139,15 +139,60 @@
   font-size: 18px;
 }
 
+/* FIXED: Result content styling - improved readability */
 .result-content {
-  font-family: 'Courier New', monospace;
-  font-size: 13px;
-  line-height: 1.4;
-  background-color: #f8f9fa;
-  padding: 10px;
-  border-radius: 4px;
-  white-space: pre-wrap;
-  overflow-x: auto;
+  font-family: inherit !important; /* Use the same font as the rest of the page */
+  font-size: 16px !important; /* Increased from 13px */
+  line-height: 1.6 !important; /* Better readability */
+  color: #495057 !important;
+  padding: 0 !important; /* Remove extra padding */
+  background-color: transparent !important; /* Remove gray background */
+  border-radius: 0 !important; /* Remove border radius */
+  white-space: normal !important; /* Allow normal text wrapping */
+  overflow-x: visible !important; /* Remove horizontal scroll */
+}
+
+/* Ensure nested elements in result-content have proper spacing and sizing */
+.result-content .summary {
+  margin: 0 !important; /* Remove extra margins */
+}
+
+.result-content .summary p {
+  margin-bottom: 15px !important; /* Consistent spacing between paragraphs */
+  font-size: 16px !important; /* Override any other font-size rules */
+  font-family: inherit !important;
+}
+
+.result-content .summary h4,
+.result-content .summary h5 {
+  margin-top: 20px !important;
+  margin-bottom: 10px !important;
+  font-size: 18px !important;
+  font-family: inherit !important;
+  color: #2c3e50 !important;
+}
+
+.result-content .step-box {
+  margin: 20px 0 !important;
+  padding: 20px !important;
+}
+
+.result-content .step-box h4,
+.result-content .step-box h5 {
+  font-size: 16px !important;
+  margin-bottom: 12px !important;
+  color: #2c3e50 !important;
+  font-family: inherit !important;
+}
+
+/* Fix any remaining monospace or small text elements */
+.result-content * {
+  font-family: inherit !important;
+}
+
+.result-content .training-config-grid,
+.result-content .stats-grid {
+  font-family: inherit !important;
 }
 
 /* Environment Info */
@@ -267,7 +312,117 @@ button:disabled:hover {
   color: #6c757d;
 }
 
-/* Responsive adjustments */
+/* Larger text for status boxes specifically */
+.summary p {
+  font-size: 18px !important; /* Increased from default ~16px */
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+
+.summary h4 {
+  font-size: 22px !important; /* Increased heading size */
+  margin-bottom: 15px;
+}
+
+.summary strong {
+  font-size: 18px !important; /* Ensure bold text is also larger */
+}
+
+/* ==== NEW ADDITIONS FOR TASK 1 IMPROVED LAYOUT ==== */
+
+/* Training Configuration Grid */
+.training-config-grid {
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 20px;
+  margin: 15px 0;
+}
+
+.config-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto 1fr;
+  gap: 15px;
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.config-row:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.config-label {
+  font-weight: 600;
+  color: #495057;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.config-value {
+  font-weight: 500;
+  color: #156e78;
+  background-color: white;
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px solid #e9ecef;
+  font-size: 14px;
+}
+
+/* Statistics Grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 15px;
+  margin: 15px 0;
+}
+
+.stat-item {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+  border-left: 4px solid;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  transition: transform 0.2s ease;
+}
+
+.stat-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.stat-item.success {
+  border-left-color: #28a745;
+}
+
+.stat-item.danger {
+  border-left-color: #dc3545;
+}
+
+.stat-item.info {
+  border-left-color: #17a2b8;
+}
+
+.stat-item.primary {
+  border-left-color: #156e78;
+}
+
+.stat-number {
+  font-size: 2em;
+  font-weight: bold;
+  margin-bottom: 8px;
+  color: #2c3e50;
+}
+
+.stat-label {
+  font-size: 0.9em;
+  color: #6c757d;
+  font-weight: 500;
+}
+
+/* Responsive design for new elements */
 @media (max-width: 768px) {
   .task-grid {
     grid-template-columns: 1fr;
@@ -291,6 +446,29 @@ button:disabled:hover {
   }
 
   .trajectory-comparison {
+    grid-template-columns: 1fr;
+  }
+
+  .config-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .config-label {
+    font-size: 0.9em;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .stat-number {
+    font-size: 1.5em;
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-grid {
     grid-template-columns: 1fr;
   }
 }

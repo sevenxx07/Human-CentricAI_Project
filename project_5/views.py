@@ -132,11 +132,44 @@ def sample_trajectory_check(request, context, policy):
 
 def trajectory_simulation(request, context, policy):
     """Task 1: Train initial policy - modified to accept policy as parameter"""
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     context['phase'] = 'task1'
 
-    RL(policy)
+    # Training parameters
+    N_trajectories = 40
+    N_epochs = 200
+    time_horizon = 50
+    gamma = 0.99
+    lr = 1e-3
+    eval_every = 100
+
+    # Train the policy and get training statistics
+    training_stats = RL(policy, N_trajectories=N_trajectories, N_epochs=N_epochs,
+                        time_horizon=time_horizon, eval_every=eval_every)
+
     # Generate a sample trajectory for visualization
-    sample_trajectory_check(request, context, policy)
+    sample_traj = sample_trajectories(policy, K=1, time_horizon=20)[0]
+    traj_html = trajectory_to_html(sample_traj, max_steps=5, title="Sample Trajectory After Training")
+
+    # Add detailed results to context
+    context['training_results'].append({
+        'task_name': 'Task 1: Initial Policy Training',
+        'details': {
+            'type': 'task1_complete',
+            'trajectory_html': traj_html,
+            'message': 'Initial policy trained successfully using REINFORCE algorithm!',
+            'n_trajectories': N_trajectories,
+            'n_epochs': N_epochs,
+            'time_horizon': time_horizon,
+            'gamma': gamma,
+            'lr': lr,
+            'device': device.upper(),
+            'eval_every': eval_every,
+            'algorithm': 'REINFORCE',
+            'optimizer': 'Adam',
+            'final_stats': training_stats if training_stats else None
+        }
+    })
 
     return None
 
@@ -246,6 +279,8 @@ def retrain_policy(request, context, policy, reward_net):
             'message': 'Policy successfully retrained with learned human preferences!'
         }
     })
+
+    sample_trajectory_check(request, context, policy)
 
     return None
 

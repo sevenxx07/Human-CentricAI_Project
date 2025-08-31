@@ -23,7 +23,7 @@
                 <h3>Project Description</h3>
                 <p style="text-align:center;">
                     In this project, we implement Reinforcement Learning with Human Feedback (RLHF) using a mouse navigation environment.
-                    The mouse learns to navigate a 5x5 grid to collect cheese while avoiding traps and learning to avoid organic cheese
+                    The mouse learns to navigate a 5×5 grid to collect cheese while avoiding traps and learning to avoid organic cheese
                     based on human preferences. The project demonstrates policy training, reward modeling from preferences, and policy
                     retraining with learned rewards.
                 </p>
@@ -43,7 +43,7 @@
 
 <!------------- Current Status -------------->
         {% if policy %}
-        <div class="summary" style="background-color: #d4edda; border: 1px solid #c3e6cb; margin: 20px 0;">
+        <div class="summary status-box" style="background-color: #d4edda; border: 1px solid #c3e6cb; margin: 20px 0;">
             <div class="centered-text">
                 <h4>✓ Policy Network Ready</h4>
                 <p><strong>Status:</strong> Policy network has been trained and is ready for further tasks</p>
@@ -54,7 +54,7 @@
         {% endif %}
 
         {% if reward_net %}
-        <div class="summary" style="background-color: #d1ecf1; border: 1px solid #bee5eb; margin: 20px 0;">
+        <div class="summary status-box" style="background-color: #d1ecf1; border: 1px solid #bee5eb; margin: 20px 0;">
             <div class="centered-text">
                 <h4>✓ Reward Model Trained</h4>
                 <p><strong>Status:</strong> Reward network has been trained from preferences</p>
@@ -142,7 +142,7 @@
                 <div class="task-details">
                     <strong>What it does:</strong>
                     <ul>
-                        <li>Loads trained reward model from Task 2a</li>
+                        <li>Loads trained reward model from Task 2</li>
                         <li>Retrains policy with learned rewards + KL penalty</li>
                         <li>Evaluates performance before and after training</li>
                     </ul>
@@ -182,12 +182,69 @@
                     <h4>{{ result.task_name }}</h4>
                     <div class="result-content">
                         {% if result.details.type == 'task1_complete' %}
-                            <div class="summary">
-                                <p><strong>{{ result.details.message }}</strong></p>
-                                <div class="step-box">
-                                    {{ result.details.trajectory_html|safe }}
+                        <div class="summary">
+                            <p><strong>{{ result.details.message }}</strong></p>
+                            <p style="font-size: 16px;">The policy network has been trained to navigate the grid environment and maximize rewards through the REINFORCE algorithm.</p>
+
+                            <div class="step-box">
+                                <h4>Training Configuration</h4>
+                                <div class="training-config-grid">
+                                    <div class="config-row">
+                                        <span class="config-label">Algorithm:</span>
+                                        <span class="config-value">REINFORCE</span>
+                                        <span class="config-label">Optimizer:</span>
+                                        <span class="config-value">Adam</span>
+                                    </div>
+                                    <div class="config-row">
+                                        <span class="config-label">Epochs:</span>
+                                        <span class="config-value">{{ result.details.n_epochs }}</span>
+                                        <span class="config-label">Learning Rate:</span>
+                                        <span class="config-value">{{ result.details.lr }}</span>
+                                    </div>
+                                    <div class="config-row">
+                                        <span class="config-label">Trajectories/Epoch:</span>
+                                        <span class="config-value">{{ result.details.n_trajectories }}</span>
+                                        <span class="config-label">Discount Factor (γ):</span>
+                                        <span class="config-value">{{ result.details.gamma }}</span>
+                                    </div>
+                                    <div class="config-row">
+                                        <span class="config-label">Time Horizon:</span>
+                                        <span class="config-value">{{ result.details.time_horizon }} steps</span>
+                                        <span class="config-label">Device:</span>
+                                        <span class="config-value">{{ result.details.device }}</span>
+                                    </div>
                                 </div>
                             </div>
+
+                            {% if result.details.final_stats %}
+                            <div class="step-box">
+                                <h4>Final Training Statistics</h4>
+                                <div class="stats-grid">
+                                    <div class="stat-item success">
+                                        <div class="stat-number">{{ result.details.final_stats.cheese_encounters }}</div>
+                                        <div class="stat-label">Total Cheese Collected</div>
+                                    </div>
+                                    <div class="stat-item danger">
+                                        <div class="stat-number">{{ result.details.final_stats.trap_encounters }}</div>
+                                        <div class="stat-label">Total Trap Encounters</div>
+                                    </div>
+                                    <div class="stat-item info">
+                                        <div class="stat-number">{{ result.details.final_stats.avg_reward|floatformat:"1" }}</div>
+                                        <div class="stat-label">Average Reward/Episode</div>
+                                    </div>
+                                    <div class="stat-item primary">
+                                        <div class="stat-number">{{ result.details.final_stats.success_rate|floatformat:"1" }}%</div>
+                                        <div class="stat-label">Success Rate</div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            <div class="step-box">
+                                <h4>Sample Trajectory</h4>
+                                {{ result.details.trajectory_html|safe }}
+                            </div>
+                        </div>
 
                         {% elif result.details.type == 'task2a_complete' %}
                             <div class="summary">
@@ -201,7 +258,6 @@
                                     <h5><strong>Total organic cheese hits:</strong> {{ result.details.organic_hits }}</h5>
                                     <h5><strong>Total normal cheese hits:</strong> {{ result.details.cheese_hits }}</h5>
                                     <h5><strong>Training epochs:</strong> {{ result.details.epochs }}</h5>
-                                    <h5><strong>Device used:</strong> {{ result.details.device }}</h5>
                                 </div>
                             </div>
 
