@@ -23,7 +23,7 @@ def load_movie_data():
 
 # ---------- Cold start ---------- #
 
-def get_initial_movies(n=3):
+def get_initial_movies(n=5):
     """Picking n diverse cold start movies to present 
     to the user in the initial stage"""
 
