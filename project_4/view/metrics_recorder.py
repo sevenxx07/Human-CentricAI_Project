@@ -14,7 +14,7 @@ class MetricsRecorder:
     def __init__(self, session_id=None, study_mode=None):
         self.session_id = session_id or str(uuid.uuid4())
         self.study_mode = study_mode or 'unknown'
-        self.metrics_dir = os.path.join(settings.BASE_DIR, 'metrics_data')
+        self.metrics_dir = os.path.join(settings.BASE_DIR, 'data', 'project_4', 'metrics_data')
         self.filename = f"user_{self.session_id}_{self.study_mode}.txt"
         self.filepath = os.path.join(self.metrics_dir, self.filename)
 
