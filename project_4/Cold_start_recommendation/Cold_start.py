@@ -122,13 +122,17 @@ def explain_impact(current_user_ratings, movie_to_rate_id, V, R, movieId_to_titl
         unrated_indices = [idx for idx, movie_id in enumerate(R.columns) if movie_id not in rated_ids]
 
         # Extracting the top recommended movie for the hypothetic rating
-        top_n = 3  # or 5
-        top_indices = np.argsort(predicted_ratings[unrated_indices])[-top_n:]
-        # top_index = max(unrated_indices, key=lambda i: predicted_ratings[i])
-        top_index = random.choice([unrated_indices[i] for i in top_indices])
+        # top_n = 3  # or 5
+        # top_indices = np.argsort(predicted_ratings[unrated_indices])[-top_n:]
+        # # top_index = max(unrated_indices, key=lambda i: predicted_ratings[i])
+        # top_index = random.choice([unrated_indices[i] for i in top_indices])
+        # top_movie_id = R.columns[top_index]
+        # top_movie_title = movieId_to_title.get(top_movie_id, "Unknown")
+        # top_movie_vector = V[top_index]
+
+        top_index = unrated_indices[np.argmax(predicted_ratings[unrated_indices])]
         top_movie_id = R.columns[top_index]
         top_movie_title = movieId_to_title.get(top_movie_id, "Unknown")
-        top_movie_vector = V[top_index]
 
         # Ranking features by absolute change in magnitude and selecting top k
         top_feature_indices = np.argsort(np.abs(raw_feature_deltas))[::-1][:3]
