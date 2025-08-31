@@ -23,7 +23,7 @@ def load_movie_data():
 
 # ---------- Cold start ---------- #
 
-def get_initial_movies(n=5):
+def get_initial_movies(n=3):
     """Picking n diverse cold start movies to present 
     to the user in the initial stage"""
 
@@ -36,7 +36,7 @@ def get_initial_movies(n=5):
 class ColdStart:
     """Estimating and updating the user's latent vector from a few ratings."""
 
-    def __init__(self, V_matrix, R_matrix, lambd=0.01):
+    def __init__(self, V_matrix, R_matrix, lambd=0.001):
         self.V = V_matrix  # Latent feature matrix for movies
         self.K = V_matrix.shape[1]  # Nr of latent features
         self.R = R_matrix  # Original user-movie rating matrix
