@@ -1,4 +1,3 @@
-# visualization_utils.py
 """
 Utility functions for visualizing the mouse grid environment in HTML.
 CSS styles should be in grid_visualization.css

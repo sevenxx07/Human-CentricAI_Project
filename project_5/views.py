@@ -53,12 +53,7 @@ def index(request):
     if request.method == 'POST':
         action = request.POST.get('action')
 
-        if action == 'show_grid':
-            # Show a sample grid visualization
-            grid, mouse_pos, cheese_pos, organic_cheese_positions = initialize_grid_with_cheese_types()
-            context['sample_grid'] = grid_to_html(grid, title="Sample Environment")
-            messages.info(request, "Sample grid generated!")
-        elif action == 'reset':
+        if action == 'reset':
             # Reset everything
             _current_policy = None
             _current_reward_net = None
@@ -139,7 +134,7 @@ def trajectory_simulation(request, context, policy):
     """Task 1: Train initial policy - modified to accept policy as parameter"""
     context['phase'] = 'task1'
 
-    RL(policy, N_trajectories=1000)
+    RL(policy)
     # Generate a sample trajectory for visualization
     sample_trajectory_check(request, context, policy)
 
