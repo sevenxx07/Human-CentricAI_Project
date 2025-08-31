@@ -5,7 +5,7 @@ from django.http import JsonResponse
 from django.shortcuts import render
 from .session_utils import (
     MovieCache, ColdStartSession, initialize_session,
-    process_rating_submission, process_movie_skip
+    process_rating_submission
 )
 
 # Configure logging
@@ -45,7 +45,6 @@ def handle_ajax_request(request):
         handlers = {
             'initialize_session': initialize_unguided_session,
             'submit_rating': submit_rating,
-            'skip_movie': skip_movie,
             'reset_session': reset_session
         }
 
@@ -151,33 +150,3 @@ def submit_rating(data):
         logger.error(f"Error submitting rating: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 
-
-def skip_movie(data):
-    """Skip current movie without affecting user vector"""
-    try:
-        session = UNGUIDED_STATE.get('session')
-        if not session or not session.is_initialized:
-            return JsonResponse({'error': 'Session not initialized'}, status=400)
-
-        movie_id = data.get('movie_id')
-        if not movie_id:
-            return JsonResponse({'error': 'Movie ID required'}, status=400)
-
-        # Process skip and get next action
-        next_movie, message, session_step = process_movie_skip(
-            session, UNGUIDED_MOVIE_CACHE, movie_id
-        )
-
-        response_data = {
-            'message': message,
-            'success': True,
-            'next_movie': next_movie,
-            'session_step': session_step
-        }
-        response_data.update(session.get_session_context())
-
-        return JsonResponse(response_data)
-
-    except Exception as e:
-        logger.error(f"Error skipping movie: {str(e)}")
-        return JsonResponse({'error': str(e)}, status=500)

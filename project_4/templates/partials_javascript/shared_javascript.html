@@ -234,70 +234,7 @@ function submitRating() {
   });
 }
 
-function skipMovie() {
-  // Prevent skipping if session is completed
-  if (sessionCompleted) {
-    showMessage('This movie is for display purposes only. The session is complete.', 'info');
-    return;
-  }
-
-  if (!currentMovie) return;
-
-  fetch("{% url 'project4:guided' %}", {
-    method: 'POST',
-    headers: {
-      'X-CSRFToken': '{{ csrf_token }}',
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      action: 'skip_movie',
-      movie_id: currentMovie.movie_id
-    })
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.error) {
-      showMessage(data.error, 'error');
-    } else {
-      showMessage(data.message);
-      updateSessionDisplay(data);
-
-      // Update completion status
-      sessionCompleted = (data.session_step === 'complete');
-
-      if (data.session_step && typeof onSessionStepChange === 'function') {
-        onSessionStepChange(data.session_step);
-      }
-
-      handleMovieSkipped(data);
-    }
-  })
-  .catch(error => {
-    showMessage('Error skipping movie: ' + error, 'error');
-  });
-}
-
 function handleRatingSubmitted(data) {
-  // Server determines phase transition, just update UI
-  if (data.session_step === 'active_learning') {
-    document.getElementById('initial-rating-section').style.display = 'none';
-    document.getElementById('active-learning-section').style.display = 'block';
-  }
-
-  if (data.next_movie) {
-    showMovieForRating(data.next_movie, data.session_step);
-  } else {
-    // No next movie - session complete
-    document.getElementById('rating-interface').style.display = 'none';
-    const explanationSection = document.getElementById('explanation-section');
-    if (explanationSection) {
-      explanationSection.style.display = 'none';
-    }
-    showMessage('Session complete!', 'info');
-  }
-}
-
-function handleMovieSkipped(data) {
   // Server determines phase transition, just update UI
   if (data.session_step === 'active_learning') {
     document.getElementById('initial-rating-section').style.display = 'none';
@@ -330,9 +267,6 @@ function updateSessionDisplay(data) {
   if (data.total_ratings !== undefined) {
     document.getElementById('ratings-count').textContent = data.total_ratings;
     sessionState.ratingsGiven = data.total_ratings;
-  }
-  if (data.skipped_count !== undefined) {
-    document.getElementById('skipped-count').textContent = data.skipped_count;
   }
   if (data.session_phase) {
     const phaseText = data.session_phase === 'initial_rating' ? 'Initial Rating' : 'Active Learning';
