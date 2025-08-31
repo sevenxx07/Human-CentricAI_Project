@@ -81,7 +81,8 @@ The project is organized into 5 main parts:
 4. **Stop the project**:
    `docker-compose down`
 
-### Windowws specific settings:
+### Windows specific settings:
+If you are running the docker on Windows follow also these additional steps:
 
 1. **docker-compose.yml** - remove line 6 `network: host`
 
