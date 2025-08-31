@@ -101,7 +101,6 @@ class ColdStartSession:
         self.current_movies = []
         self.current_movie_index = 0
         self.rated_movies = []
-        self.skipped_movies = []
         self.initial_movies_count = INITIAL_MOVIES_COUNT
         self.active_learning_round = 0
         self.max_active_learning_rounds = MAX_ACTIVE_LEARNING_ROUNDS
@@ -178,35 +177,9 @@ class ColdStartSession:
             if predicted_rating and time_taken
             else f"Stored rating: {movie_id} -> {rating}")
 
-    def store_skip(self, movie_id, movie_title=None, predicted_rating=None):
-        """Store a skip and record metrics"""
-        # Calculate time taken if timing was started
-        time_taken = None
-        if self.current_movie_start_time:
-            time_taken = time.time() - self.current_movie_start_time
-            self.current_movie_start_time = None
-
-        # Store in session
-        skip_data = {
-            'movie_id': movie_id,
-            'step': self.current_step,
-            'time_taken': time_taken,
-            'predicted_rating': predicted_rating
-        }
-        self.skipped_movies.append(skip_data)
-
-        # Record metrics
-        phase = 'initial' if self.is_in_initial_phase() else 'active_learning'
-        self.metrics_recorder.session_phase = phase
-        self.metrics_recorder.record_skip(movie_id, movie_title, time_taken, predicted_rating)
-
     def get_rated_dict(self):
         """Get ratings as dictionary"""
         return {d['movie_id']: d['rating'] for d in self.rated_movies}
-
-    def get_skipped_ids(self):
-        """Get list of skipped movie IDs"""
-        return [d['movie_id'] for d in self.skipped_movies]
 
     def update_user_vector(self, movie_cache):
         """Update user vector with all current ratings"""
@@ -255,7 +228,6 @@ class ColdStartSession:
             'initial_movies_count': self.initial_movies_count,
             'total_ratings': self.total_ratings,
             'rated_count': len(self.rated_movies),
-            'skipped_count': len(self.skipped_movies),
             'current_movies': self.current_movies,
             'session_phase': 'initial_rating' if self.current_step < self.initial_movies_count else 'active_learning',
             'active_learning_round': self.active_learning_round,
@@ -329,7 +301,6 @@ def get_next_active_learning_movie(session, movie_cache):
             movie_cache.R_matrix,
             session.get_rated_dict(),
             movie_cache.movieId_to_title,
-            session.get_skipped_ids()
         )
 
         # Get additional movie info (genres) from movies dataframe
@@ -412,44 +383,6 @@ def process_rating_submission(session, movie_cache, movie_id, rating):
             session.finalize_session(movie_cache)
 
     return next_movie, message, session_step
-
-
-def process_movie_skip(session, movie_cache, movie_id):
-    """Process movie skip and determine next action"""
-
-    # Get expected rating for this movie (what system would have predicted)
-    expected_rating = session.get_expected_rating_at_time_of_rating(movie_id, movie_cache)
-
-    # Get movie title for metrics
-    movie_title = movie_cache.movieId_to_title.get(movie_id, "Unknown")
-
-    # Store skip with expected rating for analysis
-    session.store_skip(movie_id, movie_title, expected_rating)
-
-    if session.is_in_initial_phase():
-        next_movie = get_next_initial_movie(session)
-        message = "Movie skipped. Continue with initial rating."
-        session_step = 'initial_rating'
-
-        if next_movie is None:
-            message = "Initial movies completed."
-    else:
-        next_movie = get_next_active_learning_movie(session, movie_cache)
-
-        # Active learning phase - check if we should complete
-        if session.is_session_complete():
-            # Session is complete - get a final movie for display only
-            message = "Active learning complete! Here's what we'd recommend next based on your ratings."
-            session_step = 'complete'
-            session.finalize_session(movie_cache)
-        else:
-            round_num = session.active_learning_round
-            max_rounds = session.max_active_learning_rounds
-            message = f"Movie skipped. Round {round_num}/{max_rounds} of active learning."
-            session_step = 'active_learning'
-
-    return next_movie, message, session_step
-
 
 def generate_rating_explanation(session, movie_cache, movie_id):
     """Generate explanations for different rating impacts"""

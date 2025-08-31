@@ -24,7 +24,6 @@ class MetricsRecorder:
         # Session tracking
         self.session_start_time = time.time()
         self.ratings = []  # List of rating data
-        self.skips = []  # List of skip data
         self.session_phase = "initial"  # "initial" or "active_learning"
 
         # Initialize the file with session info
@@ -74,32 +73,6 @@ class MetricsRecorder:
             f.write(f"Time: {time_taken:.2f}s | " if time_taken else "Time: N/A | ")
             f.write(f"Elapsed: {elapsed_since_start:.1f}s\n")
 
-    def record_skip(self, movie_id, movie_title=None, time_taken=None, predicted_rating=None):
-        """Record a movie skip"""
-        timestamp = time.time()
-        elapsed_since_start = timestamp - self.session_start_time
-
-        skip_data = {
-            'movie_id': movie_id,
-            'timestamp': timestamp,
-            'elapsed_since_start': elapsed_since_start,
-            'time_taken': time_taken,
-            'movie_title': movie_title,
-            'session_phase': self.session_phase,
-            'predicted_rating': predicted_rating
-        }
-
-        self.skips.append(skip_data)
-
-        # Append to file immediately
-        with open(self.filepath, 'a') as f:
-            f.write(f"SKIP: {movie_id} | ")
-            f.write(f"Title: {movie_title or 'Unknown'} | ")
-            f.write(f"Expected: {predicted_rating:.2f} | " if predicted_rating else "Expected: N/A | ")
-            f.write(f"Phase: {self.session_phase} | ")
-            f.write(f"Time: {time_taken:.2f}s | " if time_taken else "Time: N/A | ")
-            f.write(f"Elapsed: {elapsed_since_start:.1f}s\n")
-
     def set_phase(self, phase):
         """Update current session phase"""
         self.session_phase = phase
@@ -136,7 +109,6 @@ class MetricsRecorder:
 
         # Calculate metrics
         num_ratings = len(self.ratings)
-        num_skips = len(self.skips)
 
         # Average time per rating (only for ratings with time_taken data)
         ratings_with_time = [r for r in self.ratings if r.get('time_taken') is not None]
@@ -158,7 +130,6 @@ class MetricsRecorder:
             f.write("=" * 60 + "\n")
             f.write(f"Session Duration: {total_session_time:.1f} seconds\n")
             f.write(f"Number of Ratings: {num_ratings}\n")
-            f.write(f"Number of Skips: {num_skips}\n")
             f.write(f"Ratings with Predictions: {ratings_with_predictions}/{num_ratings}\n")
             f.write(
                 f"Average Time per Rating: {avg_time_per_rating:.2f}s\n" if avg_time_per_rating else "Average Time per Rating: N/A\n")
@@ -207,7 +178,6 @@ class MetricsRecorder:
         return {
             'session_duration': total_session_time,
             'num_ratings': num_ratings,
-            'num_skips': num_skips,
             'avg_time_per_rating': avg_time_per_rating,
             'rmse': rmse,
             'ratings_with_predictions': ratings_with_predictions
@@ -230,7 +200,6 @@ class MetricsRecorder:
         return {
             'session_duration': session_duration,
             'num_ratings': len(self.ratings),
-            'num_skips': len(self.skips),
             'avg_time_per_rating': avg_time_per_rating,
             'current_rmse': current_rmse
         }

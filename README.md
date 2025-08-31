@@ -4,7 +4,7 @@ This repository contains Django implementations of Human-Centric Artificial Inte
 
 ---
 
-## 🏗 Project Structure
+## Project Structure
 
 The project is organized into 5 main parts:
 
@@ -62,7 +62,7 @@ The project is organized into 5 main parts:
 - Install **Docker** and **Docker Compose** on your system
   - Docker Desktop for Mac/Windows: https://www.docker.com/products/docker-desktop/
   - Linux: `sudo apt install docker.io docker-compose`
- 
+
 ### Steps
 1. **Clone the repository**:
      `git clone https://github.com/sevenxx07/Human-CentricAI_Project.git`
@@ -80,4 +80,11 @@ The project is organized into 5 main parts:
 
 4. **Stop the project**:
    `docker-compose down`
+
+### Windows specific settings:
+If you are running the docker on Windows follow also these additional steps:
+
+1. **docker-compose.yml** - remove line 6 `network: host`
+
+2. make sure your **windows firewall** is not blocking proper docker composing
 
